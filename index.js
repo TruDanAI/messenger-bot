@@ -146,6 +146,60 @@ CÁCH TƯ VẤN:
 const SYSTEM_PROMPT = buildSystemPrompt();
 
 // ========== HÀM GỌI GEMINI ==========
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getGeminiErrorInfo(err) {
+  const error = err?.response?.data?.error || {};
+  return {
+    httpStatus: err?.response?.status,
+    code: error.code,
+    status: error.status,
+    message: error.message || err?.message || 'Unknown Gemini error'
+  };
+}
+
+function isGeminiRetryableError(err) {
+  const info = getGeminiErrorInfo(err);
+  const message = String(info.message || '').toLowerCase();
+  return info.httpStatus === 503
+    || info.code === 503
+    || info.status === 'UNAVAILABLE'
+    || message.includes('high demand')
+    || message.includes('temporarily unavailable')
+    || message.includes('timeout');
+}
+
+async function postGeminiWithRetry(history) {
+  const maxAttempts = 3;
+  let lastErr;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await axios.post(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: history,
+          generationConfig: { temperature: 0.8, maxOutputTokens: 400 }
+        },
+        { timeout: 20000 }
+      );
+    } catch (err) {
+      lastErr = err;
+      if (!isGeminiRetryableError(err) || attempt === maxAttempts) break;
+
+      const delayMs = 1000 * (2 ** (attempt - 1));
+      const info = getGeminiErrorInfo(err);
+      console.warn(`⚠️  Gemini tạm quá tải, retry ${attempt}/${maxAttempts - 1} sau ${delayMs}ms: ${info.message}`);
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastErr;
+}
+
 async function callGemini(userId, userMessage) {
   const history = storage.getHistory(userId);
   history.push({ role: 'user', parts: [{ text: userMessage }] });
@@ -153,15 +207,7 @@ async function callGemini(userId, userMessage) {
   // Giữ tối đa 20 tin nhắn để tiết kiệm token
   if (history.length > 20) history.splice(0, history.length - 20);
 
-  const res = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      contents: history,
-      generationConfig: { temperature: 0.8, maxOutputTokens: 400 }
-    },
-    { timeout: 20000 }
-  );
+  const res = await postGeminiWithRetry(history);
 
   const botReply = res.data.candidates?.[0]?.content?.parts?.[0]?.text
     || 'Xin lỗi anh/chị, em chưa hiểu ý. Anh/chị có thể nói rõ hơn không ạ? 😊';
@@ -367,10 +413,19 @@ function buildRequestedImageUrls(userText, userId, baseUrlOverride = '') {
     .filter(x => x.url);
 }
 
-function isGeminiQuotaError(err) {
-  const code = err?.response?.data?.error?.code;
-  const message = String(err?.response?.data?.error?.message || err?.message || '').toLowerCase();
-  return code === 429 || message.includes('quota') || message.includes('resource_exhausted');
+function shouldUseFallbackReply(err) {
+  const info = getGeminiErrorInfo(err);
+  const message = String(info.message || '').toLowerCase();
+  return info.httpStatus === 429
+    || info.httpStatus === 503
+    || info.code === 429
+    || info.code === 503
+    || info.status === 'RESOURCE_EXHAUSTED'
+    || info.status === 'UNAVAILABLE'
+    || message.includes('quota')
+    || message.includes('resource_exhausted')
+    || message.includes('high demand')
+    || message.includes('unavailable');
 }
 
 function buildFallbackReply(userText) {
@@ -514,13 +569,14 @@ async function handleEvent(event, baseUrlOverride = '') {
     await sendMessage(senderId, reply);
     console.log(`✉️  Đã gửi tin tới ${senderId}`);
   } catch (err) {
-    console.error('❌ Lỗi xử lý tin:', err.response?.data || err.message);
-    if (isGeminiQuotaError(err)) {
+    const geminiInfo = getGeminiErrorInfo(err);
+    console.error('❌ Lỗi xử lý tin:', err.response?.data || err.message || geminiInfo);
+    if (shouldUseFallbackReply(err)) {
       try {
         await imagePromise;
         const fallback = buildFallbackReply(userText);
         await sendMessage(senderId, fallback);
-        console.log(`🛟 Fallback do quota: ${fallback.slice(0, 120).replace(/\n/g, ' ')}`);
+        console.log(`🛟 Fallback do Gemini lỗi (${geminiInfo.status || geminiInfo.code || geminiInfo.httpStatus}): ${fallback.slice(0, 120).replace(/\n/g, ' ')}`);
       } catch {}
       return;
     }
