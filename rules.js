@@ -180,6 +180,23 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     return /(18\+|du\s*tuoi|bao\s*nhieu\s*tuoi|vi\s*thanh\s*nien|duoi\s*18|chua\s*18|\b1[0-7]\s*tuoi\b)/.test(t);
   }
 
+  function isSimpleGreeting(text) {
+    const t = normalizeText(text).trim();
+    return /^(xin\s*)?(chao|hello|hi|alo|shop|em\s*oi|chi\s*oi|anh\s*oi)(\s+(shop|em|chi|anh|ban))?[.!?\s]*$/.test(t);
+  }
+
+  function providesName(text) {
+    const t = normalizeText(text);
+    return /\b(minh|em|anh|chi|toi)\s*(ten|la)\s+[\p{L}\s]{2,40}$/u.test(t)
+      || /\bten\s*(nguoi\s*nhan)?\s*(la|:)\s*[\p{L}\s]{2,40}/u.test(t);
+  }
+
+  function providesAddress(text) {
+    const t = normalizeText(text);
+    return /\b(dia\s*chi|dc|o|tai|giao\s*ve|ship\s*ve)\b/.test(t)
+      || /(\b(xa|phuong|huyen|quan|tinh|thanh\s*pho|tp)\b|[-,].+[-,])/.test(t);
+  }
+
   function wantsReturnPolicy(text) {
     const t = normalizeText(text);
     return /(doi\s*tra|bao\s*hanh|\bloi\b|\bhong\b|kiem\s*hang|kiem\s*tra|mo\s*hang|tra\s*hang|hoan\s*tien)/.test(t);
@@ -236,6 +253,17 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
     if (wantsAgePolicy(userText)) {
       return `Dạ sản phẩm bên ${config.shopName} chỉ tư vấn và bán cho khách từ đủ ${config.minAge} tuổi trở lên ạ. Nếu anh/chị đã đủ ${config.minAge} tuổi thì em hỗ trợ tư vấn bình thường nhé.`;
+    }
+
+    if (isSimpleGreeting(userText)) {
+      return 'Dạ em chào anh/chị ạ. Anh/chị muốn xem danh sách sản phẩm, hỏi theo ngân sách, hay đang quan tâm mã nào để em tư vấn nhanh nhé.';
+    }
+
+    if (providesName(userText) || providesAddress(userText)) {
+      if (selectedProduct) {
+        return `Dạ em nhận thông tin rồi ạ. Để chốt ${selectedProduct.code}, anh/chị gửi thêm SĐT nếu chưa gửi để shop xác nhận đơn và giao hàng nhé.`;
+      }
+      return 'Dạ em nhận thông tin rồi ạ. Anh/chị chọn giúp em mã sản phẩm muốn lấy, hoặc nhắn “menu” để em gửi danh sách sản phẩm nhé.';
     }
 
     if (requestedCodes.length && !found.length) {
