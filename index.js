@@ -242,6 +242,8 @@ async function callGemini(userId, userMessage) {
 }
 
 // ========== HÀM GỬI TIN NHẮN FB ==========
+const BOT_MESSAGE_METADATA = 'shop-bot:auto-reply';
+
 async function sendMessage(recipientId, text) {
   const chunks = [];
   while (text.length > 0) {
@@ -252,7 +254,7 @@ async function sendMessage(recipientId, text) {
   for (const chunk of chunks) {
     await axios.post(
       `https://graph.facebook.com/v19.0/me/messages?access_token=${FB_PAGE_TOKEN}`,
-      { recipient: { id: recipientId }, message: { text: chunk } },
+      { recipient: { id: recipientId }, message: { text: chunk, metadata: BOT_MESSAGE_METADATA } },
       { timeout: 10000 }
     );
   }
@@ -265,6 +267,7 @@ async function sendImage(recipientId, imageUrl) {
     {
       recipient: { id: recipientId },
       message: {
+        metadata: BOT_MESSAGE_METADATA,
         attachment: {
           type: 'image',
           payload: { url: imageUrl, is_reusable: true }
@@ -304,6 +307,15 @@ function verifySignature(req) {
 
 // ========== HUMAN HANDOFF ==========
 const HANDOFF_MS = 30 * 60 * 1000; // 30 phút
+
+function isBotEcho(event) {
+  const message = event.message || {};
+  return message.metadata === BOT_MESSAGE_METADATA || Boolean(message.app_id);
+}
+
+function getEchoCustomerId(event) {
+  return event.recipient?.id || event.sender?.id || '';
+}
 
 function inferBaseUrlFromRequest(req) {
   const forwardedProto = req.get('x-forwarded-proto');
@@ -474,9 +486,15 @@ async function handleEvent(event, baseUrlOverride = '') {
   const senderId = event.sender?.id;
   if (!senderId) return;
 
-  // Echo: tin do page gửi đi → nhân viên đang trả lời tay → tạm dừng bot
+  // Echo: tin bot tự gửi thì bỏ qua; tin page/người trực gửi tay thì tạm dừng đúng khách.
   if (event.message?.is_echo) {
-    storage.setHandoff(senderId, Date.now() + HANDOFF_MS);
+    if (!isBotEcho(event)) {
+      const customerId = getEchoCustomerId(event);
+      if (customerId) {
+        storage.setHandoff(customerId, Date.now() + HANDOFF_MS);
+        console.log(`⏸️  Bật handoff do người trực trả lời: ${customerId}`);
+      }
+    }
     return;
   }
 

@@ -222,6 +222,16 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     return /(tang|qua|gel\s*tang|kem\s*theo|combo)/.test(t);
   }
 
+  function wantsFitInfo(text) {
+    const t = normalizeText(text);
+    return /(khit|chat|om|rong|co\s*gian|mem|that\s*khong|giong\s*that)/.test(t);
+  }
+
+  function wantsCleaningInfo(text) {
+    const t = normalizeText(text);
+    return /(ve\s*sinh|rua|lam\s*sach|giat|khu\s*mui|bao\s*quan|co\s*rua\s*duoc)/.test(t);
+  }
+
   function asksForOrderInfo(text) {
     const t = normalizeText(text);
     return /(dia\s*chi|sdt|so\s*dien\s*thoai|ten\s*nguoi\s*nhan|thong\s*tin\s*giao\s*hang|hoi\s*dia\s*chi)/.test(t);
@@ -246,6 +256,11 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
     if (found.length) rememberLastProduct(userId, found[0]);
     else if (keywordProduct) rememberLastProduct(userId, keywordProduct);
+
+    if (looksLikePhone(userText) && (providesName(userText) || providesAddress(userText))) {
+      const productText = selectedProduct ? ` cho ${selectedProduct.code}` : '';
+      return `Dạ em đã nhận thông tin giao hàng${productText} rồi ạ. Shop sẽ kiểm tra và xác nhận lại đơn với anh/chị trước khi gửi hàng nhé.`;
+    }
 
     if (looksLikePhone(userText)) {
       return `Dạ em đã nhận SĐT của anh/chị rồi ạ. Anh/chị gửi thêm ${config.policies.orderInfoFields.replace('SĐT + ', '')} giúp em để ${config.shopName} xác nhận đơn nhé.`;
@@ -334,6 +349,14 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
     if (wantsGiftInfo(userText) && selectedProduct) {
       return `Dạ ${compactProductName(selectedProduct)}${selectedProduct.gift ? ` được tặng ${selectedProduct.gift}` : ' hiện chưa có quà tặng ghi riêng trong danh sách'} ạ. Shop vẫn miễn ship và gói kín cho mình nhé.`;
+    }
+
+    if (wantsFitInfo(userText) && selectedProduct) {
+      return `Dạ ${selectedProduct.code} chất liệu mềm và thiết kế ôm/khít theo mô tả sản phẩm ạ. Khi dùng anh/chị có thể dùng thêm gel bôi trơn để thoải mái hơn, shop có gel nếu mình cần kèm theo nhé.`;
+    }
+
+    if (wantsCleaningInfo(userText) && selectedProduct) {
+      return `Dạ vệ sinh được ạ. Sau khi dùng anh/chị rửa nhẹ bằng nước sạch hoặc dung dịch vệ sinh chuyên dụng, lau khô rồi để nơi thoáng mát; tránh ngâm phần pin/sạc nếu mẫu có điện ạ.`;
     }
 
     if (found.length) {
