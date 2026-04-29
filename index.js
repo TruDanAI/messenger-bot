@@ -446,6 +446,63 @@ function isProbablyIncompleteReply(reply, userText) {
   return looksLikeBudgetAdvice && text.length < 180 && endsAbruptly;
 }
 
+function cleanLeadPart(text) {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[,:;\-\s]+|[,:;\-\s]+$/g, '')
+    .trim();
+}
+
+function stripLeadPrefixes(text) {
+  return cleanLeadPart(text)
+    .replace(/^(?:tên người nhận|ten nguoi nhan|người nhận|nguoi nhan|tên|ten)\s*(?:là|la|:)?\s*/i, '')
+    .replace(/^(?:địa chỉ|dia chi|dc|ship về|ship ve|giao về|giao ve)\s*(?:là|la|:)?\s*/i, '')
+    .trim();
+}
+
+function splitNameAndAddress(text) {
+  const withoutPhone = String(text || '').replace(/(?:\+?84|0)\d{8,10}/g, ' ');
+  const lines = withoutPhone
+    .split(/\r?\n/)
+    .map(line => stripLeadPrefixes(line))
+    .filter(Boolean);
+
+  if (lines.length >= 2) {
+    return {
+      name: lines[0],
+      address: cleanLeadPart(lines.slice(1).join(', '))
+    };
+  }
+
+  const rest = stripLeadPrefixes(lines[0] || withoutPhone);
+  if (!rest) return { name: '', address: '' };
+
+  const addressStart = normalizeText(rest).search(/\b(so|nha|ngo|ngach|duong|thon|xom|ap|xa|phuong|huyen|quan|tinh|tp|thanh pho)\b/i);
+  if (addressStart > 0) {
+    return {
+      name: cleanLeadPart(rest.slice(0, addressStart)),
+      address: cleanLeadPart(rest.slice(addressStart))
+    };
+  }
+
+  const parts = rest.split(/\s+/);
+  if (parts.length <= 3) return { name: rest, address: '' };
+  return {
+    name: cleanLeadPart(parts.slice(0, 2).join(' ')),
+    address: cleanLeadPart(parts.slice(2).join(' '))
+  };
+}
+
+function buildLeadDetails(userText, senderId) {
+  const mentionedCode = extractRequestedProductCodes(userText)[0] || '';
+  const productCode = mentionedCode || storage.getLastProductCode(senderId) || '';
+  return {
+    productCode,
+    phone: extractPhone(userText),
+    ...splitNameAndAddress(userText)
+  };
+}
+
 // ========== WEBHOOK VERIFY (Meta yêu cầu) ==========
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -535,10 +592,11 @@ async function handleEvent(event, baseUrlOverride = '') {
   // Nhận diện sđt → ghi lead vào customers.csv để nhân viên xem lại.
   // Phần storage tự xếp hàng ghi file để nhiều khách nhắn cùng lúc không làm lẫn dòng CSV.
   if (looksLikePhone(userText)) {
+    const leadDetails = buildLeadDetails(userText, senderId);
     storage.appendCustomer({
       type: 'lead',
       senderId,
-      phone: extractPhone(userText),
+      ...leadDetails,
       text: userText,
       history: storage.getHistory(senderId).slice(-10),
       at: new Date().toISOString()
@@ -644,5 +702,6 @@ if (require.main === module) {
 
 module.exports = {
   buildDeterministicReply,
-  buildFallbackReply
+  buildFallbackReply,
+  buildLeadDetails
 };

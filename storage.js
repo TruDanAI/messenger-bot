@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { parse } = require('csv-parse/sync');
 
 // DATA_DIR có thể trỏ sang Railway Volume, ví dụ DATA_DIR=/data.
 // Nếu không set env, bot vẫn dùng thư mục data/ local như trước.
@@ -7,12 +8,10 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'chat-state.json');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.csv');
 const MIDS_FILE = path.join(DATA_DIR, 'processed-mids.json');
-const CUSTOMER_HEADERS = ['at', 'type', 'senderId', 'phone', 'text', 'history'];
+const CUSTOMER_HEADERS = ['at', 'type', 'senderId', 'productCode', 'phone', 'name', 'address', 'text', 'history'];
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(CUSTOMERS_FILE)) {
-  fs.writeFileSync(CUSTOMERS_FILE, CUSTOMER_HEADERS.join(',') + '\n');
-}
+ensureCustomersFile();
 
 function loadJSON(file, fallback) {
   try {
@@ -56,6 +55,36 @@ function csvCell(value) {
   // Escape theo chuẩn CSV: dấu " trong nội dung phải nhân đôi, ô có dấu phẩy/xuống dòng phải bọc quote.
   if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
   return text;
+}
+
+function ensureCustomersFile() {
+  if (!fs.existsSync(CUSTOMERS_FILE)) {
+    fs.writeFileSync(CUSTOMERS_FILE, CUSTOMER_HEADERS.join(',') + '\n');
+    return;
+  }
+
+  const csv = fs.readFileSync(CUSTOMERS_FILE, 'utf8');
+  const firstLine = csv.split(/\r?\n/, 1)[0] || '';
+  const currentHeaders = firstLine.split(',').map(header => header.trim());
+  const hasAllHeaders = CUSTOMER_HEADERS.every(header => currentHeaders.includes(header));
+  if (hasAllHeaders) return;
+
+  try {
+    const rows = parse(csv, {
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true,
+      trim: false
+    });
+    const migrated = [
+      CUSTOMER_HEADERS.join(','),
+      ...rows.map(row => CUSTOMER_HEADERS.map(header => csvCell(row[header] || '')).join(','))
+    ].join('\n') + '\n';
+    fs.writeFileSync(CUSTOMERS_FILE, migrated, 'utf8');
+    console.log('✅ Đã nâng cấp customers.csv với các cột lead mới.');
+  } catch (e) {
+    console.warn(`⚠️ Không nâng cấp được customers.csv: ${e.message}`);
+  }
 }
 
 function appendCustomerQueued(customer) {
@@ -130,7 +159,10 @@ module.exports = {
       at: customer.at || new Date().toISOString(),
       type: customer.type || 'lead',
       senderId: customer.senderId || '',
+      productCode: customer.productCode || '',
       phone: customer.phone || '',
+      name: customer.name || '',
+      address: customer.address || '',
       text: customer.text || '',
       history: customer.history || ''
     });
