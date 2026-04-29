@@ -4,6 +4,7 @@ function normalizeText(text) {
   return String(text || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
     .toLowerCase();
 }
 
@@ -38,7 +39,7 @@ function explainPrice(price) {
   return text;
 }
 
-function createRuleEngine({ products, config = defaultConfig } = {}) {
+function createRuleEngine({ products, config = defaultConfig, contextStore = {} } = {}) {
   const productList = products || [];
   const productByCode = new Map(productList.map(p => [String(p.code || '').toUpperCase(), p]));
   const lastProductByUser = new Map();
@@ -60,7 +61,18 @@ function createRuleEngine({ products, config = defaultConfig } = {}) {
   }
 
   function rememberLastProduct(userId, product) {
-    if (userId && product) lastProductByUser.set(userId, product);
+    if (!userId || !product) return;
+    lastProductByUser.set(userId, product);
+    if (contextStore.setLastProductCode) contextStore.setLastProductCode(userId, product.code);
+  }
+
+  function getLastProduct(userId) {
+    const memoryProduct = lastProductByUser.get(userId);
+    if (memoryProduct) return memoryProduct;
+
+    const code = contextStore.getLastProductCode ? contextStore.getLastProductCode(userId) : '';
+    if (!code) return null;
+    return productByCode.get(String(code).toUpperCase()) || null;
   }
 
   function compactProductName(product) {
@@ -188,6 +200,11 @@ function createRuleEngine({ products, config = defaultConfig } = {}) {
     return /(tang|qua|gel\s*tang|kem\s*theo|combo)/.test(t);
   }
 
+  function asksForOrderInfo(text) {
+    const t = normalizeText(text);
+    return /(dia\s*chi|sdt|so\s*dien\s*thoai|ten\s*nguoi\s*nhan|thong\s*tin\s*giao\s*hang|hoi\s*dia\s*chi)/.test(t);
+  }
+
   function wantsFeatureAdvice(text) {
     const t = normalizeText(text);
     return /(rung|pin|sac|lam\s*am|buom|3\s*lo|ba\s*lo|silicon|mong|lon|to|nho\s*gon)/.test(t);
@@ -197,7 +214,7 @@ function createRuleEngine({ products, config = defaultConfig } = {}) {
     const t = normalizeText(userText);
     const found = getMentionedProducts(userText);
     const keywordProduct = getKeywordProduct(userText);
-    const selectedProduct = found[0] || keywordProduct || lastProductByUser.get(userId);
+    const selectedProduct = found[0] || keywordProduct || getLastProduct(userId);
     const wantsVibration = /\brung\b|co\s*pin|sac\s*pin/.test(t);
     const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
     const wantsPhoto = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
@@ -213,6 +230,11 @@ function createRuleEngine({ products, config = defaultConfig } = {}) {
 
     if (wantsAgePolicy(userText)) {
       return `Dạ sản phẩm bên ${config.shopName} chỉ tư vấn và bán cho khách từ đủ ${config.minAge} tuổi trở lên ạ. Nếu anh/chị đã đủ ${config.minAge} tuổi thì em hỗ trợ tư vấn bình thường nhé.`;
+    }
+
+    if (asksForOrderInfo(userText)) {
+      const productText = selectedProduct ? ` ${selectedProduct.code}` : '';
+      return `Dạ có ạ, để chốt đơn${productText} anh/chị gửi giúp em ${config.policies.orderInfoFields} nhé. Shop sẽ xác nhận lại đơn trước khi giao.`;
     }
 
     // Chốt đơn là intent quan trọng nhất: xử lý trước rule báo thông tin sản phẩm.

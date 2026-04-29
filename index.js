@@ -10,7 +10,14 @@ const storage = require('./storage');
 const shopConfig = require('./shop-config');
 const { createRuleEngine } = require('./rules');
 
-const rules = createRuleEngine({ products, config: shopConfig });
+const rules = createRuleEngine({
+  products,
+  config: shopConfig,
+  contextStore: {
+    getLastProductCode: userId => storage.getLastProductCode(userId),
+    setLastProductCode: (userId, code) => storage.setLastProductCode(userId, code)
+  }
+});
 const {
   buildDeterministicReply,
   buildFallbackReply,

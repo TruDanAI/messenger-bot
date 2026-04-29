@@ -24,7 +24,10 @@ function loadJSON(file, fallback) {
   }
 }
 
-const state = loadJSON(STATE_FILE, { history: {}, handoff: {} });
+const state = loadJSON(STATE_FILE, { history: {}, handoff: {}, context: {} });
+if (!state.history) state.history = {};
+if (!state.handoff) state.handoff = {};
+if (!state.context) state.context = {};
 const mids = new Set(loadJSON(MIDS_FILE, []));
 const MID_LIMIT = 5000;
 let customerWriteQueue = Promise.resolve();
@@ -95,6 +98,17 @@ module.exports = {
       return false;
     }
     return true;
+  },
+
+  getLastProductCode(userId) {
+    return state.context[userId]?.lastProductCode || '';
+  },
+
+  setLastProductCode(userId, code) {
+    if (!userId || !code) return;
+    if (!state.context[userId]) state.context[userId] = {};
+    state.context[userId].lastProductCode = code;
+    scheduleSave();
   },
 
   seenMid(mid) {
