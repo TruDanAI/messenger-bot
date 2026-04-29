@@ -20,7 +20,7 @@ function extractPhone(text) {
 function extractRequestedProductCodes(text) {
   const t = normalizeText(text);
   const codes = new Set();
-  const re = /\bma\s*0*(\d{1,2})\b/g;
+  const re = /\b(?:ma|mau|sp|san\s*pham)\s*0*(\d{1,2})\b/g;
   let m;
   while ((m = re.exec(t))) {
     codes.add(`MÃ${Number(m[1])}`);
@@ -122,11 +122,16 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
   function wantsMenuImages(text) {
     const t = normalizeText(text);
-    return /(xem|gui|cho|coi|tham\s*khao).*(menu|bang gia|danh muc|danh sach|hinh|anh|catalog|san pham|cac san pham|mau|hang)/.test(t)
+    return /(xem|gui|cho|coi|tham\s*khao).*(menu|bang gia|danh muc|danh sach|catalog|san pham|cac san pham|hang)/.test(t)
       || /\bmenu\b/.test(t)
       || /\bcatalog\b/.test(t)
       || /\bdanh\s*sach\s*san\s*pham\b/.test(t)
       || /\bcac\s*san\s*pham\b/.test(t);
+  }
+
+  function wantsProductImage(text) {
+    const t = normalizeText(text);
+    return /\b(anh|hinh|photo)\b/.test(t);
   }
 
   function wantsKeywordImage(text, keyword) {
@@ -212,6 +217,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
   function buildDeterministicReply(userText, userId) {
     const t = normalizeText(userText);
+    const requestedCodes = extractRequestedProductCodes(userText);
     const found = getMentionedProducts(userText);
     const keywordProduct = getKeywordProduct(userText);
     const selectedProduct = found[0] || keywordProduct || getLastProduct(userId);
@@ -230,6 +236,14 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
     if (wantsAgePolicy(userText)) {
       return `Dạ sản phẩm bên ${config.shopName} chỉ tư vấn và bán cho khách từ đủ ${config.minAge} tuổi trở lên ạ. Nếu anh/chị đã đủ ${config.minAge} tuổi thì em hỗ trợ tư vấn bình thường nhé.`;
+    }
+
+    if (requestedCodes.length && !found.length) {
+      return `Dạ hiện shop chưa có ${requestedCodes.join(', ')} trong danh sách ạ. Anh/chị xem menu rồi chọn mã khác giúp em nhé, hoặc cho em biết ngân sách/nhu cầu để em gợi ý mẫu gần nhất.`;
+    }
+
+    if (wantsMenuImages(userText) && !found.length) {
+      return 'Dạ em gửi menu ảnh sản phẩm cho anh/chị rồi ạ. Anh/chị xem mẫu nào ưng thì nhắn mã (ví dụ MÃ8 hoặc ma8), em báo giá và tư vấn nhanh hơn nhé.';
     }
 
     if (asksForOrderInfo(userText)) {
@@ -284,6 +298,10 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
     if (wantsSizeInfo(userText) && selectedProduct) {
       return `Dạ ${selectedProduct.code} có size ${selectedProduct.size || 'shop sẽ xác nhận thêm'}${selectedProduct.weight ? `, nặng khoảng ${selectedProduct.weight}` : ''}. ${selectedProduct.description}.`;
+    }
+
+    if (wantsProductImage(userText) && selectedProduct) {
+      return `Dạ em gửi ảnh ${selectedProduct.code} cho anh/chị tham khảo nhé. ${compactProductName(selectedProduct)}, anh/chị muốn chốt thì gửi giúp em ${config.policies.orderInfoFields} ạ.`;
     }
 
     if (wantsGiftInfo(userText) && selectedProduct) {
@@ -346,7 +364,8 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     normalizeText,
     wantsHuman,
     wantsKeywordImage,
-    wantsMenuImages
+    wantsMenuImages,
+    wantsProductImage
   };
 }
 

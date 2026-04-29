@@ -27,7 +27,8 @@ const {
   normalizeText,
   wantsHuman,
   wantsKeywordImage,
-  wantsMenuImages
+  wantsMenuImages,
+  wantsProductImage
 } = rules;
 
 // ========== ENV ==========
@@ -381,6 +382,14 @@ function buildRequestedImages(userText, userId) {
       const file = getImageFilenameForProduct(p);
       if (file) { files.push(file); reasons.push(code); }
     }
+  }
+
+  // Nếu khách chỉ nói "xem ảnh" sau khi vừa hỏi/chốt một mã, gửi lại ảnh của mã gần nhất thay vì menu.
+  if (!files.length && wantsProductImage(userText)) {
+    const lastCode = storage.getLastProductCode(userId);
+    const product = products.find(p => String(p.code || '').toUpperCase() === String(lastCode || '').toUpperCase());
+    const file = getImageFilenameForProduct(product);
+    if (file) { files.push(file); reasons.push(lastCode); }
   }
 
   const unique = [...new Set(files)].slice(0, 6);
