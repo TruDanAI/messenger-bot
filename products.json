@@ -1,0 +1,15 @@
+[
+  { "code": "MÃ1",  "price": "450k",          "description": "Có mông nhỏ, silicon loại 1, bao phê bao khít",                            "size": "11x22cm",  "weight": "790g",   "gift": "5 gói gel",  "preorder": false, "imageFile": null },
+  { "code": "MÃ2",  "price": "300k",          "description": "Có pin, nhỏ gọn, rung đầu khắc",                                            "size": "8x25cm",   "weight": "450g",   "gift": "5 gói gel",  "preorder": false, "imageFile": "ma2.jpg" },
+  { "code": "MÃ3",  "price": "300k",          "description": "Nhỏ gọn, silicon loại 1, bao phê bao khít, chạm tinh hoàn",                "size": "7x15cm",   "weight": "480g",   "gift": "5 gói gel",  "preorder": false, "imageFile": "ma3.jpg" },
+  { "code": "MÃ4",  "price": "980k",          "description": "Mô phỏng mông thật, silicon loại 1, chim size vừa",                         "size": "15x28cm",  "weight": "2800g",  "gift": "10 gói gel", "preorder": false, "imageFile": "ma4.jpg" },
+  { "code": "MÃ6",  "price": "550k",          "description": "Silicon loại 1, 3 lỗ siêu tiện",                                            "size": "9x22cm",   "weight": "800g",   "gift": "10 gói gel", "preorder": false, "imageFile": "ma6.jpg" },
+  { "code": "MÃ7",  "price": "560k",          "description": "Có bướm, silicon loại 1, bao phê, giống nhau nhưng khác kích thước",       "size": "12x25cm",  "weight": "1200g",  "gift": "10 gói gel", "preorder": false, "imageFile": "ma7.jpg" },
+  { "code": "MÃ8",  "price": "680k",          "description": "Sạc pin tiện lợi, làm ấm, nhiều chế độ rung, kèm tai nghe",                "size": "10x22cm",  "weight": "1000g",  "gift": "10 gói gel", "preorder": false, "imageFile": "ma8.png" },
+  { "code": "MÃ9",  "price": "950k",          "description": "Có bướm, silicon loại 1, bao phê, kích thước lớn",                          "size": "20x35cm",  "weight": "2500g",  "gift": "10 gói gel", "preorder": false, "imageFile": "ma9.jpg" },
+  { "code": "MÃ10", "price": "150k",          "description": "Nhỏ gọn, silicon loại 1, bao phê bao khít, chạm tinh hoàn",                "size": "7x15cm",   "weight": "300g",   "gift": "5 gói gel",  "preorder": false, "imageFile": "ma10.jpg" },
+  { "code": "MÃ11", "price": "300k",          "description": "Có bướm nhỏ gọn, silicon loại 1, bao phê, chạm tinh hoàn",                 "size": "7.5x16cm", "weight": "510g",   "gift": "5 gói gel",  "preorder": false, "imageFile": "ma11.jpg" },
+  { "code": "MÃ12", "price": "2.180k",        "description": "Có bướm, silicon loại 1, kích thước lớn tăng cảm giác chân thật",          "size": "25x43cm",  "weight": "5500g",  "gift": "20 gói gel", "preorder": true,  "imageFile": "ma12.jpg" },
+  { "code": "MÃ13", "price": "7.450k",        "description": "Mô phỏng người thật đầy đủ bộ phận, silicon loại 1",                       "size": "100cm",    "weight": "15000g", "gift": "30 gói gel", "preorder": true,  "imageFile": "ma13.jpg" },
+  { "code": "Gel bôi trơn", "price": "150k/chai 200ml", "description": "Tặng 5 gói gel khi mua", "imageFile": "gel.jpg" }
+]
