@@ -1,12 +1,18 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
+// DATA_DIR có thể trỏ sang Railway Volume, ví dụ DATA_DIR=/data.
+// Nếu không set env, bot vẫn dùng thư mục data/ local như trước.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'chat-state.json');
-const ORDERS_FILE = path.join(DATA_DIR, 'orders.jsonl');
+const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.csv');
 const MIDS_FILE = path.join(DATA_DIR, 'processed-mids.json');
+const CUSTOMER_HEADERS = ['at', 'type', 'senderId', 'phone', 'text', 'history'];
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(CUSTOMERS_FILE)) {
+  fs.writeFileSync(CUSTOMERS_FILE, CUSTOMER_HEADERS.join(',') + '\n');
+}
 
 function loadJSON(file, fallback) {
   try {
@@ -21,6 +27,7 @@ function loadJSON(file, fallback) {
 const state = loadJSON(STATE_FILE, { history: {}, handoff: {} });
 const mids = new Set(loadJSON(MIDS_FILE, []));
 const MID_LIMIT = 5000;
+let customerWriteQueue = Promise.resolve();
 
 let saveTimer = null;
 function scheduleSave() {
@@ -34,6 +41,34 @@ function scheduleSave() {
       if (err) console.error('Lỗi ghi mids:', err.message);
     });
   }, 1500);
+}
+
+function csvCell(value) {
+  const text = value == null
+    ? ''
+    : typeof value === 'string'
+      ? value
+      : JSON.stringify(value);
+
+  // Escape theo chuẩn CSV: dấu " trong nội dung phải nhân đôi, ô có dấu phẩy/xuống dòng phải bọc quote.
+  if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function appendCustomerQueued(customer) {
+  const line = CUSTOMER_HEADERS
+    .map(key => csvCell(customer[key]))
+    .join(',') + '\n';
+
+  // Queue này đảm bảo trong cùng một process Node chỉ có 1 lệnh appendFile chạy tại một thời điểm.
+  // Nhờ vậy khi nhiều khách gửi SĐT đồng thời, mỗi lead vẫn được ghi thành một dòng CSV riêng.
+  customerWriteQueue = customerWriteQueue
+    .then(() => fs.promises.appendFile(CUSTOMERS_FILE, line, 'utf8'))
+    .catch(err => {
+      console.error('Lỗi ghi customers.csv:', err.message);
+    });
+
+  return customerWriteQueue;
 }
 
 module.exports = {
@@ -76,9 +111,14 @@ module.exports = {
     scheduleSave();
   },
 
-  appendOrder(order) {
-    fs.appendFile(ORDERS_FILE, JSON.stringify(order) + '\n', err => {
-      if (err) console.error('Lỗi ghi đơn:', err.message);
+  appendCustomer(customer) {
+    return appendCustomerQueued({
+      at: customer.at || new Date().toISOString(),
+      type: customer.type || 'lead',
+      senderId: customer.senderId || '',
+      phone: customer.phone || '',
+      text: customer.text || '',
+      history: customer.history || ''
     });
   }
 };

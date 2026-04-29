@@ -51,6 +51,7 @@ npm run dev
 2. **New Project → Deploy from GitHub repo** (push code lên GitHub trước)
 3. Sau khi deploy: **Settings** → copy domain (`xxx.railway.app`)
 4. **Variables** → thêm 4 biến `GEMINI_API_KEY`, `FB_PAGE_TOKEN`, `FB_VERIFY_TOKEN`, `FB_APP_SECRET`
+5. Nếu muốn lưu lead không mất sau restart/deploy: tạo Railway Volume, mount vào `/data`, rồi thêm biến `DATA_DIR=/data`
 
 ---
 
@@ -77,31 +78,35 @@ npm run dev
 
 ## TÍNH NĂNG MỚI
 
-### Tách sản phẩm ra `products.json`
-Muốn thêm/sửa sản phẩm: chỉ cần sửa file `products.json`, không cần đụng code.
+### Tách sản phẩm ra `products.csv`
+Muốn thêm/sửa sản phẩm: chỉ cần sửa file `products.csv`, không cần đụng code.
+Bot đọc file CSV một lần lúc khởi động, nên sau khi sửa sản phẩm trên production cần restart service.
 
-```json
-{
-  "code": "MÃ14",
-  "price": "500k",
-  "description": "Mô tả ngắn",
-  "size": "10x20cm",
-  "weight": "700g",
-  "gift": "5 gói gel",
-  "preorder": false
-}
+```csv
+code,price,description,size,weight,gift,preorder,imageFile
+MÃ14,500k,Mô tả ngắn,10x20cm,700g,5 gói gel,false,ma14.jpg
 ```
+
+### Cấu hình shop/rule-based
+Các chính sách và nhóm sản phẩm gợi ý nằm trong `shop-config.js`.
+Khi đổi sang dự án/shop khác, thường chỉ cần sửa:
+
+- `products.csv`: danh sách sản phẩm, giá, mô tả, ảnh
+- `shop-config.js`: miễn ship, COD/đặt cọc, thời gian hàng đặt, tuổi tối thiểu, nhóm sản phẩm gợi ý
+
+Phần rule xử lý intent nằm trong `rules.js`, còn `index.js` chỉ giữ webhook Messenger, gửi ảnh và gọi Gemini.
 
 ### Human handoff
 - Khách gõ `nhân viên`, `admin`, `người thật`, `tư vấn viên` → bot tạm dừng 30 phút.
 - Khi nhân viên trả lời tay từ trang Facebook → bot tự dừng 30 phút (qua `message_echoes`).
 
-### Lưu lead vào `data/orders.jsonl`
+### Lưu lead vào `data/customers.csv`
 Khi khách gửi tin nhắn có số điện thoại VN, bot tự động ghi lại kèm 10 tin gần nhất để bạn xem lại.
+Nếu có set `DATA_DIR=/data` trên Railway thì file sẽ nằm ở `/data/customers.csv` trong Volume.
 
 ```bash
 # xem nhanh các lead gần đây
-type data\orders.jsonl
+type data\customers.csv
 ```
 
 ### Bảo mật webhook
@@ -152,6 +157,6 @@ Nếu set `FB_APP_SECRET`, bot sẽ kiểm tra `X-Hub-Signature-256`. Request kh
 ## NÂNG CẤP TIẾP THEO (tuỳ chọn)
 
 - Gửi ảnh sản phẩm khi khách hỏi mã cụ thể (cần host ảnh URL công khai).
-- Sync `orders.jsonl` lên Google Sheet bằng Apps Script.
+- Sync `customers.csv` lên Google Sheet bằng Apps Script.
 - Chuyển chat history từ file sang Redis/Postgres khi khách đông.
 - Quick Replies trên Messenger (gợi ý nút bấm).

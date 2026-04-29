@@ -5,8 +5,23 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const products = require('./products.json');
+const products = require('./products');
 const storage = require('./storage');
+const shopConfig = require('./shop-config');
+const { createRuleEngine } = require('./rules');
+
+const rules = createRuleEngine({ products, config: shopConfig });
+const {
+  buildDeterministicReply,
+  buildFallbackReply,
+  extractPhone,
+  extractRequestedProductCodes,
+  looksLikePhone,
+  normalizeText,
+  wantsHuman,
+  wantsKeywordImage,
+  wantsMenuImages
+} = rules;
 
 // ========== ENV ==========
 const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
@@ -282,21 +297,6 @@ function verifySignature(req) {
 // ========== HUMAN HANDOFF ==========
 const HANDOFF_MS = 30 * 60 * 1000; // 30 phút
 
-function wantsHuman(text) {
-  return /(nhân\s*viên|admin|người\s*thật|tư\s*vấn\s*viên|gặp\s*ng\s*thật)/i.test(text);
-}
-
-function looksLikePhone(text) {
-  return /(?:\+?84|0)\d{8,10}/.test(text);
-}
-
-function normalizeText(text) {
-  return String(text || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase();
-}
-
 function inferBaseUrlFromRequest(req) {
   const forwardedProto = req.get('x-forwarded-proto');
   const forwardedHost = req.get('x-forwarded-host');
@@ -308,33 +308,6 @@ function inferBaseUrlFromRequest(req) {
   if (!host) return '';
   const proto = req.protocol || 'https';
   return `${proto}://${host}`;
-}
-
-function wantsMenuImages(text) {
-  const t = normalizeText(text);
-  return /(xem|gui|cho|coi|tham\s*khao).*(menu|bang gia|danh muc|danh sach|hinh|anh|catalog|san pham|cac san pham|mau|hang)/.test(t)
-    || /\bmenu\b/.test(t)
-    || /\bcatalog\b/.test(t)
-    || /\bdanh\s*sach\s*san\s*pham\b/.test(t)
-    || /\bcac\s*san\s*pham\b/.test(t);
-}
-
-function wantsGelImage(text) {
-  const t = normalizeText(text);
-  return /\bgel\b/.test(t)
-    || /\bboi\s*tron\b/.test(t)
-    || /\blub(ricant)?\b/.test(t);
-}
-
-function extractRequestedMaCodes(text) {
-  const t = normalizeText(text);
-  const codes = new Set();
-  const re = /\bma\s*0*(\d{1,2})\b/g;
-  let m;
-  while ((m = re.exec(t))) {
-    codes.add(`MÃ${Number(m[1])}`);
-  }
-  return [...codes];
 }
 
 function getImageFilenameForProduct(product) {
@@ -387,12 +360,12 @@ function buildRequestedImages(userText, userId) {
     if (menu2) { files.push(menu2); reasons.push('menu2'); }
   }
 
-  if (wantsGelImage(userText)) {
+  if (wantsKeywordImage(userText, 'gel')) {
     const gel = getImageFilename('gel');
     if (gel) { files.push(gel); reasons.push('gel'); }
   }
 
-  const maCodes = extractRequestedMaCodes(userText);
+  const maCodes = extractRequestedProductCodes(userText);
   if (maCodes.length) {
     const byCode = new Map(products.map(p => [String(p.code || '').toUpperCase(), p]));
     for (const code of maCodes) {
@@ -443,99 +416,6 @@ function isProbablyIncompleteReply(reply, userText) {
     || /\b(với|voi|thì|thi|là|la|nếu|neu|và|va|nhưng|nhung|k|200k|300k)$/i.test(normalizedReply);
 
   return looksLikeBudgetAdvice && text.length < 180 && endsAbruptly;
-}
-
-function buildFallbackReply(userText) {
-  const t = normalizeText(userText);
-  const requestedCodes = extractRequestedMaCodes(userText);
-  const byCode = new Map(products.map(p => [String(p.code || '').toUpperCase(), p]));
-
-  const wantsVibration = /\brung\b|co\s*pin|sac\s*pin/.test(t);
-  const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
-  const budgetMatch = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})\s*k\b/);
-  const budget = budgetMatch ? Number(budgetMatch[1]) : null;
-
-  if (budget && budget <= 200 && (wantsVibration || wantsLarge)) {
-    return 'Dạ với ngân sách khoảng 200k thì shop chưa có mẫu vừa to vừa có rung ạ. Gần nhất là MÃ10 giá 150k, nhỏ gọn nhưng không rung. Nếu anh/chị muốn có rung thì nên lên MÃ2 giá 300k, nhỏ gọn và có pin/rung. Anh/chị muốn em gửi ảnh MÃ10 hay MÃ2 để so sánh không ạ?';
-  }
-
-  if (wantsVibration && !requestedCodes.length) {
-    return 'Dạ nếu anh/chị ưu tiên có rung/có pin thì shop có MÃ2 giá 300k và MÃ8 giá 680k. MÃ2 nhỏ gọn tiết kiệm hơn, MÃ8 cao cấp hơn vì có sạc pin, làm ấm và nhiều chế độ rung. Anh/chị muốn xem ảnh mẫu nào ạ?';
-  }
-
-  if (requestedCodes.length) {
-    const listed = requestedCodes
-      .map(code => byCode.get(code.toUpperCase()))
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(p => `- ${p.code}: ${p.price} | ${p.description}`)
-      .join('\n');
-    if (listed) {
-      return `Dạ hệ thống đang đông nên em trả lời chậm chút ạ 🙏\nAnh/chị xem nhanh thông tin:\n${listed}\nEm sẽ tư vấn kỹ hơn ngay khi hệ thống ổn định.`;
-    }
-  }
-
-  if (wantsGelImage(userText)) {
-    return 'Dạ shop có Gel bôi trơn 150k/chai 200ml, em đã gửi ảnh kèm rồi ạ. Anh/chị muốn em giữ 1 chai để chốt đơn luôn không ạ?';
-  }
-
-  if (wantsMenuImages(userText)) {
-    return 'Dạ em đã gửi menu ảnh rồi ạ. Anh/chị xem mẫu nào ưng thì nhắn mã (ví dụ: MÃ8) để em tư vấn nhanh giá và ưu nhược điểm nhé.';
-  }
-
-  return 'Dạ hệ thống đang đông nên em phản hồi chậm chút ạ 🙏 Anh/chị nhắn lại nhu cầu (mã sản phẩm hoặc ngân sách), em sẽ tư vấn ngay.';
-}
-
-function formatProductLine(product) {
-  const details = [
-    product.description,
-    product.size ? `size ${product.size}` : '',
-    product.gift ? `tặng ${product.gift}` : '',
-    product.preorder ? 'hàng đặt 15-20 ngày' : ''
-  ].filter(Boolean).join(', ');
-
-  return `${product.code}: ${product.price}${details ? ` - ${details}` : ''}`;
-}
-
-function buildDeterministicReply(userText) {
-  const t = normalizeText(userText);
-  const requestedCodes = extractRequestedMaCodes(userText);
-  const byCode = new Map(products.map(p => [String(p.code || '').toUpperCase(), p]));
-
-  const wantsVibration = /\brung\b|co\s*pin|sac\s*pin/.test(t);
-  const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
-  const wantsPhoto = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
-  const budgetMatch = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})\s*k\b/);
-  const budget = budgetMatch ? Number(budgetMatch[1]) : null;
-
-  if (budget && budget <= 200 && (wantsVibration || wantsLarge)) {
-    return 'Dạ với ngân sách khoảng 200k thì shop chưa có mẫu vừa to vừa có rung ạ. Gần nhất là MÃ10 giá 150k, nhỏ gọn nhưng không rung. Nếu anh/chị muốn có rung thì nên lên MÃ2 giá 300k, nhỏ gọn và có pin/rung. Anh/chị muốn em gửi ảnh MÃ10 hay MÃ2 để so sánh không ạ?';
-  }
-
-  if (requestedCodes.length) {
-    const found = requestedCodes
-      .map(code => byCode.get(code.toUpperCase()))
-      .filter(Boolean);
-
-    if (found.length) {
-      const lines = found.slice(0, 3).map(formatProductLine).join('\n');
-      return `Dạ em gửi thông tin nhanh cho anh/chị nhé:\n${lines}\n${wantsPhoto ? 'Em cũng gửi ảnh mẫu kèm theo rồi ạ.' : 'Anh/chị muốn xem ảnh hoặc chốt mẫu nào thì nhắn em mã đó nhé.'}`;
-    }
-  }
-
-  if (wantsGelImage(userText)) {
-    return 'Dạ shop có Gel bôi trơn 150k/chai 200ml, mua gel được tặng thêm 5 gói gel nhỏ ạ. Em gửi ảnh kèm theo rồi nhé.';
-  }
-
-  if (wantsMenuImages(userText)) {
-    return 'Dạ em gửi menu ảnh sản phẩm cho anh/chị rồi ạ. Anh/chị xem mẫu nào ưng thì nhắn mã (ví dụ MÃ8 hoặc ma8), em báo giá và tư vấn nhanh hơn nhé.';
-  }
-
-  if (wantsVibration) {
-    return 'Dạ nếu anh/chị ưu tiên có rung/có pin thì shop có MÃ2 giá 300k và MÃ8 giá 680k. MÃ2 tiết kiệm hơn, MÃ8 cao cấp hơn vì có sạc pin, làm ấm và nhiều chế độ rung. Anh/chị muốn xem ảnh mẫu nào ạ?';
-  }
-
-  return null;
 }
 
 // ========== WEBHOOK VERIFY (Meta yêu cầu) ==========
@@ -605,9 +485,10 @@ async function handleEvent(event, baseUrlOverride = '') {
   // Khách yêu cầu gặp nhân viên → tạm dừng bot, ghi log
   if (wantsHuman(userText)) {
     storage.setHandoff(senderId, Date.now() + HANDOFF_MS);
-    storage.appendOrder({
+    storage.appendCustomer({
       type: 'handoff_request',
       senderId,
+      phone: '',
       text: userText,
       at: new Date().toISOString()
     });
@@ -617,11 +498,13 @@ async function handleEvent(event, baseUrlOverride = '') {
     return;
   }
 
-  // Nhận diện sđt → ghi lead vào orders.jsonl để nhân viên xem lại
+  // Nhận diện sđt → ghi lead vào customers.csv để nhân viên xem lại.
+  // Phần storage tự xếp hàng ghi file để nhiều khách nhắn cùng lúc không làm lẫn dòng CSV.
   if (looksLikePhone(userText)) {
-    storage.appendOrder({
+    storage.appendCustomer({
       type: 'lead',
       senderId,
+      phone: extractPhone(userText),
       text: userText,
       history: storage.getHistory(senderId).slice(-10),
       at: new Date().toISOString()
@@ -646,7 +529,7 @@ async function handleEvent(event, baseUrlOverride = '') {
       }
     })();
 
-    let reply = buildDeterministicReply(userText);
+    let reply = buildDeterministicReply(userText, senderId);
     if (reply) {
       console.log('⚡ Trả lời rule-based, không gọi Gemini');
     } else {
@@ -654,7 +537,7 @@ async function handleEvent(event, baseUrlOverride = '') {
     }
     if (isProbablyIncompleteReply(reply, userText)) {
       console.warn(`⚠️  Gemini trả lời có vẻ bị cụt, dùng fallback. Reply gốc: ${reply.replace(/\n/g, ' ')}`);
-      reply = buildFallbackReply(userText);
+      reply = buildFallbackReply(userText, senderId);
     }
     console.log(`🤖 reply: ${reply.slice(0, 120).replace(/\n/g, ' ')}`);
     await imagePromise; // đợi ảnh xong rồi mới gửi text để text xuất hiện sau ảnh
@@ -666,7 +549,7 @@ async function handleEvent(event, baseUrlOverride = '') {
     if (shouldUseFallbackReply(err)) {
       try {
         await imagePromise;
-        const fallback = buildFallbackReply(userText);
+        const fallback = buildFallbackReply(userText, senderId);
         await sendMessage(senderId, fallback);
         console.log(`🛟 Fallback do Gemini lỗi (${geminiInfo.status || geminiInfo.code || geminiInfo.httpStatus}): ${fallback.slice(0, 120).replace(/\n/g, ' ')}`);
       } catch {}
@@ -701,13 +584,12 @@ async function checkPageToken() {
   }
 }
 
-const server = app.listen(PORT, async () => {
-  console.log(`🚀 Bot đang chạy tại port ${PORT} (sản phẩm: ${products.length}, model: ${GEMINI_MODEL})`);
-  await checkPageToken();
-});
+let server = null;
 
 function shutdown(signal) {
   console.log(`🛑 Nhận ${signal}, đang dừng server...`);
+  if (!server) process.exit(0);
+
   server.close(() => {
     console.log('✅ Server đã dừng gọn.');
     process.exit(0);
@@ -716,5 +598,17 @@ function shutdown(signal) {
   setTimeout(() => process.exit(0), 8000).unref();
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+if (require.main === module) {
+  server = app.listen(PORT, async () => {
+    console.log(`🚀 Bot đang chạy tại port ${PORT} (sản phẩm: ${products.length}, model: ${GEMINI_MODEL})`);
+    await checkPageToken();
+  });
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+module.exports = {
+  buildDeterministicReply,
+  buildFallbackReply
+};
