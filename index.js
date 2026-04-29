@@ -312,10 +312,11 @@ function inferBaseUrlFromRequest(req) {
 
 function wantsMenuImages(text) {
   const t = normalizeText(text);
-  return /(xem|gui|cho|coi).*(menu|bang gia|danh muc|danh sach|hinh|anh|catalog)/.test(t)
+  return /(xem|gui|cho|coi|tham\s*khao).*(menu|bang gia|danh muc|danh sach|hinh|anh|catalog|san pham|cac san pham|mau|hang)/.test(t)
     || /\bmenu\b/.test(t)
     || /\bcatalog\b/.test(t)
-    || /\bdanh\s*sach\s*san\s*pham\b/.test(t);
+    || /\bdanh\s*sach\s*san\s*pham\b/.test(t)
+    || /\bcac\s*san\s*pham\b/.test(t);
 }
 
 function wantsGelImage(text) {
@@ -700,7 +701,20 @@ async function checkPageToken() {
   }
 }
 
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
   console.log(`🚀 Bot đang chạy tại port ${PORT} (sản phẩm: ${products.length}, model: ${GEMINI_MODEL})`);
   await checkPageToken();
 });
+
+function shutdown(signal) {
+  console.log(`🛑 Nhận ${signal}, đang dừng server...`);
+  server.close(() => {
+    console.log('✅ Server đã dừng gọn.');
+    process.exit(0);
+  });
+
+  setTimeout(() => process.exit(0), 8000).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
