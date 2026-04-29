@@ -485,6 +485,58 @@ function buildFallbackReply(userText) {
   return 'Dạ hệ thống đang đông nên em phản hồi chậm chút ạ 🙏 Anh/chị nhắn lại nhu cầu (mã sản phẩm hoặc ngân sách), em sẽ tư vấn ngay.';
 }
 
+function formatProductLine(product) {
+  const details = [
+    product.description,
+    product.size ? `size ${product.size}` : '',
+    product.gift ? `tặng ${product.gift}` : '',
+    product.preorder ? 'hàng đặt 15-20 ngày' : ''
+  ].filter(Boolean).join(', ');
+
+  return `${product.code}: ${product.price}${details ? ` - ${details}` : ''}`;
+}
+
+function buildDeterministicReply(userText) {
+  const t = normalizeText(userText);
+  const requestedCodes = extractRequestedMaCodes(userText);
+  const byCode = new Map(products.map(p => [String(p.code || '').toUpperCase(), p]));
+
+  const wantsVibration = /\brung\b|co\s*pin|sac\s*pin/.test(t);
+  const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
+  const wantsPhoto = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
+  const budgetMatch = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})\s*k\b/);
+  const budget = budgetMatch ? Number(budgetMatch[1]) : null;
+
+  if (budget && budget <= 200 && (wantsVibration || wantsLarge)) {
+    return 'Dạ với ngân sách khoảng 200k thì shop chưa có mẫu vừa to vừa có rung ạ. Gần nhất là MÃ10 giá 150k, nhỏ gọn nhưng không rung. Nếu anh/chị muốn có rung thì nên lên MÃ2 giá 300k, nhỏ gọn và có pin/rung. Anh/chị muốn em gửi ảnh MÃ10 hay MÃ2 để so sánh không ạ?';
+  }
+
+  if (requestedCodes.length) {
+    const found = requestedCodes
+      .map(code => byCode.get(code.toUpperCase()))
+      .filter(Boolean);
+
+    if (found.length) {
+      const lines = found.slice(0, 3).map(formatProductLine).join('\n');
+      return `Dạ em gửi thông tin nhanh cho anh/chị nhé:\n${lines}\n${wantsPhoto ? 'Em cũng gửi ảnh mẫu kèm theo rồi ạ.' : 'Anh/chị muốn xem ảnh hoặc chốt mẫu nào thì nhắn em mã đó nhé.'}`;
+    }
+  }
+
+  if (wantsGelImage(userText)) {
+    return 'Dạ shop có Gel bôi trơn 150k/chai 200ml, mua gel được tặng thêm 5 gói gel nhỏ ạ. Em gửi ảnh kèm theo rồi nhé.';
+  }
+
+  if (wantsMenuImages(userText)) {
+    return 'Dạ em gửi menu ảnh sản phẩm cho anh/chị rồi ạ. Anh/chị xem mẫu nào ưng thì nhắn mã (ví dụ MÃ8 hoặc ma8), em báo giá và tư vấn nhanh hơn nhé.';
+  }
+
+  if (wantsVibration) {
+    return 'Dạ nếu anh/chị ưu tiên có rung/có pin thì shop có MÃ2 giá 300k và MÃ8 giá 680k. MÃ2 tiết kiệm hơn, MÃ8 cao cấp hơn vì có sạc pin, làm ấm và nhiều chế độ rung. Anh/chị muốn xem ảnh mẫu nào ạ?';
+  }
+
+  return null;
+}
+
 // ========== WEBHOOK VERIFY (Meta yêu cầu) ==========
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -593,7 +645,12 @@ async function handleEvent(event, baseUrlOverride = '') {
       }
     })();
 
-    let reply = await callGemini(senderId, userText);
+    let reply = buildDeterministicReply(userText);
+    if (reply) {
+      console.log('⚡ Trả lời rule-based, không gọi Gemini');
+    } else {
+      reply = await callGemini(senderId, userText);
+    }
     if (isProbablyIncompleteReply(reply, userText)) {
       console.warn(`⚠️  Gemini trả lời có vẻ bị cụt, dùng fallback. Reply gốc: ${reply.replace(/\n/g, ' ')}`);
       reply = buildFallbackReply(userText);
