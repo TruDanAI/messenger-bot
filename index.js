@@ -182,7 +182,7 @@ async function postGeminiWithRetry(history) {
         {
           system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
           contents: history,
-          generationConfig: { temperature: 0.8, maxOutputTokens: 400 }
+          generationConfig: { temperature: 0.8, maxOutputTokens: 800 }
         },
         { timeout: 20000 }
       );
@@ -428,9 +428,39 @@ function shouldUseFallbackReply(err) {
     || message.includes('unavailable');
 }
 
+function isProbablyIncompleteReply(reply, userText) {
+  const text = String(reply || '').trim();
+  if (!text) return true;
+
+  const normalizedReply = normalizeText(text);
+  const normalizedUserText = normalizeText(userText);
+  const looksLikeBudgetAdvice = /\b\d{2,4}\s*k\b/.test(normalizedUserText)
+    || normalizedUserText.includes('ngan sach')
+    || normalizedReply.includes('ngan sach');
+
+  const endsAbruptly = !/([.!?。😊🙏]|(ạ|nhé|nha)\s*)$/i.test(text)
+    || /\b(với|voi|thì|thi|là|la|nếu|neu|và|va|nhưng|nhung|k|200k|300k)$/i.test(normalizedReply);
+
+  return looksLikeBudgetAdvice && text.length < 180 && endsAbruptly;
+}
+
 function buildFallbackReply(userText) {
+  const t = normalizeText(userText);
   const requestedCodes = extractRequestedMaCodes(userText);
   const byCode = new Map(products.map(p => [String(p.code || '').toUpperCase(), p]));
+
+  const wantsVibration = /\brung\b|co\s*pin|sac\s*pin/.test(t);
+  const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
+  const budgetMatch = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})\s*k\b/);
+  const budget = budgetMatch ? Number(budgetMatch[1]) : null;
+
+  if (budget && budget <= 200 && (wantsVibration || wantsLarge)) {
+    return 'Dạ với ngân sách khoảng 200k thì shop chưa có mẫu vừa to vừa có rung ạ. Gần nhất là MÃ10 giá 150k, nhỏ gọn nhưng không rung. Nếu anh/chị muốn có rung thì nên lên MÃ2 giá 300k, nhỏ gọn và có pin/rung. Anh/chị muốn em gửi ảnh MÃ10 hay MÃ2 để so sánh không ạ?';
+  }
+
+  if (wantsVibration && !requestedCodes.length) {
+    return 'Dạ nếu anh/chị ưu tiên có rung/có pin thì shop có MÃ2 giá 300k và MÃ8 giá 680k. MÃ2 nhỏ gọn tiết kiệm hơn, MÃ8 cao cấp hơn vì có sạc pin, làm ấm và nhiều chế độ rung. Anh/chị muốn xem ảnh mẫu nào ạ?';
+  }
 
   if (requestedCodes.length) {
     const listed = requestedCodes
@@ -563,7 +593,11 @@ async function handleEvent(event, baseUrlOverride = '') {
       }
     })();
 
-    const reply = await callGemini(senderId, userText);
+    let reply = await callGemini(senderId, userText);
+    if (isProbablyIncompleteReply(reply, userText)) {
+      console.warn(`⚠️  Gemini trả lời có vẻ bị cụt, dùng fallback. Reply gốc: ${reply.replace(/\n/g, ' ')}`);
+      reply = buildFallbackReply(userText);
+    }
     console.log(`🤖 reply: ${reply.slice(0, 120).replace(/\n/g, ' ')}`);
     await imagePromise; // đợi ảnh xong rồi mới gửi text để text xuất hiện sau ảnh
     await sendMessage(senderId, reply);
