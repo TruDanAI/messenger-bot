@@ -100,14 +100,31 @@ Phần rule xử lý intent nằm trong `rules.js`, còn `index.js` chỉ giữ 
 - Khách gõ `nhân viên`, `admin`, `người thật`, `tư vấn viên` → bot tạm dừng 30 phút.
 - Khi nhân viên trả lời tay từ trang Facebook → bot tự dừng 30 phút (qua `message_echoes`).
 
-### Lưu lead vào `data/customers.csv`
-Khi khách gửi tin nhắn có số điện thoại VN, bot tự động ghi lại kèm 10 tin gần nhất để bạn xem lại.
-Nếu có set `DATA_DIR=/data` trên Railway thì file sẽ nằm ở `/data/customers.csv` trong Volume.
+### Lưu và tải lead khách hàng
+Khi khách gửi tin nhắn có số điện thoại VN, bot tự động ghi vào `customers.csv` kèm thông tin đơn và 10 tin gần nhất. Nếu có set `DATA_DIR=/data` trên Railway thì file sẽ nằm ở `/data/customers.csv` trong Volume.
+
+Để tải CSV bằng trình duyệt, thêm biến Railway:
 
 ```bash
-# xem nhanh các lead gần đây
-type data\customers.csv
+ADMIN_EXPORT_TOKEN=chuoi_bi_mat_that_dai
 ```
+
+Sau khi redeploy, mở URL sau để tải:
+
+```txt
+https://ten-app.up.railway.app/admin/customers.csv?token=chuoi_bi_mat_that_dai
+```
+
+Nếu muốn kiểm tra bằng Railway CLI:
+
+```bash
+npm i -g @railway/cli
+railway login
+railway link
+railway run sh -lc "ls -la /data && sed -n '1,20p' /data/customers.csv"
+```
+
+Nếu Volume của Railway mount ở path khác `/data`, hãy set `DATA_DIR` đúng bằng mount path đó.
 
 ### Bảo mật webhook
 Nếu set `FB_APP_SECRET`, bot sẽ kiểm tra `X-Hub-Signature-256`. Request không có chữ ký hợp lệ sẽ bị từ chối.

@@ -75,6 +75,31 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     return productByCode.get(String(code).toUpperCase()) || null;
   }
 
+  function getOrderDraft(userId) {
+    return contextStore.getOrderDraft ? contextStore.getOrderDraft(userId) : {};
+  }
+
+  function missingOrderFields(order) {
+    const missing = [];
+    if (!order.name) missing.push('tên người nhận');
+    if (!order.phone) missing.push('SĐT');
+    if (!order.address) missing.push('địa chỉ giao hàng');
+    return missing;
+  }
+
+  function readyOrderReply(order, product) {
+    const productText = product?.code || order.productCode || 'mẫu anh/chị chọn';
+    return `Dạ em đã có đủ thông tin chốt ${productText}: ${order.name}, ${order.phone}, ${order.address}. Shop sẽ kiểm tra và xác nhận lại đơn với anh/chị trước khi gửi hàng nhé.`;
+  }
+
+  function asksWhyRepeatedInfo(text) {
+    const t = normalizeText(text);
+    return /(gui|dua|nhan).*(ten|sdt|so\s*dien\s*thoai|dia\s*chi).*(roi|r|ma)/
+      .test(t)
+      || /(sao|tai\s*sao|vi\s*sao).*(hoi|bao|nhan).*(lai|nua)/
+        .test(t);
+  }
+
   function compactProductName(product) {
     return product ? `${product.code} giá ${explainPrice(product.price)}` : 'mẫu anh/chị chọn';
   }
@@ -247,7 +272,11 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     const requestedCodes = extractRequestedProductCodes(userText);
     const found = getMentionedProducts(userText);
     const keywordProduct = getKeywordProduct(userText);
-    const selectedProduct = found[0] || keywordProduct || getLastProduct(userId);
+    const orderDraft = getOrderDraft(userId);
+    const draftProduct = orderDraft.productCode
+      ? productByCode.get(String(orderDraft.productCode).toUpperCase())
+      : null;
+    const selectedProduct = found[0] || keywordProduct || getLastProduct(userId) || draftProduct;
     const wantsVibration = /\brung\b|co\s*pin|sac\s*pin/.test(t);
     const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
     const wantsPhoto = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
@@ -257,12 +286,26 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     if (found.length) rememberLastProduct(userId, found[0]);
     else if (keywordProduct) rememberLastProduct(userId, keywordProduct);
 
+    const productAwareOrder = {
+      ...orderDraft,
+      productCode: selectedProduct?.code || orderDraft.productCode || ''
+    };
+    const missingFields = missingOrderFields(productAwareOrder);
+
+    if (asksWhyRepeatedInfo(userText)) {
+      if (!missingFields.length) {
+        return `Dạ em xin lỗi vì đã hỏi lặp ạ. ${readyOrderReply(productAwareOrder, selectedProduct).replace(/^Dạ\s+em/i, 'Em')}`;
+      }
+      return `Dạ em xin lỗi vì đã hỏi lặp ạ. Em đang thiếu ${missingFields.join(' + ')} để shop xác nhận đơn giúp mình.`;
+    }
+
     if (looksLikePhone(userText) && (providesName(userText) || providesAddress(userText))) {
-      const productText = selectedProduct ? ` cho ${selectedProduct.code}` : '';
-      return `Dạ em đã nhận thông tin giao hàng${productText} rồi ạ. Shop sẽ kiểm tra và xác nhận lại đơn với anh/chị trước khi gửi hàng nhé.`;
+      if (!missingFields.length) return readyOrderReply(productAwareOrder, selectedProduct);
+      return `Dạ em đã nhận thông tin giao hàng rồi ạ. Anh/chị gửi thêm ${missingFields.join(' + ')} để shop xác nhận đơn nhé.`;
     }
 
     if (looksLikePhone(userText)) {
+      if (!missingFields.length) return readyOrderReply(productAwareOrder, selectedProduct);
       return `Dạ em đã nhận SĐT của anh/chị rồi ạ. Anh/chị gửi thêm ${config.policies.orderInfoFields.replace('SĐT + ', '')} giúp em để ${config.shopName} xác nhận đơn nhé.`;
     }
 
@@ -275,8 +318,9 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     }
 
     if (providesName(userText) || providesAddress(userText)) {
+      if (!missingFields.length) return readyOrderReply(productAwareOrder, selectedProduct);
       if (selectedProduct) {
-        return `Dạ em nhận thông tin rồi ạ. Để chốt ${selectedProduct.code}, anh/chị gửi thêm SĐT nếu chưa gửi để shop xác nhận đơn và giao hàng nhé.`;
+        return `Dạ em nhận thông tin rồi ạ. Để chốt ${selectedProduct.code}, anh/chị gửi thêm ${missingFields.join(' + ')} để shop xác nhận đơn và giao hàng nhé.`;
       }
       return 'Dạ em nhận thông tin rồi ạ. Anh/chị chọn giúp em mã sản phẩm muốn lấy, hoặc nhắn “menu” để em gửi danh sách sản phẩm nhé.';
     }

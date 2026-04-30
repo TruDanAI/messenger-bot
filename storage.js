@@ -104,6 +104,14 @@ function appendCustomerQueued(customer) {
 }
 
 module.exports = {
+  getDataDir() {
+    return DATA_DIR;
+  },
+
+  getCustomersFile() {
+    return CUSTOMERS_FILE;
+  },
+
   getHistory(userId) {
     return state.history[userId] ? [...state.history[userId]] : [];
   },
@@ -138,6 +146,31 @@ module.exports = {
     if (!state.context[userId]) state.context[userId] = {};
     state.context[userId].lastProductCode = code;
     scheduleSave();
+  },
+
+  getOrderDraft(userId) {
+    return state.context[userId]?.orderDraft
+      ? { ...state.context[userId].orderDraft }
+      : {};
+  },
+
+  mergeOrderDraft(userId, details = {}) {
+    if (!userId) return {};
+    if (!state.context[userId]) state.context[userId] = {};
+    const current = state.context[userId].orderDraft || {};
+    const next = { ...current };
+
+    for (const key of ['productCode', 'phone', 'name', 'address']) {
+      const value = String(details[key] || '').trim();
+      if (value) next[key] = value;
+    }
+
+    if (Object.keys(next).length) {
+      next.updatedAt = new Date().toISOString();
+      state.context[userId].orderDraft = next;
+      scheduleSave();
+    }
+    return { ...next };
   },
 
   seenMid(mid) {

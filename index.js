@@ -15,7 +15,8 @@ const rules = createRuleEngine({
   config: shopConfig,
   contextStore: {
     getLastProductCode: userId => storage.getLastProductCode(userId),
-    setLastProductCode: (userId, code) => storage.setLastProductCode(userId, code)
+    setLastProductCode: (userId, code) => storage.setLastProductCode(userId, code),
+    getOrderDraft: userId => storage.getOrderDraft(userId)
   }
 });
 const {
@@ -38,6 +39,7 @@ const FB_APP_SECRET   = process.env.FB_APP_SECRET;
 const GEMINI_API_KEY  = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL    = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const PORT            = process.env.PORT || 3000;
+const ADMIN_EXPORT_TOKEN = process.env.ADMIN_EXPORT_TOKEN || '';
 const PUBLIC_BASE_URL =
   process.env.PUBLIC_BASE_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
@@ -449,6 +451,7 @@ function isProbablyIncompleteReply(reply, userText) {
 function cleanLeadPart(text) {
   return String(text || '')
     .replace(/\s+/g, ' ')
+    .replace(/\s+(?:shop|ad|minh|mình|anh|chị|chi|em)\s*(?:ơi|oi)?$/i, '')
     .replace(/^[,:;\-\s]+|[,:;\-\s]+$/g, '')
     .trim();
 }
@@ -460,8 +463,22 @@ function stripLeadPrefixes(text) {
     .trim();
 }
 
+function prefixedLeadPart(text) {
+  const raw = cleanLeadPart(text);
+  const name = raw.match(/^(?:tên người nhận|ten nguoi nhan|người nhận|nguoi nhan|tên|ten)\s*(?:là|la|:)?\s*(.+)$/i);
+  if (name) return { name: cleanLeadPart(name[1]) };
+
+  const address = raw.match(/^(?:địa chỉ|dia chi|dc|ship về|ship ve|giao về|giao ve)\s*(?:là|la|:)?\s*(.+)$/i);
+  if (address) return { address: cleanLeadPart(address[1]) };
+
+  return null;
+}
+
 function splitNameAndAddress(text) {
   const withoutPhone = String(text || '').replace(/(?:\+?84|0)\d{8,10}/g, ' ');
+  const prefixed = prefixedLeadPart(withoutPhone);
+  if (prefixed) return { name: prefixed.name || '', address: prefixed.address || '' };
+
   const lines = withoutPhone
     .split(/\r?\n/)
     .map(line => stripLeadPrefixes(line))
@@ -476,6 +493,17 @@ function splitNameAndAddress(text) {
 
   const rest = stripLeadPrefixes(lines[0] || withoutPhone);
   if (!rest) return { name: '', address: '' };
+
+  const commaParts = rest
+    .split(/[,;]+/)
+    .map(part => stripLeadPrefixes(part))
+    .filter(Boolean);
+  if (commaParts.length >= 2) {
+    return {
+      name: commaParts[0],
+      address: cleanLeadPart(commaParts.slice(1).join(', '))
+    };
+  }
 
   const addressStart = normalizeText(rest).search(/\b(so|nha|ngo|ngach|duong|thon|xom|ap|xa|phuong|huyen|quan|tinh|tp|thanh pho)\b/i);
   if (addressStart > 0) {
@@ -496,10 +524,21 @@ function splitNameAndAddress(text) {
 function buildLeadDetails(userText, senderId) {
   const mentionedCode = extractRequestedProductCodes(userText)[0] || '';
   const productCode = mentionedCode || storage.getLastProductCode(senderId) || '';
+  const phone = extractPhone(userText);
+  const hasLeadPrefix = /(?:^|\n)\s*(?:tên người nhận|ten nguoi nhan|người nhận|nguoi nhan|tên|ten|địa chỉ|dia chi|dc|ship về|ship ve|giao về|giao ve)(?:\s|:|$)/i
+    .test(userText);
+  const addressOnly = !phone && /[,;]/.test(userText) && /\b(xã|xa|phường|phuong|huyện|huyen|quận|quan|tỉnh|tinh|tp|thành phố|thanh pho)\b/i
+    .test(normalizeText(userText));
+  const parsed = phone || hasLeadPrefix
+    ? splitNameAndAddress(userText)
+    : addressOnly
+      ? { name: '', address: cleanLeadPart(stripLeadPrefixes(userText)) }
+      : { name: '', address: '' };
+
   return {
     productCode,
-    phone: extractPhone(userText),
-    ...splitNameAndAddress(userText)
+    phone,
+    ...parsed
   };
 }
 
@@ -591,12 +630,30 @@ async function handleEvent(event, baseUrlOverride = '') {
 
   // Nhận diện sđt → ghi lead vào customers.csv để nhân viên xem lại.
   // Phần storage tự xếp hàng ghi file để nhiều khách nhắn cùng lúc không làm lẫn dòng CSV.
+  const leadDetails = buildLeadDetails(userText, senderId);
+  const hasOrderDetail = Boolean(
+    leadDetails.productCode || leadDetails.phone || leadDetails.name || leadDetails.address
+  );
+  const mergedOrderDraft = hasOrderDetail
+    ? storage.mergeOrderDraft(senderId, leadDetails)
+    : {};
+  const currentLead = Object.keys(mergedOrderDraft).length ? mergedOrderDraft : leadDetails;
+
   if (looksLikePhone(userText)) {
-    const leadDetails = buildLeadDetails(userText, senderId);
     storage.appendCustomer({
       type: 'lead',
       senderId,
-      ...leadDetails,
+      ...currentLead,
+      phone: currentLead.phone || leadDetails.phone,
+      text: userText,
+      history: storage.getHistory(senderId).slice(-10),
+      at: new Date().toISOString()
+    });
+  } else if ((leadDetails.name || leadDetails.address) && currentLead.phone && currentLead.name && currentLead.address) {
+    storage.appendCustomer({
+      type: 'lead_update',
+      senderId,
+      ...currentLead,
       text: userText,
       history: storage.getHistory(senderId).slice(-10),
       at: new Date().toISOString()
@@ -660,6 +717,25 @@ app.get('/healthz', (_req, res) => res.json({
   products: products.length,
   uptime: Math.round(process.uptime())
 }));
+
+// ========== ADMIN EXPORT ==========
+app.get('/admin/customers.csv', (req, res) => {
+  if (!ADMIN_EXPORT_TOKEN) {
+    return res.status(503).send('ADMIN_EXPORT_TOKEN chưa được cấu hình.');
+  }
+
+  const token = req.query.token || req.get('x-admin-token');
+  if (token !== ADMIN_EXPORT_TOKEN) {
+    return res.sendStatus(401);
+  }
+
+  const file = storage.getCustomersFile();
+  if (!fs.existsSync(file)) {
+    return res.status(404).send('Chưa có file customers.csv.');
+  }
+
+  res.download(file, 'customers.csv');
+});
 
 // Kiểm tra Page Token lúc khởi động
 async function checkPageToken() {
