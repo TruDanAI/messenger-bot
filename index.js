@@ -9,6 +9,7 @@ const products = require('./products');
 const storage = require('./storage');
 const shopConfig = require('./shop-config');
 const { createRuleEngine } = require('./rules');
+const { render } = require('./responses');
 
 const rules = createRuleEngine({
   products,
@@ -16,7 +17,12 @@ const rules = createRuleEngine({
   contextStore: {
     getLastProductCode: userId => storage.getLastProductCode(userId),
     setLastProductCode: (userId, code) => storage.setLastProductCode(userId, code),
-    getOrderDraft: userId => storage.getOrderDraft(userId)
+    getOrderDraft: userId => storage.getOrderDraft(userId),
+    // State machine: rules.js suy ra IDLE/PRODUCT_SELECTED/COLLECTING_INFO/READY_TO_CONFIRM
+    // từ orderDraft + lastProductCode, chỉ có CONFIRMED là cần lưu tường minh.
+    getSessionState: userId => storage.getSessionState(userId),
+    setSessionState: (userId, state) => storage.setSessionState(userId, state),
+    clearOrderDraft: userId => storage.clearOrderDraft(userId)
   }
 });
 const {
@@ -249,6 +255,27 @@ async function callGemini(userId, userMessage) {
 // ========== HÀM GỬI TIN NHẮN FB ==========
 const BOT_MESSAGE_METADATA = 'shop-bot:auto-reply';
 
+async function postFb(payload, attempts = 2, options = {}) {
+  const timeout = options.timeout || 10000;
+  let lastErr;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await axios.post(
+        `https://graph.facebook.com/v19.0/me/messages?access_token=${FB_PAGE_TOKEN}`,
+        payload,
+        { timeout }
+      );
+    } catch (err) {
+      lastErr = err;
+      const status = err?.response?.status;
+      // Chỉ retry khi lỗi tạm thời (network / 5xx). 4xx (token sai, recipient lạ) thì fail nhanh.
+      if (status && status >= 400 && status < 500) break;
+      if (i < attempts - 1) await sleep(500 * (i + 1));
+    }
+  }
+  throw lastErr;
+}
+
 async function sendMessage(recipientId, text) {
   const chunks = [];
   while (text.length > 0) {
@@ -257,37 +284,32 @@ async function sendMessage(recipientId, text) {
   }
 
   for (const chunk of chunks) {
-    await axios.post(
-      `https://graph.facebook.com/v19.0/me/messages?access_token=${FB_PAGE_TOKEN}`,
-      { recipient: { id: recipientId }, message: { text: chunk, metadata: BOT_MESSAGE_METADATA } },
-      { timeout: 10000 }
-    );
+    await postFb({
+      recipient: { id: recipientId },
+      message: { text: chunk, metadata: BOT_MESSAGE_METADATA }
+    });
   }
 }
 
 async function sendImage(recipientId, imageUrl) {
   if (!imageUrl) return;
-  await axios.post(
-    `https://graph.facebook.com/v19.0/me/messages?access_token=${FB_PAGE_TOKEN}`,
-    {
-      recipient: { id: recipientId },
-      message: {
-        metadata: BOT_MESSAGE_METADATA,
-        attachment: {
-          type: 'image',
-          payload: { url: imageUrl, is_reusable: true }
-        }
+  await postFb({
+    recipient: { id: recipientId },
+    message: {
+      metadata: BOT_MESSAGE_METADATA,
+      attachment: {
+        type: 'image',
+        payload: { url: imageUrl, is_reusable: true }
       }
-    },
-    { timeout: 10000 }
-  );
+    }
+  });
 }
 
 function showTyping(recipientId) {
   // Fire-and-forget: lỗi typing không chặn flow trả lời chính
-  return axios.post(
-    `https://graph.facebook.com/v19.0/me/messages?access_token=${FB_PAGE_TOKEN}`,
+  return postFb(
     { recipient: { id: recipientId }, sender_action: 'typing_on' },
+    1,
     { timeout: 5000 }
   ).catch(() => {});
 }
@@ -650,7 +672,7 @@ async function handleEvent(event, baseUrlOverride = '') {
       at: new Date().toISOString()
     });
     try {
-      await sendMessage(senderId, 'Dạ em chuyển anh/chị qua nhân viên tư vấn hỗ trợ kỹ hơn nhé. Anh/chị chờ một chút ạ 🙏');
+      await sendMessage(senderId, render('humanHandoff'));
     } catch {}
     return;
   }
@@ -740,7 +762,7 @@ async function handleEvent(event, baseUrlOverride = '') {
       return;
     }
     try {
-      await sendMessage(senderId, 'Xin lỗi anh/chị, hệ thống đang bận. Vui lòng thử lại sau nhé! 🙏');
+      await sendMessage(senderId, render('systemBusy'));
     } catch {}
   }
 }
@@ -754,15 +776,21 @@ app.get('/healthz', (_req, res) => res.json({
 }));
 
 // ========== ADMIN EXPORT ==========
-app.get('/admin/customers.csv', (req, res) => {
+function requireAdminToken(req, res) {
   if (!ADMIN_EXPORT_TOKEN) {
-    return res.status(503).send('ADMIN_EXPORT_TOKEN chưa được cấu hình.');
+    res.status(503).send('ADMIN_EXPORT_TOKEN chưa được cấu hình.');
+    return false;
   }
-
   const token = req.query.token || req.get('x-admin-token');
   if (token !== ADMIN_EXPORT_TOKEN) {
-    return res.sendStatus(401);
+    res.sendStatus(401);
+    return false;
   }
+  return true;
+}
+
+app.get('/admin/customers.csv', (req, res) => {
+  if (!requireAdminToken(req, res)) return;
 
   const file = storage.getCustomersFile();
   if (!fs.existsSync(file)) {
@@ -770,6 +798,20 @@ app.get('/admin/customers.csv', (req, res) => {
   }
 
   res.download(file, 'customers.csv');
+});
+
+// Debug: xem session/order draft hiện tại của 1 user. Hữu ích khi nhân viên cần tra soát.
+app.get('/admin/state/:userId', (req, res) => {
+  if (!requireAdminToken(req, res)) return;
+  const userId = req.params.userId;
+  res.json({
+    userId,
+    inHandoff: storage.inHandoff(userId),
+    lastProductCode: storage.getLastProductCode(userId),
+    orderDraft: storage.getOrderDraft(userId),
+    sessionState: storage.getSessionState(userId),
+    historyLength: storage.getHistory(userId).length
+  });
 });
 
 // Kiểm tra Page Token lúc khởi động

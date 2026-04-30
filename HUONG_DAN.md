@@ -180,9 +180,92 @@ Nếu set `FB_APP_SECRET`, bot sẽ kiểm tra `X-Hub-Signature-256`. Request kh
 
 ---
 
+## FORK BOT NÀY CHO DỰ ÁN/SHOP MỚI
+
+Phần engine đã tách rời khỏi nội dung shop, nên **đa số dự án mới chỉ cần sửa 2 file** là chạy được:
+
+### 1. Sửa `products.csv`
+Đổi danh sách sản phẩm (mã, giá, mô tả, ảnh).
+
+```csv
+code,price,description,size,weight,gift,preorder,imageFile
+MA1,500k,Sản phẩm A,...,,...,false,a.jpg
+```
+
+### 2. Sửa `shop-config.js`
+File này là "control panel" của bot. Có thể:
+
+- **Đổi tên shop, chính sách, miễn ship, COD, tuổi tối thiểu** ở các trường `shopName`, `policies`, `minAge`.
+- **Tắt intent không cần** với `intents.disabled`. VD shop bán đồ trẻ em thì tắt `AGE_POLICY`:
+
+  ```js
+  intents: { disabled: ['AGE_POLICY', 'INSPECTION'] }
+  ```
+
+- **Thêm intent mới** với `intents.prepend` (ưu tiên cao) hoặc `intents.append` (fallback). Ví dụ shop có voucher:
+
+  ```js
+  intents: {
+    prepend: [
+      {
+        name: 'VOUCHER',
+        match: ctx => /voucher|ma giam|coupon/.test(ctx.normalized),
+        handle: ctx => ctx.render('voucherInfo')
+      }
+    ]
+  }
+  ```
+  
+  Trong handler bạn có thể dùng `ctx.config`, `ctx.products`, `ctx.render`, `ctx.selectedProduct`, `ctx.orderDraft`, `ctx.sessionState`, ...
+
+- **Đổi giọng / câu trả lời** với `templates` (override một phần/toàn bộ template trong `responses.js`):
+
+  ```js
+  templates: {
+    greeting: 'Chào bạn 🌸 Mình là trợ lý của {{shopName}} đây.',
+    voucherInfo: 'Voucher hôm nay: GIAM10K, đơn từ 200k.'
+  }
+  ```
+
+  Cú pháp template hỗ trợ helpers: `{{price | vnd}}`, `{{name | upper}}`, `{{x | default:'N/A'}}`, có thể chain `{{name | lower | capitalize}}`.
+
+- **Recommendations** có thể để rỗng `[]` cho group nào đó, engine sẽ tự derive từ attributes:
+  - `budget`: 3 mã giá thấp nhất
+  - `premium`: 3 mã giá cao nhất
+  - `large`: mã có size chứa "lớn/to" hoặc weight > 2000g
+  - `vibration`: mã có description chứa "rung/pin/sạc"
+
+### 3. (Tuỳ chọn) Sửa `responses.js`
+Chỉ cần đụng vào nếu muốn thêm template MỚI (không có trong defaults). Còn override câu cũ thì làm trong `shop-config.templates`.
+
+### 4. (Hiếm) Sửa `nlp.js` / `rules.js`
+Chỉ cần khi:
+- Thêm slang dictionary mới (ví dụ ngôn ngữ khác): `nlp.js` → `SLANG_RULES`.
+- Thêm keyword image kiểu như "gel" cho ngành mới: `rules.js` → hàm `wantsKeywordImage`.
+- Thêm built-in detector mới (hiếm khi cần — thường custom intent qua `shop-config.intents.prepend` là đủ).
+
+---
+
+## CHẠY TEST
+
+```bash
+npm test
+```
+
+Bộ test cover:
+- `nlp.js`: normalize, slang, fuzzy match mã sản phẩm, regex địa chỉ, phân biệt câu hỏi.
+- `responses.js`: renderTemplate, helpers (vnd/upper/default/...), templates đầy đủ.
+- `rules.js`: detector bug-fixes, intent router, state machine 5 trạng thái, custom intents từ config, override template.
+
+Khi sửa rule, chạy `npm test` để biết có vỡ behavior cũ hay không trước khi deploy.
+
+---
+
 ## NÂNG CẤP TIẾP THEO (tuỳ chọn)
 
 - Gửi ảnh sản phẩm khi khách hỏi mã cụ thể (cần host ảnh URL công khai).
 - Sync `customers.csv` lên Google Sheet bằng Apps Script.
 - Chuyển chat history từ file sang Redis/Postgres khi khách đông.
 - Quick Replies trên Messenger (gợi ý nút bấm).
+- Endpoint `/admin/state/:userId?token=xxx` đã có sẵn để debug session khi nhân viên cần tra soát.
+- Khi shop đông >5000 user đồng thời, có thể tăng `LAST_PRODUCT_LRU_LIMIT` trong `rules.js`.

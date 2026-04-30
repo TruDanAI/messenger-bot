@@ -1,0 +1,250 @@
+const { describe, it, expect } = require('./harness');
+const products = require('../products');
+const shopConfig = require('../shop-config');
+const { createRuleEngine, STATES, detectors } = require('../rules');
+
+// Mock contextStore (đầy đủ giống storage.js)
+function makeStore() {
+  const data = new Map();
+  return {
+    _data: data,
+    getLastProductCode: id => data.get(id)?.lastProductCode || '',
+    setLastProductCode: (id, code) => {
+      const v = data.get(id) || {};
+      v.lastProductCode = code;
+      data.set(id, v);
+    },
+    getOrderDraft: id => ({ ...(data.get(id)?.orderDraft || {}) }),
+    mergeOrderDraft(id, details) {
+      const v = data.get(id) || {};
+      v.orderDraft = { ...(v.orderDraft || {}), ...details };
+      data.set(id, v);
+      return { ...v.orderDraft };
+    },
+    getSessionState: id => data.get(id)?.sessionState || '',
+    setSessionState: (id, s) => {
+      const v = data.get(id) || {};
+      if (s) v.sessionState = s;
+      else delete v.sessionState;
+      data.set(id, v);
+    },
+    clearOrderDraft: id => {
+      const v = data.get(id) || {};
+      delete v.orderDraft;
+      delete v.sessionState;
+      data.set(id, v);
+    }
+  };
+}
+
+describe('detectors: BUG FIX wantsCancelOrder', () => {
+  it('TRUE với "thôi không lấy nữa"', () => {
+    expect(detectors.wantsCancelOrder('thôi không lấy nữa')).toBeTrue();
+  });
+  it('TRUE với "hủy đơn"', () => {
+    expect(detectors.wantsCancelOrder('hủy đơn cho mình')).toBeTrue();
+  });
+  it('TRUE với "không chốt nữa"', () => {
+    expect(detectors.wantsCancelOrder('không chốt nữa shop ơi')).toBeTrue();
+  });
+  it('FALSE với "thôi không sao đâu" (BUG cũ)', () => {
+    expect(detectors.wantsCancelOrder('thôi không sao đâu shop')).toBeFalse();
+  });
+  it('FALSE với "không hiểu"', () => {
+    expect(detectors.wantsCancelOrder('không hiểu shop nói gì')).toBeFalse();
+  });
+});
+
+describe('detectors: BUG FIX wantsHuman dùng preprocess', () => {
+  it('TRUE với "nhân viên" (có dấu)', () => {
+    expect(detectors.wantsHuman('cho mình gặp nhân viên')).toBeTrue();
+  });
+  it('TRUE với "nhan vien" (không dấu — BUG cũ miss)', () => {
+    expect(detectors.wantsHuman('cho gap nhan vien tu van')).toBeTrue();
+  });
+  it('TRUE với "tu van vien"', () => {
+    expect(detectors.wantsHuman('chuyen tu van vien giup em')).toBeTrue();
+  });
+  it('FALSE với câu thường', () => {
+    expect(detectors.wantsHuman('cho mình xem MÃ8')).toBeFalse();
+  });
+});
+
+describe('detectors: BUG FIX isPriceClarification', () => {
+  it('TRUE với "MÃ8 bao nhiêu vậy?"', () => {
+    expect(detectors.isPriceClarification('MÃ8 bao nhiêu vậy?')).toBeTrue();
+  });
+  it('TRUE với "giá nhiêu"', () => {
+    expect(detectors.isPriceClarification('giá nhiêu shop')).toBeTrue();
+  });
+});
+
+describe('detectors: wantsAddressChange (BUG FIX)', () => {
+  it('TRUE với "đổi địa chỉ"', () => {
+    expect(detectors.wantsAddressChange('đổi địa chỉ giúp em')).toBeTrue();
+  });
+  it('TRUE với "đổi giúp em sang phường 5" (BUG cũ miss)', () => {
+    expect(detectors.wantsAddressChange('đổi giúp em sang phường 5 quận 3')).toBeTrue();
+  });
+});
+
+describe('Engine: intent router cơ bản', () => {
+  const engine = createRuleEngine({
+    products,
+    config: shopConfig,
+    contextStore: makeStore()
+  });
+
+  it('GREETING', () => {
+    expect(engine.buildDeterministicReply('em chào shop', 'u1')).toContain('chào');
+  });
+  it('PRODUCT_LIST khi user gõ mã', () => {
+    expect(engine.buildDeterministicReply('m8 còn không', 'u2')).toContain('MÃ8');
+  });
+  it('ORDER_INTENT trả về giá', () => {
+    expect(engine.buildDeterministicReply('chốt MÃ8', 'u3')).toContain('680k');
+  });
+  it('PRODUCT_NOT_FOUND khi mã ngoài menu', () => {
+    expect(engine.buildDeterministicReply('cho xem MÃ99', 'u4')).toContain('MÃ99');
+  });
+});
+
+describe('Engine: state machine 5 trạng thái', () => {
+  const store = makeStore();
+  const engine = createRuleEngine({ products, config: shopConfig, contextStore: store });
+  const u = 'u_state';
+
+  it('IDLE ban đầu', () => {
+    expect(engine.deriveSessionState(u)).toBe(STATES.IDLE);
+  });
+  it('PRODUCT_SELECTED sau khi nhắc mã', () => {
+    engine.buildDeterministicReply('cho xem ma 8', u);
+    expect(engine.deriveSessionState(u)).toBe(STATES.PRODUCT_SELECTED);
+  });
+  it('COLLECTING_INFO khi có tên + sđt', () => {
+    store.mergeOrderDraft(u, { name: 'An', phone: '0987654321' });
+    expect(engine.deriveSessionState(u)).toBe(STATES.COLLECTING_INFO);
+  });
+  it('READY_TO_CONFIRM khi đủ 3 trường', () => {
+    store.mergeOrderDraft(u, { address: '12 Trần Phú, Hà Nội', productCode: 'MÃ8' });
+    expect(engine.deriveSessionState(u)).toBe(STATES.READY_TO_CONFIRM);
+  });
+  it('shouldSilenceAfterCompleteOrder = true với "ok"', () => {
+    expect(engine.shouldSilenceAfterCompleteOrder('ok shop', u)).toBeTrue();
+  });
+  it('CONFIRMED sau khi user "ok"', () => {
+    expect(engine.deriveSessionState(u)).toBe(STATES.CONFIRMED);
+  });
+  it('CANCEL_ORDER hạ về IDLE/PRODUCT_SELECTED', () => {
+    engine.buildDeterministicReply('thôi không lấy nữa', u);
+    const s = engine.deriveSessionState(u);
+    expect(s === STATES.IDLE || s === STATES.PRODUCT_SELECTED).toBeTrue();
+    const draft = store.getOrderDraft(u);
+    expect(!draft.name && !draft.phone && !draft.address).toBeTrue();
+  });
+});
+
+describe('Engine: BUG FIX user hỏi địa chỉ shop không bị nhầm là cung cấp địa chỉ', () => {
+  const engine = createRuleEngine({
+    products,
+    config: shopConfig,
+    contextStore: makeStore()
+  });
+
+  it('Câu "địa chỉ shop ở đâu?" KHÔNG trigger PROVIDES_NAME_OR_ADDRESS', () => {
+    const reply = engine.buildDeterministicReply('địa chỉ shop ở đâu vậy?', 'u_addr_q');
+    // Reply nên là OFFICE_PICKUP hoặc null/khác — KHÔNG được là "em nhận thông tin rồi".
+    if (reply) {
+      expect(reply).notToBe('Dạ em nhận thông tin rồi ạ. Anh/chị chọn giúp em mã sản phẩm muốn lấy, hoặc nhắn "menu" để em gửi danh sách sản phẩm nhé.');
+    }
+  });
+});
+
+describe('Engine: config-driven intent disable', () => {
+  const customConfig = {
+    ...shopConfig,
+    intents: { disabled: ['AGE_POLICY', 'GREETING'] }
+  };
+  const engine = createRuleEngine({
+    products,
+    config: customConfig,
+    contextStore: makeStore()
+  });
+
+  it('GREETING bị tắt -> không match câu chào', () => {
+    const reply = engine.buildDeterministicReply('em chào shop', 'u_disabled');
+    // Có thể null hoặc match rule khác, nhưng không phải template greeting.
+    if (reply) {
+      expect(reply.includes('xem danh sách sản phẩm') ? 'KHÔNG match GREETING' : 'OK').toBe('OK');
+    }
+  });
+  it('AGE_POLICY bị tắt -> không reply về tuổi', () => {
+    const reply = engine.buildDeterministicReply('em 16 tuổi mua được không', 'u_age');
+    if (reply) {
+      expect(/từ đủ \d+ tuổi/i.test(reply)).toBeFalse();
+    }
+  });
+});
+
+describe('Engine: config-driven custom intent (prepend)', () => {
+  const customConfig = {
+    ...shopConfig,
+    templates: {
+      ...((shopConfig && shopConfig.templates) || {}),
+      voucherInfo: 'Voucher hôm nay: GIAM10K, dùng được cho đơn từ 200k.'
+    },
+    intents: {
+      prepend: [
+        {
+          name: 'VOUCHER',
+          match: ctx => /voucher|ma giam|coupon/.test(ctx.normalized),
+          handle: ctx => ctx.render('voucherInfo')
+        }
+      ]
+    }
+  };
+  const engine = createRuleEngine({
+    products,
+    config: customConfig,
+    contextStore: makeStore()
+  });
+
+  it('Custom intent VOUCHER được trigger', () => {
+    const reply = engine.buildDeterministicReply('shop có voucher gì không', 'u_v');
+    expect(reply).toContain('Voucher hôm nay');
+  });
+});
+
+describe('Engine: template override per-shop', () => {
+  const customConfig = {
+    ...shopConfig,
+    templates: {
+      ...((shopConfig && shopConfig.templates) || {}),
+      greeting: 'Chào bạn 🌸 Mình là trợ lý của {{shopName}}.'
+    }
+  };
+  const engine = createRuleEngine({
+    products,
+    config: customConfig,
+    contextStore: makeStore()
+  });
+
+  it('Template "greeting" đã được override', () => {
+    const reply = engine.buildDeterministicReply('chào shop', 'u_o');
+    expect(reply).toContain('🌸');
+  });
+});
+
+describe('Engine: backward-compat exports', () => {
+  const m = require('../rules');
+  it('createRuleEngine là function', () => {
+    expect(typeof m.createRuleEngine).toBe('function');
+  });
+  it('STATES có 5 trạng thái', () => {
+    expect(Object.keys(m.STATES).length).toBe(5);
+  });
+  it('detectors object expose các hàm wants*', () => {
+    expect(typeof m.detectors.wantsCancelOrder).toBe('function');
+    expect(typeof m.detectors.wantsHuman).toBe('function');
+  });
+});

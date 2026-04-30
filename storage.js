@@ -173,6 +173,31 @@ module.exports = {
     return { ...next };
   },
 
+  // Session state machine: lưu cờ trạng thái tường minh (vd 'CONFIRMED').
+  // Phần lớn các trạng thái khác (IDLE/PRODUCT_SELECTED/COLLECTING_INFO/READY_TO_CONFIRM)
+  // được suy ra (derive) từ orderDraft + lastProductCode trong rules.js.
+  getSessionState(userId) {
+    return state.context[userId]?.sessionState || '';
+  },
+
+  setSessionState(userId, sessionState) {
+    if (!userId) return;
+    if (!state.context[userId]) state.context[userId] = {};
+    if (sessionState) {
+      state.context[userId].sessionState = sessionState;
+    } else {
+      delete state.context[userId].sessionState;
+    }
+    scheduleSave();
+  },
+
+  clearOrderDraft(userId) {
+    if (!userId || !state.context[userId]) return;
+    delete state.context[userId].orderDraft;
+    delete state.context[userId].sessionState;
+    scheduleSave();
+  },
+
   seenMid(mid) {
     return mids.has(mid);
   },
