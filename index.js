@@ -474,8 +474,26 @@ function prefixedLeadPart(text) {
   return null;
 }
 
+function splitExplicitOrderFields(text) {
+  const raw = cleanLeadPart(text);
+  const addressMatch = raw.match(/^(.*?)\b(?:và\s*)?(?:địa chỉ|dia chi|dc|ship về|ship ve|giao về|giao ve)\s*(?:là|la|:)?\s*(.+)$/i);
+  if (!addressMatch) return null;
+
+  const name = stripLeadPrefixes(addressMatch[1]).replace(/\b(và|va)$/i, '').trim();
+  const address = cleanLeadPart(addressMatch[2]);
+  if (!address) return null;
+
+  return {
+    name: cleanLeadPart(name),
+    address
+  };
+}
+
 function splitNameAndAddress(text) {
   const withoutPhone = String(text || '').replace(/(?:\+?84|0)\d{8,10}/g, ' ');
+  const explicit = splitExplicitOrderFields(withoutPhone);
+  if (explicit) return explicit;
+
   const prefixed = prefixedLeadPart(withoutPhone);
   if (prefixed) return { name: prefixed.name || '', address: prefixed.address || '' };
 

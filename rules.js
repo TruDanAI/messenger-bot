@@ -210,6 +210,11 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     return /^(xin\s*)?(chao|hello|hi|alo|shop|em\s*oi|chi\s*oi|anh\s*oi)(\s+(shop|em|chi|anh|ban))?[.!?\s]*$/.test(t);
   }
 
+  function isSimpleConfirmation(text) {
+    const t = normalizeText(text).trim();
+    return /^(ok|oke|oki|okay|uh|u|vang|da|duoc|chuan|dung|xac\s*nhan|dong\s*y|chot|len\s*don|gui\s*hang)(\s+(nhe|nha|a|shop|em))?[.!?\s]*$/.test(t);
+  }
+
   function providesName(text) {
     const t = normalizeText(text);
     return /\b(minh|em|anh|chi|toi)\s*(ten|la)\s+[\p{L}\s]{2,40}$/u.test(t)
@@ -291,6 +296,10 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       productCode: selectedProduct?.code || orderDraft.productCode || ''
     };
     const missingFields = missingOrderFields(productAwareOrder);
+
+    if (isSimpleConfirmation(userText) && !missingFields.length) {
+      return readyOrderReply(productAwareOrder, selectedProduct);
+    }
 
     if (asksWhyRepeatedInfo(userText)) {
       if (!missingFields.length) {
