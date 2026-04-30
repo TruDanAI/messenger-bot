@@ -112,7 +112,10 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     const t = normalizeText(text);
     return /(doi|sua|cap\s*nhat|chuyen).*(dia\s*chi|dc|noi\s*nhan|cho\s*nhan)/
       .test(t)
-      || /(doi|sua|cap\s*nhat|chuyen)\s*sang\b/.test(t);
+      || (
+        /(doi|sua|cap\s*nhat|chuyen)\s*sang\b/.test(t)
+        && /(xa|phuong|huyen|quan|tinh|tp|thanh\s*pho|ha\s*noi|sai\s*gon|ho\s*chi\s*minh|bac\s*ninh)/.test(t)
+      );
   }
 
   function isNonCommittalReaction(text) {
@@ -300,6 +303,55 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     return /(rung|pin|sac|lam\s*am|buom|3\s*lo|ba\s*lo|silicon|mong|lon|to|nho\s*gon)/.test(t);
   }
 
+  function wantsNewProducts(text) {
+    const t = normalizeText(text);
+    return /(hang|mau|san\s*pham).*(moi|cap\s*nhat|ve\s*them)/
+      .test(t)
+      || /(moi\s*ve|co\s*gi\s*moi)/.test(t);
+  }
+
+  function wantsStockInfo(text) {
+    const t = normalizeText(text);
+    return /(con\s*hang|het\s*hang|co\s*san|san\s*khong|con\s*khong|con\s*k|con\s*ko)/
+      .test(t);
+  }
+
+  function wantsBestSeller(text) {
+    const t = normalizeText(text);
+    return /(ban\s*chay|hot|nhieu\s*nguoi\s*mua|mau\s*nao\s*duoc|mau\s*nao\s*ok|nen\s*lay\s*mau\s*nao)/
+      .test(t);
+  }
+
+  function wantsDiscount(text) {
+    const t = normalizeText(text);
+    return /(giam|bot|fix|re\s*hon|uu\s*dai|khuyen\s*mai|sale|deal|gia\s*tot)/
+      .test(t);
+  }
+
+  function wantsInspection(text) {
+    const t = normalizeText(text);
+    return /(kiem\s*hang|xem\s*hang|mo\s*hang|dong\s*kiem|duoc\s*xem|cho\s*xem)/
+      .test(t);
+  }
+
+  function wantsCancelOrder(text) {
+    const t = normalizeText(text);
+    return /(huy|khong\s*lay|ko\s*lay|k\s*lay|thoi\s*khong|thoi\s*ko).*(don|hang|mua|lay|chot)?/
+      .test(t);
+  }
+
+  function wantsChangeProduct(text) {
+    const t = normalizeText(text);
+    return /(doi|sua|chuyen).*(mau|ma|san\s*pham|sp)/
+      .test(t);
+  }
+
+  function wantsOfficePickup(text) {
+    const t = normalizeText(text);
+    return /(qua\s*shop|den\s*shop|lay\s*truc\s*tiep|co\s*cua\s*hang|dia\s*chi\s*shop)/
+      .test(t);
+  }
+
   function buildDeterministicReply(userText, userId) {
     const t = normalizeText(userText);
     const requestedCodes = extractRequestedProductCodes(userText);
@@ -361,6 +413,14 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       return 'Dạ em chào anh/chị ạ. Anh/chị muốn xem danh sách sản phẩm, hỏi theo ngân sách, hay đang quan tâm mã nào để em tư vấn nhanh nhé.';
     }
 
+    if (wantsCancelOrder(userText)) {
+      return 'Dạ không sao ạ. Nếu mình chưa xác nhận với nhân viên thì shop chưa lên đơn đâu ạ. Khi nào muốn tham khảo hoặc chốt lại mẫu nào, anh/chị nhắn em mã sản phẩm là được nhé.';
+    }
+
+    if (wantsChangeProduct(userText)) {
+      return 'Dạ đổi mẫu được ạ. Anh/chị nhắn giúp em mã sản phẩm muốn đổi sang, ví dụ MÃ8 hoặc MÃ13, em kiểm tra và báo lại giá/thông tin cho mình nhé.';
+    }
+
     if (providesName(userText) || providesAddress(userText)) {
       if (!missingFields.length) return readyOrderReply(productAwareOrder, selectedProduct);
       if (selectedProduct) {
@@ -375,6 +435,27 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
     if (wantsMenuImages(userText) && !found.length) {
       return 'Dạ em gửi menu ảnh sản phẩm cho anh/chị rồi ạ. Anh/chị xem mẫu nào ưng thì nhắn mã (ví dụ MÃ8 hoặc ma8), em báo giá và tư vấn nhanh hơn nhé.';
+    }
+
+    if (wantsNewProducts(userText)) {
+      return 'Dạ hiện shop tư vấn theo danh sách menu đang có ạ. Nếu có mẫu mới shop sẽ cập nhật thêm vào menu; anh/chị muốn xem lại danh sách hiện tại thì em gửi ảnh menu cho mình tham khảo nhé.';
+    }
+
+    if (wantsStockInfo(userText)) {
+      if (selectedProduct) {
+        return `Dạ ${selectedProduct.code} ${selectedProduct.preorder ? `là hàng đặt, thời gian khoảng ${config.policies.preorderDays}` : 'shop đang tư vấn/chốt theo danh sách hiện tại'} ạ. Trước khi gửi hàng shop sẽ xác nhận lại đơn cho mình nhé.`;
+      }
+      return 'Dạ anh/chị nhắn giúp em mã sản phẩm muốn hỏi còn hàng, ví dụ MÃ8 hoặc MÃ13, em kiểm tra và báo đúng mẫu cho mình ạ.';
+    }
+
+    if (wantsBestSeller(userText)) {
+      const options = [
+        ...recommendationProducts('premium').slice(0, 2),
+        ...recommendationProducts('budget').slice(0, 1)
+      ];
+      const unique = [...new Map(options.map(p => [p.code, p])).values()];
+      const lines = unique.map(p => `${p.code} giá ${p.price}`).join(', ');
+      return `Dạ các mẫu dễ tư vấn/bán chạy bên shop thường là ${lines || 'MÃ8, MÃ2 và MÃ10'} ạ. Nếu anh/chị cho em ngân sách hoặc thích nhỏ gọn/có rung/kích thước lớn, em lọc đúng mẫu hơn nhé.`;
     }
 
     if (asksForOrderInfo(userText)) {
@@ -404,9 +485,21 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       return `Dạ ${config.shopName} ${config.policies.privacy}. Thông tin đơn chỉ dùng để giao hàng, anh/chị yên tâm về bảo mật ạ.`;
     }
 
+    if (wantsInspection(userText)) {
+      return 'Dạ vì sản phẩm cá nhân/nhạy cảm nên shop cần đóng gói kín. Khi nhận hàng anh/chị kiểm tra tình trạng gói hàng bên ngoài giúp shop; nếu có vấn đề, mình chụp ảnh/quay video để nhân viên hỗ trợ nhanh ạ.';
+    }
+
     if (wantsShippingFee(userText)) {
       const fee = config.policies.freeShipping ? 'miễn ship tất cả sản phẩm' : 'sẽ báo phí ship theo địa chỉ';
       return `Dạ ${config.shopName} ${fee} ạ. Anh/chị chỉ cần gửi mẫu muốn lấy + ${config.policies.orderInfoFields}, shop xác nhận đơn rồi giao kín cho mình.`;
+    }
+
+    if (wantsDiscount(userText)) {
+      return `Dạ giá shop đang để theo menu và ${config.policies.freeShipping ? 'đã miễn ship' : 'sẽ báo ship theo địa chỉ'} ạ. Nếu anh/chị lấy thêm gel hoặc chốt nhiều món, nhân viên sẽ kiểm tra hỗ trợ mức tốt nhất trước khi lên đơn nhé.`;
+    }
+
+    if (wantsOfficePickup(userText)) {
+      return 'Dạ shop ưu tiên giao kín theo đơn để bảo mật thông tin cho mình ạ. Anh/chị gửi mẫu muốn lấy + thông tin nhận hàng, nhân viên sẽ xác nhận lại trước khi gửi nhé.';
     }
 
     if (wantsPaymentInfo(userText)) {

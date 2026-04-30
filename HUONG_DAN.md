@@ -30,10 +30,11 @@ Cần 4 biến (5 nếu tính `PORT`):
 
 | Biến | Lấy ở đâu | Bắt buộc |
 |---|---|---|
-| `GEMINI_API_KEY` | Bước 1 | Có |
+| `GEMINI_API_KEY` | Bước 1 | Có nếu `USE_GEMINI` không phải `false` |
 | `FB_PAGE_TOKEN` | Bước 2 (Access Token) | Có |
 | `FB_VERIFY_TOKEN` | Tự đặt một chuỗi ngẫu nhiên (vd: `shopbot_x7k2p9q`) | Có |
 | `FB_APP_SECRET` | Bước 2 (App Secret) | Khuyến nghị |
+| `USE_GEMINI` | `true`/`false`, tắt Gemini fallback khi cần chạy rule-only | Không |
 | `PORT` | Railway/Render tự set, local dùng `3000` | Không |
 
 ### Chạy local
@@ -50,8 +51,16 @@ npm run dev
 1. Vào https://railway.app → đăng ký bằng GitHub
 2. **New Project → Deploy from GitHub repo** (push code lên GitHub trước)
 3. Sau khi deploy: **Settings** → copy domain (`xxx.railway.app`)
-4. **Variables** → thêm 4 biến `GEMINI_API_KEY`, `FB_PAGE_TOKEN`, `FB_VERIFY_TOKEN`, `FB_APP_SECRET`
+4. **Variables** → thêm `FB_PAGE_TOKEN`, `FB_VERIFY_TOKEN`, `FB_APP_SECRET`; thêm `GEMINI_API_KEY` nếu muốn bật Gemini fallback
 5. Nếu muốn lưu lead không mất sau restart/deploy: tạo Railway Volume, mount vào `/data`, rồi thêm biến `DATA_DIR=/data`
+
+Nếu API Gemini đang free/không ổn định, có thể thêm:
+
+```bash
+USE_GEMINI=false
+```
+
+Khi đó bot chỉ dùng rule-based và fallback cố định, không gọi Gemini.
 
 ---
 

@@ -39,6 +39,7 @@ const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN;
 const FB_APP_SECRET   = process.env.FB_APP_SECRET;
 const GEMINI_API_KEY  = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL    = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const USE_GEMINI      = String(process.env.USE_GEMINI || 'true').toLowerCase() !== 'false';
 const PORT            = process.env.PORT || 3000;
 const ADMIN_EXPORT_TOKEN = process.env.ADMIN_EXPORT_TOKEN || '';
 const PUBLIC_BASE_URL =
@@ -47,7 +48,8 @@ const PUBLIC_BASE_URL =
   process.env.RENDER_EXTERNAL_URL ||
   '';
 
-const required = { FB_VERIFY_TOKEN, FB_PAGE_TOKEN, GEMINI_API_KEY };
+const required = { FB_VERIFY_TOKEN, FB_PAGE_TOKEN };
+if (USE_GEMINI) required.GEMINI_API_KEY = GEMINI_API_KEY;
 const missing = Object.entries(required).filter(([, v]) => !v).map(([k]) => k);
 if (missing.length) {
   console.error('❌ Thiếu biến môi trường bắt buộc:', missing.join(', '));
@@ -711,6 +713,9 @@ async function handleEvent(event, baseUrlOverride = '') {
     let reply = buildDeterministicReply(userText, senderId);
     if (reply) {
       console.log('⚡ Trả lời rule-based, không gọi Gemini');
+    } else if (!USE_GEMINI) {
+      reply = buildFallbackReply(userText, senderId);
+      console.log('🧩 USE_GEMINI=false, dùng fallback rule-based');
     } else {
       reply = await callGemini(senderId, userText);
     }
@@ -798,7 +803,7 @@ function shutdown(signal) {
 
 if (require.main === module) {
   server = app.listen(PORT, async () => {
-    console.log(`🚀 Bot đang chạy tại port ${PORT} (sản phẩm: ${products.length}, model: ${GEMINI_MODEL})`);
+    console.log(`🚀 Bot đang chạy tại port ${PORT} (sản phẩm: ${products.length}, Gemini: ${USE_GEMINI ? GEMINI_MODEL : 'off'})`);
     await checkPageToken();
   });
 
