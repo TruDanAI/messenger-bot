@@ -1,6 +1,6 @@
-# HƯỚNG DẪN DEPLOY CHATBOT MESSENGER (v1.1)
+# HƯỚNG DẪN DEPLOY CHATBOT MESSENGER
 
-> Bản này đã thêm: xác thực webhook, lưu chat persistent, tách sản phẩm ra file riêng, human handoff, ghi đơn lead.
+> Bản hiện tại đã có: xác thực webhook, lưu chat/state persistent, rule engine theo config, NLP normalize tiếng Việt, gửi ảnh tự động, human handoff, ghi lead, admin export/debug và test suite.
 
 ---
 
@@ -26,15 +26,19 @@
 
 ## BƯỚC 3 — CẤU HÌNH BIẾN MÔI TRƯỜNG
 
-Cần 4 biến (5 nếu tính `PORT`):
+Cần tối thiểu `FB_PAGE_TOKEN`, `FB_VERIFY_TOKEN`. Nếu bật Gemini thì cần thêm `GEMINI_API_KEY`.
 
 | Biến | Lấy ở đâu | Bắt buộc |
 |---|---|---|
 | `GEMINI_API_KEY` | Bước 1 | Có nếu `USE_GEMINI` không phải `false` |
+| `GEMINI_MODEL` | Tên model Gemini, mặc định `gemini-2.5-flash` | Không |
 | `FB_PAGE_TOKEN` | Bước 2 (Access Token) | Có |
 | `FB_VERIFY_TOKEN` | Tự đặt một chuỗi ngẫu nhiên (vd: `shopbot_x7k2p9q`) | Có |
 | `FB_APP_SECRET` | Bước 2 (App Secret) | Khuyến nghị |
 | `USE_GEMINI` | `true`/`false`, tắt Gemini fallback khi cần chạy rule-only | Không |
+| `PUBLIC_BASE_URL` | URL public của app để Messenger lấy ảnh qua `/media` | Không nếu Railway/Render tự có domain |
+| `ADMIN_EXPORT_TOKEN` | Chuỗi bí mật để tải CSV/xem debug state | Khuyến nghị |
+| `DATA_DIR` | Thư mục lưu state/lead, ví dụ `/data` khi dùng Railway Volume | Không |
 | `PORT` | Railway/Render tự set, local dùng `3000` | Không |
 
 ### Chạy local
@@ -43,6 +47,7 @@ Cần 4 biến (5 nếu tính `PORT`):
 cp .env.example .env
 # mở .env và điền các giá trị bên trên
 npm install
+npm test
 npm run dev
 ```
 
@@ -52,7 +57,9 @@ npm run dev
 2. **New Project → Deploy from GitHub repo** (push code lên GitHub trước)
 3. Sau khi deploy: **Settings** → copy domain (`xxx.railway.app`)
 4. **Variables** → thêm `FB_PAGE_TOKEN`, `FB_VERIFY_TOKEN`, `FB_APP_SECRET`; thêm `GEMINI_API_KEY` nếu muốn bật Gemini fallback
-5. Nếu muốn lưu lead không mất sau restart/deploy: tạo Railway Volume, mount vào `/data`, rồi thêm biến `DATA_DIR=/data`
+5. Nếu Railway không tự cấp `RAILWAY_PUBLIC_DOMAIN` hoặc bạn dùng custom domain, thêm `PUBLIC_BASE_URL=https://ten-domain-cua-ban`
+6. Nếu muốn lưu lead/state không mất sau restart/deploy: tạo Railway Volume, mount vào `/data`, rồi thêm biến `DATA_DIR=/data`
+7. Nếu muốn tải lead/debug session từ trình duyệt, thêm `ADMIN_EXPORT_TOKEN=chuoi_bi_mat_that_dai`
 
 Nếu API Gemini đang free/không ổn định, có thể thêm:
 
@@ -85,7 +92,7 @@ Khi đó bot chỉ dùng rule-based và fallback cố định, không gọi Gemi
 
 ---
 
-## TÍNH NĂNG MỚI
+## TÍNH NĂNG CHÍNH
 
 ### Tách sản phẩm ra `products.csv`
 Muốn thêm/sửa sản phẩm: chỉ cần sửa file `products.csv`, không cần đụng code.
@@ -102,8 +109,26 @@ Khi đổi sang dự án/shop khác, thường chỉ cần sửa:
 
 - `products.csv`: danh sách sản phẩm, giá, mô tả, ảnh
 - `shop-config.js`: miễn ship, COD/đặt cọc, thời gian hàng đặt, tuổi tối thiểu, nhóm sản phẩm gợi ý
+- `shop-config.js` cũng có thể override câu trả lời qua `templates`, không cần sửa `responses.js`
 
-Phần rule xử lý intent nằm trong `rules.js`, còn `index.js` chỉ giữ webhook Messenger, gửi ảnh và gọi Gemini.
+Phần rule xử lý intent nằm trong `rules.js`, template mặc định nằm trong `responses.js`, NLP nằm trong `nlp.js`. `index.js` giữ webhook Messenger, gửi ảnh/tin nhắn, gọi Gemini và các endpoint admin.
+
+Lưu ý: `SYSTEM_PROMPT` của Gemini hiện vẫn được build trong `index.js`. Đây là phần có thể refactor sau nếu muốn bot config-driven 100%.
+
+### Gửi ảnh tự động
+Bot tự gửi ảnh khi khách hỏi menu/danh sách/hình/ảnh, nhắc mã sản phẩm, hoặc hỏi keyword như `gel`.
+
+Ảnh được phục vụ qua endpoint:
+
+```txt
+GET /media/:filename
+```
+
+Cách dùng:
+
+- Điền tên file ảnh vào cột `imageFile` trong `products.csv`.
+- Đặt ảnh trong thư mục `images/`, `assets/`, hoặc thư mục cha của project như code hiện tại đang scan.
+- Đảm bảo app có URL public qua `PUBLIC_BASE_URL`, `RAILWAY_PUBLIC_DOMAIN`, hoặc `RENDER_EXTERNAL_URL`.
 
 ### Human handoff
 - Khách gõ `nhân viên`, `admin`, `người thật`, `tư vấn viên` → bot tạm dừng 30 phút.
@@ -135,6 +160,15 @@ railway run sh -lc "ls -la /data && sed -n '1,20p' /data/customers.csv"
 
 Nếu Volume của Railway mount ở path khác `/data`, hãy set `DATA_DIR` đúng bằng mount path đó.
 
+### Debug trạng thái khách hàng
+Endpoint này giúp xem nhanh session/order draft của một user:
+
+```txt
+https://ten-app.up.railway.app/admin/state/USER_ID?token=chuoi_bi_mat_that_dai
+```
+
+Kết quả gồm: `inHandoff`, `lastProductCode`, `orderDraft`, `sessionState`, `historyLength`.
+
 ### Bảo mật webhook
 Nếu set `FB_APP_SECRET`, bot sẽ kiểm tra `X-Hub-Signature-256`. Request không có chữ ký hợp lệ sẽ bị từ chối.
 
@@ -161,14 +195,17 @@ Nếu set `FB_APP_SECRET`, bot sẽ kiểm tra `X-Hub-Signature-256`. Request kh
 → Kiểm tra `FB_VERIFY_TOKEN` có khớp giữa Railway và Facebook không.
 
 ❌ **Bot không trả lời**
-→ Check log Railway. Thường do thiếu `FB_PAGE_TOKEN` hoặc `GEMINI_API_KEY`.
+→ Check log Railway. Thường do thiếu `FB_PAGE_TOKEN`, `FB_VERIFY_TOKEN`, hoặc `GEMINI_API_KEY` khi `USE_GEMINI=true`.
 → Bot cũng có thể đang ở chế độ handoff, đợi 30 phút hoặc xoá `data/chat-state.json`.
 
 ❌ **Webhook trả 403**
 → Sai `FB_APP_SECRET` hoặc thiếu chữ ký. Kiểm tra lại App Secret.
 
 ❌ **Lỗi Gemini API**
-→ Quota hết hoặc key sai.
+→ Quota hết, key sai, hoặc model đang quá tải. Có thể tạm set `USE_GEMINI=false` để bot chạy rule-only.
+
+❌ **Ảnh không gửi được**
+→ Kiểm tra `PUBLIC_BASE_URL` có trỏ đúng domain public không, file ảnh có tồn tại không, và cột `imageFile` trong `products.csv` có đúng tên file không.
 
 ---
 
@@ -176,7 +213,7 @@ Nếu set `FB_APP_SECRET`, bot sẽ kiểm tra `X-Hub-Signature-256`. Request kh
 
 - Sản phẩm thuộc danh mục 18+. Tuân thủ chính sách Meta về quảng cáo và tin nhắn.
 - Không đăng nội dung phản cảm trên Page; bot đã được nhắc giữ ngôn ngữ kín đáo nhưng bạn vẫn nên review log định kỳ.
-- File `data/` chứa thông tin khách (sđt, lịch sử chat). KHÔNG commit lên Git công khai.
+- File `data/` chứa thông tin khách, lịch sử chat, state và processed message IDs. KHÔNG commit lên Git công khai.
 
 ---
 
@@ -263,9 +300,8 @@ Khi sửa rule, chạy `npm test` để biết có vỡ behavior cũ hay không 
 
 ## NÂNG CẤP TIẾP THEO (tuỳ chọn)
 
-- Gửi ảnh sản phẩm khi khách hỏi mã cụ thể (cần host ảnh URL công khai).
+- Tách `SYSTEM_PROMPT` sang `prompt.js` hoặc cấu hình template riêng nếu muốn config-driven 100%.
 - Sync `customers.csv` lên Google Sheet bằng Apps Script.
 - Chuyển chat history từ file sang Redis/Postgres khi khách đông.
 - Quick Replies trên Messenger (gợi ý nút bấm).
-- Endpoint `/admin/state/:userId?token=xxx` đã có sẵn để debug session khi nhân viên cần tra soát.
 - Khi shop đông >5000 user đồng thời, có thể tăng `LAST_PRODUCT_LRU_LIMIT` trong `rules.js`.

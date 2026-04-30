@@ -129,10 +129,18 @@ function isOrderIntent(text) {
   return /\b(?:chot|lay|dat|mua|giu|len\s*don)\b/.test(t);
 }
 
-// FIX: trước đây cần cả "gia/bao nhieu" + "(la|hay|phai|...)" -> miss "MÃ8 bao nhiêu vậy?".
 function isPriceClarification(text) {
   const t = preprocess(text);
-  return /(?:\bgia\b|bao\s*nhieu|may\s*tien|\d+\s*(?:trieu|tr|k)\b|\d+\.\d+k\b)/.test(t);
+  const hasExplicitPriceQuestion = /(?:bao\s*nhieu|may\s*tien|gia\s*(?:nhieu|sao|the\s*nao|bao\s*nhieu)|bao\s*gia)/.test(t);
+  if (hasExplicitPriceQuestion) return true;
+
+  const hasPriceKeyword = /\bgia\b/.test(t);
+  const hasPriceAmount = /(?:\d+\s*(?:trieu|tr|k)\b|\d+\.\d+k\b)/.test(t);
+  const hasClarificationMarker = isQuestion(text)
+    || /\b(?:hay|la|phai|dung|khong|ko|k|ha|a|vay|nhi)\b/.test(t);
+
+  if (hasPriceKeyword && !hasPriceAmount) return true;
+  return (hasPriceKeyword || hasPriceAmount) && hasClarificationMarker;
 }
 
 function wantsShippingPrivacy(text) {

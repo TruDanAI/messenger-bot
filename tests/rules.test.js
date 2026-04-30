@@ -77,6 +77,12 @@ describe('detectors: BUG FIX isPriceClarification', () => {
   it('TRUE với "giá nhiêu"', () => {
     expect(detectors.isPriceClarification('giá nhiêu shop')).toBeTrue();
   });
+  it('FALSE khi chỉ nhắc mã + giá, không hỏi xác nhận', () => {
+    expect(detectors.isPriceClarification('MÃ8 300k')).toBeFalse();
+  });
+  it('TRUE khi nhắc giá kèm marker hỏi/xác nhận', () => {
+    expect(detectors.isPriceClarification('MÃ8 là 300k hả shop?')).toBeTrue();
+  });
 });
 
 describe('detectors: wantsAddressChange (BUG FIX)', () => {
@@ -106,6 +112,11 @@ describe('Engine: intent router cơ bản', () => {
   });
   it('PRODUCT_NOT_FOUND khi mã ngoài menu', () => {
     expect(engine.buildDeterministicReply('cho xem MÃ99', 'u4')).toContain('MÃ99');
+  });
+  it('không coi "MÃ8 300k" là PRICE_CLARIFICATION', () => {
+    const reply = engine.buildDeterministicReply('MÃ8 300k', 'u_price_mention');
+    expect(reply).toContain('em gửi thông tin nhanh');
+    expect(reply.includes('giá 680k')).toBeFalse();
   });
 });
 
