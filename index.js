@@ -312,7 +312,9 @@ const HANDOFF_MS = 30 * 60 * 1000; // 30 phút
 
 function isBotEcho(event) {
   const message = event.message || {};
-  return message.metadata === BOT_MESSAGE_METADATA || Boolean(message.app_id);
+  // Human replies from Meta Inbox can also include app_id, so only trust
+  // the metadata we attach to messages sent by this bot.
+  return message.metadata === BOT_MESSAGE_METADATA;
 }
 
 function getEchoCustomerId(event) {
