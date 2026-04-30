@@ -100,6 +100,14 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
         .test(t);
   }
 
+  function rejectsOrderIntent(text) {
+    const t = normalizeText(text);
+    return /(chua|khong|ko|k)\s*(chot|mua|lay|dat|len\s*don)/
+      .test(t)
+      || /(noi|bao)\s*vay\s*thoi/.test(t)
+      || /tham\s*khao\s*thoi/.test(t);
+  }
+
   function wantsAddressChange(text) {
     const t = normalizeText(text);
     return /(doi|sua|cap\s*nhat|chuyen).*(dia\s*chi|dc|noi\s*nhan|cho\s*nhan)/
@@ -107,9 +115,17 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       || /(doi|sua|cap\s*nhat|chuyen)\s*sang\b/.test(t);
   }
 
+  function isNonCommittalReaction(text) {
+    const raw = String(text || '').trim();
+    const t = normalizeText(raw).trim();
+    return /^(o|oh|a|ah|ua|u|uh|ha|haha|hihi|hehe|ok|oke|oki|okay|vang|da|ko|khong)(\s+(a|shop|nhe|nha))?$/.test(t)
+      || /^[\s:;)(.\-!?👍👌😊😅😂🤣]+$/u.test(raw);
+  }
+
   function shouldSilenceAfterCompleteOrder(userText, userId) {
     const orderDraft = getOrderDraft(userId);
-    return !missingOrderFields(orderDraft).length && isSimpleConfirmation(userText);
+    return !missingOrderFields(orderDraft).length
+      && (isSimpleConfirmation(userText) || isNonCommittalReaction(userText));
   }
 
   function compactProductName(product) {
@@ -294,6 +310,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       ? productByCode.get(String(orderDraft.productCode).toUpperCase())
       : null;
     const selectedProduct = found[0] || keywordProduct || getLastProduct(userId) || draftProduct;
+    const orderProduct = found[0] || draftProduct || getLastProduct(userId);
     const wantsVibration = /\brung\b|co\s*pin|sac\s*pin/.test(t);
     const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
     const wantsPhoto = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
@@ -301,13 +318,16 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     const budget = budgetMatch ? Number(budgetMatch[1]) : null;
 
     if (found.length) rememberLastProduct(userId, found[0]);
-    else if (keywordProduct) rememberLastProduct(userId, keywordProduct);
 
     const productAwareOrder = {
       ...orderDraft,
-      productCode: selectedProduct?.code || orderDraft.productCode || ''
+      productCode: orderProduct?.code || orderDraft.productCode || ''
     };
     const missingFields = missingOrderFields(productAwareOrder);
+
+    if (rejectsOrderIntent(userText)) {
+      return 'Dạ em hiểu ạ, mình cứ tham khảo thoải mái nhé. Khi nào muốn chốt mẫu nào thì nhắn em mã sản phẩm hoặc tên món là được ạ.';
+    }
 
     if (wantsAddressChange(userText)) {
       if (!missingFields.length) {
