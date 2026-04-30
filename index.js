@@ -26,6 +26,7 @@ const {
   extractRequestedProductCodes,
   looksLikePhone,
   normalizeText,
+  shouldSilenceAfterCompleteOrder,
   wantsHuman,
   wantsKeywordImage,
   wantsMenuImages,
@@ -453,6 +454,7 @@ function isProbablyIncompleteReply(reply, userText) {
 function cleanLeadPart(text) {
   return String(text || '')
     .replace(/\s+/g, ' ')
+    .replace(/\s+(?:nhé|nhe|nha|ạ|a)$/i, '')
     .replace(/\s+(?:shop|ad|minh|mình|anh|chị|chi|em)\s*(?:ơi|oi)?$/i, '')
     .replace(/^[,:;\-\s]+|[,:;\-\s]+$/g, '')
     .trim();
@@ -545,11 +547,14 @@ function buildLeadDetails(userText, senderId) {
   const mentionedCode = extractRequestedProductCodes(userText)[0] || '';
   const productCode = mentionedCode || storage.getLastProductCode(senderId) || '';
   const phone = extractPhone(userText);
+  const addressChangeMatch = String(userText || '').match(/(?:đổi|doi|sửa|sua|cập\s*nhật|cap\s*nhat|chuyển|chuyen)\s*(?:địa\s*chỉ|dia\s*chi|dc)?\s*(?:sang|thành|thanh|là|la|:)\s*(.+)$/i);
   const hasLeadPrefix = /(?:^|\n)\s*(?:tên người nhận|ten nguoi nhan|người nhận|nguoi nhan|tên|ten|địa chỉ|dia chi|dc|ship về|ship ve|giao về|giao ve)(?:\s|:|$)/i
     .test(userText);
   const addressOnly = !phone && /[,;]/.test(userText) && /\b(xã|xa|phường|phuong|huyện|huyen|quận|quan|tỉnh|tinh|tp|thành phố|thanh pho)\b/i
     .test(normalizeText(userText));
-  const parsed = phone || hasLeadPrefix
+  const parsed = addressChangeMatch
+    ? { name: '', address: cleanLeadPart(addressChangeMatch[1]) }
+    : phone || hasLeadPrefix
     ? splitNameAndAddress(userText)
     : addressOnly
       ? { name: '', address: cleanLeadPart(stripLeadPrefixes(userText)) }
@@ -678,6 +683,11 @@ async function handleEvent(event, baseUrlOverride = '') {
       history: storage.getHistory(senderId).slice(-10),
       at: new Date().toISOString()
     });
+  }
+
+  if (shouldSilenceAfterCompleteOrder(userText, senderId)) {
+    console.log(`⏸️  Bỏ qua tin xác nhận ngắn sau khi đã đủ thông tin đơn: ${senderId}`);
+    return;
   }
 
   let imagePromise = Promise.resolve();

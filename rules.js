@@ -100,6 +100,18 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
         .test(t);
   }
 
+  function wantsAddressChange(text) {
+    const t = normalizeText(text);
+    return /(doi|sua|cap\s*nhat|chuyen).*(dia\s*chi|dc|noi\s*nhan|cho\s*nhan)/
+      .test(t)
+      || /(doi|sua|cap\s*nhat|chuyen)\s*sang\b/.test(t);
+  }
+
+  function shouldSilenceAfterCompleteOrder(userText, userId) {
+    const orderDraft = getOrderDraft(userId);
+    return !missingOrderFields(orderDraft).length && isSimpleConfirmation(userText);
+  }
+
   function compactProductName(product) {
     return product ? `${product.code} giá ${explainPrice(product.price)}` : 'mẫu anh/chị chọn';
   }
@@ -297,8 +309,11 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     };
     const missingFields = missingOrderFields(productAwareOrder);
 
-    if (isSimpleConfirmation(userText) && !missingFields.length) {
-      return readyOrderReply(productAwareOrder, selectedProduct);
+    if (wantsAddressChange(userText)) {
+      if (!missingFields.length) {
+        return 'Dạ được ạ, anh/chị gửi giúp em địa chỉ mới đầy đủ, shop sẽ cập nhật lại đơn cho mình nhé.';
+      }
+      return `Dạ được ạ, anh/chị gửi giúp em ${missingFields.join(' + ')} để shop cập nhật/xác nhận đơn nhé.`;
     }
 
     if (asksWhyRepeatedInfo(userText)) {
@@ -466,6 +481,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     extractRequestedProductCodes,
     looksLikePhone,
     normalizeText,
+    shouldSilenceAfterCompleteOrder,
     wantsHuman,
     wantsKeywordImage,
     wantsMenuImages,
