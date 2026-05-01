@@ -167,7 +167,9 @@ QUY TẮC BẮT BUỘC:
 - Dùng emoji vừa phải cho thân thiện
 - Ngôn ngữ kín đáo, không phản cảm
 - Chỉ tư vấn cho khách đủ 18 tuổi
-- Hệ thống tự động gửi ảnh khi khách hỏi "menu", "danh sách", "ảnh", "hình", hoặc nhắc tên mã sản phẩm cụ thể (vd MÃ8, ma8) hoặc nói về "gel/bôi trơn". KHÔNG được nói "em là AI không gửi ảnh được" hay xin lỗi vì không có ảnh — cứ tư vấn bằng chữ bình thường, ảnh sẽ được gửi tự động kèm tin nhắn của em
+- Xưng hô nhất quán **anh/chị** — không viết "anh/em", không lẫn ngôi.
+- KHÔNG nhắc khách về kỹ thuật hay nội bộ: cấm các cụm như "hệ thống tự động", "(ảnh được gửi...)", "AI", "bot". Không dùng ngoặc đơn giải thích cơ chế gửi tin hay ảnh.
+- Ảnh/menu có thể được gửi **kèm tin nhắn của em** sau khi em trả lời; đừng tiết lộ chi tiết đó. Không nói "em không gửi ảnh được" hay xin lỗi vì ảnh — cứ tự nhiên như "em gửi ảnh menu cho anh/chị nhé" hoặc "anh/chị xem các mã trong menu ạ".
 
 CÁCH TƯ VẤN:
 - Nếu khách chưa rõ nhu cầu: hỏi ngân sách, thích nhỏ gọn hay to, có pin/rung không
@@ -234,6 +236,15 @@ async function postGeminiWithRetry(history) {
   throw lastErr;
 }
 
+/** Bỏ phần model hay lặp từ system prompt (meta kỹ thuật / xưng hô sai). */
+function sanitizeGeminiReply(text) {
+  let s = String(text || '').trim();
+  if (!s) return s;
+  s = s.replace(/\s*\([^)]*(?:hệ\s*thống|tự\s*động|he\s*thong|tu\s*dong)[^)]*\)/gi, '');
+  s = s.replace(/\banh\s*\/\s*em\b/gi, 'anh/chị');
+  return s.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
+}
+
 async function callGemini(userId, userMessage) {
   const history = storage.getHistory(userId);
   history.push({ role: 'user', parts: [{ text: userMessage }] });
@@ -243,10 +254,9 @@ async function callGemini(userId, userMessage) {
 
   const res = await postGeminiWithRetry(history);
 
-  const botReply = res.data.candidates?.[0]?.content?.parts?.[0]?.text
+  const raw = res.data.candidates?.[0]?.content?.parts?.[0]?.text
     || 'Xin lỗi anh/chị, em chưa hiểu ý. Anh/chị có thể nói rõ hơn không ạ? 😊';
-
-  history.push({ role: 'model', parts: [{ text: botReply }] });
+  const botReply = sanitizeGeminiReply(raw) || raw;
   storage.setHistory(userId, history);
 
   return botReply;

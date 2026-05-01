@@ -227,7 +227,8 @@ function asksForOrderInfo(text) {
 
 function wantsFeatureAdvice(text) {
   const t = preprocess(text);
-  return /(?:rung|pin|sac|lam\s*am|buom|3\s*lo|ba\s*lo|silicon|mong|lon|to|nho\s*gon)/.test(t);
+  // Tránh substring "to" trong "toi" (tôi) →FEATURE_OR_LARGE ăn trước ORDER_INTENT.
+  return /(?:rung|pin|sac|lam\s*am|buom|3\s*lo|ba\s*lo|silicon|mong|lon|\bto\b|nho\s*gon)/.test(t);
 }
 
 function wantsNewProducts(text) {
@@ -243,7 +244,8 @@ function wantsStockInfo(text) {
 
 function wantsBestSeller(text) {
   const t = preprocess(text);
-  return /(?:ban\s*chay|hot|nhieu\s*nguoi\s*mua|mau\s*nao\s*duoc|mau\s*nao\s*ok|nen\s*lay\s*mau\s*nao)/.test(t);
+  // Tránh substring "hot" trong "chot" (chốt) → false positive BEST_SELLER.
+  return /(?:ban\s*chay|\bhot\b|nhieu\s*nguoi\s*mua|mau\s*nao\s*duoc|mau\s*nao\s*ok|nen\s*lay\s*mau\s*nao)/.test(t);
 }
 
 function wantsDiscount(text) {
@@ -670,7 +672,22 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     },
     {
       name: 'PRICE_CLARIFICATION',
-      match: ctx => isPriceClarification(ctx.text) && Boolean(ctx.selectedProduct),
+      match: ctx => {
+        if (!isPriceClarification(ctx.text) || !ctx.selectedProduct) return false;
+        const t = ctx.normalized;
+        // "loại 150k thế nào" — hỏi mẫu theo mức giá; không báo giá mã lastProduct.
+        if (
+          ctx.budget
+          && !ctx.found.length
+          && (
+            /\b(?:loai|mau|hang)\b/.test(t)
+            || /(?:the\s*nao|nhu\s*the\s*nao)/.test(t)
+          )
+        ) {
+          return false;
+        }
+        return true;
+      },
       handle: ctx => {
         const p = ctx.selectedProduct;
         const stockText = p.preorder
@@ -757,7 +774,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
           productCode: p.code,
           size: p.size || 'shop sẽ xác nhận thêm',
           weightText: p.weight ? `, nặng khoảng ${p.weight}` : '',
-          description: p.description
+          descSuffix: p.description ? ` ${String(p.description).trim()}` : ''
         });
       }
     },

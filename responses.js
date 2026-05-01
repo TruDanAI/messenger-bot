@@ -41,7 +41,7 @@ const TEMPLATES = {
   stockInfoSelected: 'Dạ {{productCode}} {{stockText}} ạ. Trước khi gửi hàng shop sẽ xác nhận lại đơn cho mình nhé.',
   stockInfoUnknown: 'Dạ anh/chị nhắn giúp em mã sản phẩm muốn hỏi còn hàng, ví dụ MÃ8 hoặc MÃ13, em kiểm tra và báo đúng mẫu cho mình ạ.',
   bestSeller: 'Dạ các mẫu dễ tư vấn/bán chạy bên shop thường là {{lines}} ạ. Nếu anh/chị cho em ngân sách hoặc thích nhỏ gọn/có rung/kích thước lớn, em lọc đúng mẫu hơn nhé.',
-  sizeInfo: 'Dạ {{productCode}} có size {{size}}{{weightText}}. {{description}}.',
+  sizeInfo: 'Dạ {{productCode}} có size {{size}}{{weightText}}.{{descSuffix}}',
   giftInfo: 'Dạ {{compactProductName}}{{giftText}} ạ. Shop vẫn miễn ship và gói kín cho mình nhé.',
   fitInfo: 'Dạ {{productCode}} chất liệu mềm và thiết kế ôm/khít theo mô tả sản phẩm ạ. Khi dùng anh/chị có thể dùng thêm gel bôi trơn để thoải mái hơn, shop có gel nếu mình cần kèm theo nhé.',
   cleaningInfo: 'Dạ vệ sinh được ạ. Sau khi dùng anh/chị rửa nhẹ bằng nước sạch hoặc dung dịch vệ sinh chuyên dụng, lau khô rồi để nơi thoáng mát; tránh ngâm phần pin/sạc nếu mẫu có điện ạ.',

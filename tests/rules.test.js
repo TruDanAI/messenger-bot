@@ -70,6 +70,21 @@ describe('detectors: BUG FIX wantsHuman dùng preprocess', () => {
   });
 });
 
+describe('detectors: BUG FIX substring trong chốt / tôi', () => {
+  it('wantsBestSeller FALSE với "chốt đi" ("hot" trong "chot" — BUG cũ)', () => {
+    expect(detectors.wantsBestSeller('chốt đi')).toBeFalse();
+  });
+  it('wantsBestSeller TRUE với từ "hot" độc lập', () => {
+    expect(detectors.wantsBestSeller('shop có mẫu hot không')).toBeTrue();
+  });
+  it('wantsFeatureAdvice FALSE với "tôi chốt mã 3" ("to" trong "toi" — BUG cũ)', () => {
+    expect(detectors.wantsFeatureAdvice('tôi chốt mã 3')).toBeFalse();
+  });
+  it('wantsFeatureAdvice TRUE với "mẫu to không"', () => {
+    expect(detectors.wantsFeatureAdvice('mẫu to không shop')).toBeTrue();
+  });
+});
+
 describe('detectors: BUG FIX isPriceClarification', () => {
   it('TRUE với "MÃ8 bao nhiêu vậy?"', () => {
     expect(detectors.isPriceClarification('MÃ8 bao nhiêu vậy?')).toBeTrue();
@@ -109,6 +124,30 @@ describe('Engine: intent router cơ bản', () => {
   });
   it('ORDER_INTENT trả về giá', () => {
     expect(engine.buildDeterministicReply('chốt MÃ8', 'u3')).toContain('680k');
+  });
+  it('"chốt đi" không trigger BEST_SELLER (BUG: hot trong chot)', () => {
+    const store = makeStore();
+    store.setLastProductCode('u_chot', 'MÃ10');
+    const eng = createRuleEngine({ products, config: shopConfig, contextStore: store });
+    const r = eng.buildDeterministicReply('chốt đi', 'u_chot');
+    expect(r).toContain('MÃ10');
+    expect(r).toContain('150k');
+    expect(r.includes('bán chạy')).toBe(false);
+  });
+  it('"tôi chốt mã 3" → ORDER_INTENT MÃ3, không BEST_SELLER', () => {
+    const reply = engine.buildDeterministicReply('tôi chốt mã 3 nhé', 'u_ct3');
+    expect(reply).toContain('MÃ3');
+    expect(reply).toContain('300k');
+    expect(reply.includes('bán chạy')).toBe(false);
+  });
+  it('"loại 150k thế nào" → BUDGET, không PRICE mã last', () => {
+    const store = makeStore();
+    store.setLastProductCode('u_150', 'MÃ3');
+    const eng = createRuleEngine({ products, config: shopConfig, contextStore: store });
+    const r = eng.buildDeterministicReply('loại 150k thế nào vậy shop', 'u_150');
+    expect(r).toContain('150');
+    expect(r).toContain('MÃ10');
+    expect(/^Dạ trong ngân sách khoảng 150k/m.test(String(r))).toBe(true);
   });
   it('PRODUCT_NOT_FOUND khi mã ngoài menu', () => {
     expect(engine.buildDeterministicReply('cho xem MÃ99', 'u4')).toContain('MÃ99');
