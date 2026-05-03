@@ -1,5 +1,5 @@
 const { describe, it, expect } = require('./harness');
-const nlp = require('../nlp');
+const nlp = require('../core/nlp');
 
 describe('nlp.normalizeText', () => {
   it('bỏ dấu và lowercase', () => {

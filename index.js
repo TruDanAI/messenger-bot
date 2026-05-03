@@ -5,11 +5,72 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const products = require('./products');
-const storage = require('./storage');
-const shopConfig = require('./shop-config');
-const { createRuleEngine } = require('./rules');
-const { render } = require('./responses');
+const storage = require('./core/storage');
+const { pushLeadToSheet } = require('./core/sheets-webhook');
+const { loadProducts } = require('./core/products');
+const { createRuleEngine } = require('./core/rules');
+
+const ROOT_DIR = __dirname;
+
+function normalizeShopId(raw) {
+  const id = String(raw ?? 'adult-shop').trim();
+  if (!id || /[\\/]/.test(id)) return 'adult-shop';
+  return id;
+}
+
+/**
+ * Nạp shops/<SHOP_ID>/config.js + products.csv + custom-intents.js (prepend/append).
+ * SHOP_ID hoặc ACTIVE_SHOP trong .env; mặc định adult-shop.
+ */
+function loadShopRuntime(rootDir) {
+  const shopId = normalizeShopId(process.env.SHOP_ID || process.env.ACTIVE_SHOP);
+  const shopDir = path.join(rootDir, 'shops', shopId);
+  if (!fs.existsSync(shopDir)) {
+    throw new Error(`Shop không tồn tại: "${shopId}" (${shopDir})`);
+  }
+  const configPath = path.join(shopDir, 'config.js');
+  const csvPath = path.join(shopDir, 'products.csv');
+  if (!fs.existsSync(configPath)) {
+    throw new Error(`Thiếu shops/${shopId}/config.js`);
+  }
+  if (!fs.existsSync(csvPath)) {
+    throw new Error(`Thiếu shops/${shopId}/products.csv`);
+  }
+
+  const shopConfig = require(configPath);
+  const products = loadProducts(csvPath);
+
+  const customPath = path.join(shopDir, 'custom-intents.js');
+  const prepend = [];
+  const append = [];
+  if (fs.existsSync(customPath)) {
+    const custom = require(customPath);
+    if (Array.isArray(custom.prepend)) prepend.push(...custom.prepend);
+    if (Array.isArray(custom.append)) append.push(...custom.append);
+  }
+
+  const mergedConfig = {
+    ...shopConfig,
+    intents: {
+      ...(shopConfig.intents || {}),
+      disabled: [...(shopConfig.intents?.disabled || [])],
+      prepend: [...prepend, ...(shopConfig.intents?.prepend || [])],
+      append: [...(shopConfig.intents?.append || []), ...append]
+    }
+  };
+
+  return { shopId, shopDir, config: mergedConfig, products };
+}
+
+let shopRuntime;
+try {
+  shopRuntime = loadShopRuntime(ROOT_DIR);
+} catch (err) {
+  console.error('❌', err.message);
+  process.exit(1);
+}
+
+const { shopId: ACTIVE_SHOP_ID, shopDir: SHOP_DIR, config: shopConfig, products } = shopRuntime;
 
 const rules = createRuleEngine({
   products,
@@ -36,7 +97,9 @@ const {
   wantsHuman,
   wantsKeywordImage,
   wantsMenuImages,
-  wantsProductImage
+  wantsProductImage,
+  render,
+  STATES
 } = rules;
 
 // ========== ENV ==========
@@ -76,6 +139,7 @@ app.use(express.json({
 // ========== IMAGE SERVING ==========
 const ALLOWED_IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const IMAGE_DIRS = [
+  path.join(SHOP_DIR, 'images'),
   path.join(__dirname, 'images'),
   path.join(__dirname, 'assets'),
   path.join(__dirname, '..')
@@ -136,6 +200,9 @@ app.get('/media/:filename', (req, res) => {
 
 // ========== SYSTEM PROMPT ==========
 function buildSystemPrompt() {
+  if (typeof shopConfig.buildSystemPrompt === 'function') {
+    return shopConfig.buildSystemPrompt(products);
+  }
   const lines = products.map(p => {
     const parts = [
       p.code,
@@ -144,39 +211,17 @@ function buildSystemPrompt() {
       p.size,
       p.weight,
       p.gift ? `Tặng ${p.gift}` : '',
-      p.preorder ? 'HÀNG ĐẶT 15-20 ngày' : ''
+      p.preorder ? 'Hàng đặt' : ''
     ].filter(Boolean);
     return `- ${parts.join(' | ')}`;
   }).join('\n');
 
-  return `Bạn là nhân viên tư vấn bán hàng thân thiện, nhiệt tình của Shop đồ chơi người lớn dành cho nam giới (18+). Hãy tư vấn tự nhiên, gần gũi như người thật, dùng ngôn ngữ thoải mái, không quá formal.
+  return `Bạn là nhân viên tư vấn bán hàng thân thiện của ${shopConfig.shopName || 'shop'}.
 
 DANH SÁCH SẢN PHẨM:
 ${lines}
 
-CHÍNH SÁCH:
-- Miễn ship tất cả sản phẩm
-- Gói kín, không ghi nội dung bên ngoài (bảo mật tuyệt đối)
-- Hàng đặt cần đặt cọc, giao 15-20 ngày
-- Thanh toán: COD hoặc chuyển khoản
-
-QUY TẮC BẮT BUỘC:
-- TUYỆT ĐỐI không bịa sản phẩm hoặc giá ngoài danh sách trên
-- Nếu khách hỏi sản phẩm không có, nói thẳng "shop chưa có" rồi gợi ý mẫu gần nhất
-- Trả lời ngắn gọn, tự nhiên. KHÔNG liệt kê dài dòng trừ khi khách hỏi hết danh sách
-- Dùng emoji vừa phải cho thân thiện
-- Ngôn ngữ kín đáo, không phản cảm
-- Chỉ tư vấn cho khách đủ 18 tuổi
-- Xưng hô nhất quán **anh/chị** — không viết "anh/em", không lẫn ngôi.
-- KHÔNG nhắc khách về kỹ thuật hay nội bộ: cấm các cụm như "hệ thống tự động", "(ảnh được gửi...)", "AI", "bot". Không dùng ngoặc đơn giải thích cơ chế gửi tin hay ảnh.
-- Ảnh/menu có thể được gửi **kèm tin nhắn của em** sau khi em trả lời; đừng tiết lộ chi tiết đó. Không nói "em không gửi ảnh được" hay xin lỗi vì ảnh — cứ tự nhiên như "em gửi ảnh menu cho anh/chị nhé" hoặc "anh/chị xem các mã trong menu ạ".
-
-CÁCH TƯ VẤN:
-- Nếu khách chưa rõ nhu cầu: hỏi ngân sách, thích nhỏ gọn hay to, có pin/rung không
-- Gợi ý 1-2 sản phẩm phù hợp ngân sách, không spam cả danh sách
-- Khi khách muốn chốt đơn: hỏi tên + địa chỉ + số điện thoại
-- Khi đã đủ thông tin: xác nhận lại sản phẩm + giá + tên + sđt + địa chỉ trước khi kết thúc
-- Nếu khách muốn gặp nhân viên thật: trả lời "Em chuyển anh/chị qua nhân viên tư vấn nhé" và dừng tư vấn`;
+Hãy trả lời ngắn gọn, tự nhiên; chỉ dùng sản phẩm và giá trong danh sách; xưng hô anh/chị nhất quán.`;
 }
 
 const SYSTEM_PROMPT = buildSystemPrompt();
@@ -386,12 +431,12 @@ function getImageFilenameForProduct(product) {
     }
   }
 
-  if (/gel/i.test(code)) {
-    const gelNames = ['goi gel boi tron', 'goi-gel-boi-tron', 'gel boi tron', 'gel-boi-tron'];
-    for (const name of gelNames) {
-      const f = getImageFilename(name);
-      if (f) return f;
-    }
+  const extras = typeof shopConfig.productImageExtraNames === 'function'
+    ? shopConfig.productImageExtraNames(product)
+    : [];
+  for (const name of extras) {
+    const f = getImageFilename(name);
+    if (f) return f;
   }
   return null;
 }
@@ -577,6 +622,57 @@ function splitNameAndAddress(text) {
   };
 }
 
+/**
+ * Khóa idempotent cho Google Sheet: retry webhook cùng tin nhắn → cùng key.
+ * - Có mid (Meta): SHA-256(`fbmid:` + mid) — an toàn nhất, ổn định qua mọi lần retry.
+ * - Không mid (hiếm, ví dụ postback): SHA-256 snapshot đơn + nội dung tin nhắn chuẩn hoá.
+ */
+function buildSheetDedupeKey(senderId, messageId, userText) {
+  const mid = String(messageId || '').trim();
+  if (mid) {
+    return crypto.createHash('sha256').update(`fbmid:${mid}`, 'utf8').digest('hex');
+  }
+
+  const draft = storage.getOrderDraft(senderId);
+  const codeRaw = String(draft.productCode || storage.getLastProductCode(senderId) || '').trim();
+  const fingerprint = [
+    'nomid',
+    senderId,
+    normalizeText(String(userText || '')),
+    draft.updatedAt || '',
+    String(draft.name || '').trim(),
+    String(draft.phone || '').trim(),
+    String(draft.address || '').trim(),
+    codeRaw
+  ].join('\x1e');
+
+  return crypto.createHash('sha256').update(fingerprint, 'utf8').digest('hex');
+}
+
+/** Lead đồng bộ Sheet khi đơn CONFIRMED: cùng trường với orderDraft + mô tả sản phẩm nếu có. */
+function buildConfirmedSheetLead(senderId, opts = {}) {
+  const { messageId = '', userText = '' } = opts;
+  const draft = storage.getOrderDraft(senderId);
+  const codeRaw = String(draft.productCode || storage.getLastProductCode(senderId) || '').trim();
+  const codeUpper = codeRaw.toUpperCase();
+  const product = products.find(p => String(p.code || '').toUpperCase() === codeUpper);
+  const desc = String(product?.description || '').trim();
+  const productInterest = product
+    ? (desc ? `${product.code} — ${desc}` : String(product.code || ''))
+    : codeRaw;
+
+  return {
+    dedupeKey: buildSheetDedupeKey(senderId, messageId, userText),
+    senderId,
+    name: String(draft.name || '').trim(),
+    phone: String(draft.phone || '').trim(),
+    address: String(draft.address || '').trim(),
+    productCode: codeRaw,
+    productInterest,
+    confirmedAt: new Date().toISOString()
+  };
+}
+
 function buildLeadDetails(userText, senderId) {
   const mentionedCode = extractRequestedProductCodes(userText)[0] || '';
   const productCode = mentionedCode || storage.getLastProductCode(senderId) || '';
@@ -719,7 +815,13 @@ async function handleEvent(event, baseUrlOverride = '') {
     });
   }
 
+  const sessionBeforeConfirm = storage.getSessionState(senderId);
   if (shouldSilenceAfterCompleteOrder(userText, senderId)) {
+    const nowConfirmed = storage.getSessionState(senderId) === STATES.CONFIRMED;
+    const justConfirmed = nowConfirmed && sessionBeforeConfirm !== STATES.CONFIRMED;
+    if (justConfirmed) {
+      void pushLeadToSheet(buildConfirmedSheetLead(senderId, { messageId: mid || '', userText }));
+    }
     console.log(`⏸️  Bỏ qua tin xác nhận ngắn sau khi đã đủ thông tin đơn: ${senderId}`);
     return;
   }
@@ -781,6 +883,7 @@ async function handleEvent(event, baseUrlOverride = '') {
 app.get('/', (_req, res) => res.send('🤖 Shop Bot đang chạy!'));
 app.get('/healthz', (_req, res) => res.json({
   ok: true,
+  shop: ACTIVE_SHOP_ID,
   products: products.length,
   uptime: Math.round(process.uptime())
 }));
@@ -855,7 +958,7 @@ function shutdown(signal) {
 
 if (require.main === module) {
   server = app.listen(PORT, async () => {
-    console.log(`🚀 Bot đang chạy tại port ${PORT} (sản phẩm: ${products.length}, Gemini: ${USE_GEMINI ? GEMINI_MODEL : 'off'})`);
+    console.log(`🚀 Bot shop="${ACTIVE_SHOP_ID}" port ${PORT} (sản phẩm: ${products.length}, Gemini: ${USE_GEMINI ? GEMINI_MODEL : 'off'})`);
     await checkPageToken();
   });
 

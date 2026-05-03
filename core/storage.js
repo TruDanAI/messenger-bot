@@ -3,8 +3,8 @@ const path = require('path');
 const { parse } = require('csv-parse/sync');
 
 // DATA_DIR có thể trỏ sang Railway Volume, ví dụ DATA_DIR=/data.
-// Nếu không set env, bot vẫn dùng thư mục data/ local như trước.
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+// Mặc định: thư mục data/ ở root project (cùng cấp với core/).
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const STATE_FILE = path.join(DATA_DIR, 'chat-state.json');
 const CUSTOMERS_FILE = path.join(DATA_DIR, 'customers.csv');
 const MIDS_FILE = path.join(DATA_DIR, 'processed-mids.json');
@@ -52,7 +52,6 @@ function csvCell(value) {
       ? value
       : JSON.stringify(value);
 
-  // Escape theo chuẩn CSV: dấu " trong nội dung phải nhân đôi, ô có dấu phẩy/xuống dòng phải bọc quote.
   if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
   return text;
 }
@@ -92,8 +91,6 @@ function appendCustomerQueued(customer) {
     .map(key => csvCell(customer[key]))
     .join(',') + '\n';
 
-  // Queue này đảm bảo trong cùng một process Node chỉ có 1 lệnh appendFile chạy tại một thời điểm.
-  // Nhờ vậy khi nhiều khách gửi SĐT đồng thời, mỗi lead vẫn được ghi thành một dòng CSV riêng.
   customerWriteQueue = customerWriteQueue
     .then(() => fs.promises.appendFile(CUSTOMERS_FILE, line, 'utf8'))
     .catch(err => {
@@ -173,9 +170,6 @@ module.exports = {
     return { ...next };
   },
 
-  // Session state machine: lưu cờ trạng thái tường minh (vd 'CONFIRMED').
-  // Phần lớn các trạng thái khác (IDLE/PRODUCT_SELECTED/COLLECTING_INFO/READY_TO_CONFIRM)
-  // được suy ra (derive) từ orderDraft + lastProductCode trong rules.js.
   getSessionState(userId) {
     return state.context[userId]?.sessionState || '';
   },

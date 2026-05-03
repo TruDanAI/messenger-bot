@@ -1,18 +1,20 @@
 const fs = require('fs');
-const path = require('path');
 const { parse } = require('csv-parse/sync');
-
-const PRODUCTS_FILE = path.join(__dirname, 'products.csv');
 
 function cleanCell(value) {
   const trimmed = String(value || '').trim();
   return trimmed || null;
 }
 
-function loadProducts() {
-  // CSV được đọc một lần khi server khởi động, sau đó giữ trong RAM để bot trả lời nhanh.
-  // Khi sửa products.csv trên production, cần restart service để dữ liệu mới được load lại.
-  const csv = fs.readFileSync(PRODUCTS_FILE, 'utf8');
+/**
+ * Đọc danh sách sản phẩm từ CSV (đường dẫn tuyệt đối hoặc tương đối).
+ * Gọi khi khởi động theo từng shop trong shops/<id>/products.csv.
+ */
+function loadProducts(csvPath) {
+  if (!csvPath || !fs.existsSync(csvPath)) {
+    throw new Error(`Không tìm thấy file sản phẩm: ${csvPath}`);
+  }
+  const csv = fs.readFileSync(csvPath, 'utf8');
   const rows = parse(csv, {
     columns: true,
     skip_empty_lines: true,
@@ -31,10 +33,12 @@ function loadProducts() {
   })).filter(product => product.code && product.price);
 
   if (!products.length) {
-    throw new Error(`Không load được sản phẩm từ ${PRODUCTS_FILE}`);
+    throw new Error(`Không load được sản phẩm từ ${csvPath}`);
   }
 
   return products;
 }
 
-module.exports = loadProducts();
+module.exports = {
+  loadProducts
+};

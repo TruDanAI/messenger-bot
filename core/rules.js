@@ -12,10 +12,25 @@
 //      - `config.intents.prepend = [...]` chèn rule custom lên trên built-in.
 //      - `config.intents.append  = [...]` chèn rule custom xuống cuối.
 //      - `config.templates`        override từng template cụ thể.
-//      Nhờ vậy 1 dự án mới chỉ cần đổi shop-config.js + products.csv là xong,
-//      KHÔNG cần đụng vào rules.js / responses.js / nlp.js.
+//      Nhờ vậy 1 shop mới chỉ cần thư mục trong `shops/<id>/` (config + products + custom-intents),
+//      KHÔNG cần đụng vào core/.
 
-const defaultConfig = require('./shop-config');
+const defaultConfig = {
+  shopName: 'shop',
+  minAge: 18,
+  policies: {
+    freeShipping: true,
+    privacy: '',
+    payment: '',
+    preorderDays: '',
+    orderInfoFields: 'tên người nhận + SĐT + địa chỉ giao hàng'
+  },
+  keywordProducts: {},
+  intents: {},
+  templates: {},
+  recommendations: {}
+};
+
 const { TEMPLATES: DEFAULT_TEMPLATES, renderTemplate } = require('./responses');
 const {
   normalizeText,
@@ -114,14 +129,19 @@ function wantsProductImage(text) {
   return /\b(?:anh|hinh|photo)\b/.test(t);
 }
 
-function wantsKeywordImage(text, keyword) {
+function escapeRegExp(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Nhận diện keyword ảnh/menu: ưu tiên config.keywordTriggers[keyword], mặc định /\bkeyword\b/. */
+function wantsKeywordImage(text, keyword, config = {}) {
   const t = preprocess(text);
-  if (keyword === 'gel') {
-    return /\bgel\b/.test(t)
-      || /\bboi\s*tron\b/.test(t)
-      || /\blub(?:ricant)?\b/.test(t);
-  }
-  return false;
+  const triggers = config.keywordTriggers && config.keywordTriggers[keyword];
+  if (typeof triggers === 'function') return triggers(t, text);
+  if (triggers instanceof RegExp) return triggers.test(t);
+  const kw = String(keyword || '').trim();
+  if (!kw) return false;
+  return new RegExp(`\\b${escapeRegExp(kw)}\\b`).test(t);
 }
 
 function isOrderIntent(text) {
@@ -200,7 +220,7 @@ function wantsSizeInfo(text) {
 
 function wantsGiftInfo(text) {
   const t = preprocess(text);
-  return /(?:tang|qua|gel\s*tang|kem\s*theo|combo)/.test(t);
+  return /(?:tang|qua|kem\s*theo|combo)/.test(t);
 }
 
 function wantsFitInfo(text) {
@@ -227,8 +247,9 @@ function asksForOrderInfo(text) {
 
 function wantsFeatureAdvice(text) {
   const t = preprocess(text);
-  // Tránh substring "to" trong "toi" (tôi) →FEATURE_OR_LARGE ăn trước ORDER_INTENT.
-  return /(?:rung|pin|sac|lam\s*am|buom|3\s*lo|ba\s*lo|silicon|mong|lon|\bto\b|nho\s*gon)/.test(t);
+  // Tránh substring "to" trong "toi" (tôi) → FEATURE_OR_LARGE ăn trước ORDER_INTENT.
+  // Từ khóa đặc thù từng ngành (vd rung/gel) nên đặt ở shops/<id>/custom-intents.js.
+  return /(?:\bto\b|nho\s*gon|silicon)/.test(t);
 }
 
 function wantsNewProducts(text) {
@@ -327,7 +348,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
   function getKeywordProduct(userText) {
     const keywordMap = config.keywordProducts || {};
     for (const [keyword, matcher] of Object.entries(keywordMap)) {
-      if (!wantsKeywordImage(userText, keyword)) continue;
+      if (!wantsKeywordImage(userText, keyword, config)) continue;
       const found = productList.find(product =>
         matcher.test(String(product.code || product.description || ''))
       );
@@ -489,7 +510,9 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     const missingFields = missingOrderFields(productAwareOrder);
     const sessionState = deriveSessionState(userId, productAwareOrder);
 
-    const wantsVibration = /\brung\b|co\s*pin|sac\s*pin/.test(t);
+    const wantsVibration = typeof config.wantsVibration === 'function'
+      ? config.wantsVibration(t, userText)
+      : false;
     const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
     const wantsPhoto = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
     const budgetMatch = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})\s*k\b/);
@@ -512,10 +535,16 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       wantsLarge,
       wantsPhoto,
       budget,
+      mentionsKeyword(keyword) {
+        const map = config.keywordProducts || {};
+        if (!Object.prototype.hasOwnProperty.call(map, keyword)) return false;
+        return wantsKeywordImage(userText, keyword, config);
+      },
       // Helpers cho custom intent handlers (config-driven extension).
       config,
       products: productList,
-      render
+      render,
+      recommendationProducts
     };
   }
 
@@ -575,11 +604,6 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
             shopName: config.shopName
           })
         : readyOrderReply(ctx.productAwareOrder, ctx.selectedProduct)
-    },
-    {
-      name: 'AGE_POLICY',
-      match: ctx => wantsAgePolicy(ctx.text),
-      handle: () => render('agePolicy', { shopName: config.shopName, minAge: config.minAge })
     },
     {
       name: 'GREETING',
@@ -820,11 +844,6 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
         return render('productList', { lines, photoNote });
       }
     },
-    {
-      name: 'GEL_KEYWORD',
-      match: ctx => wantsKeywordImage(ctx.text, 'gel'),
-      handle: () => render('gelInfo')
-    },
     // FIX: trước đây có MENU_IMAGES nữa nhưng đã unreachable do MENU_NO_PRODUCT + PRODUCT_LIST
     // chiếm hết. Đã loại bỏ.
     {
@@ -843,14 +862,6 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
         }
         return render('budgetNoOptions', { budget: ctx.budget });
       }
-    },
-    {
-      name: 'VIBRATION',
-      match: ctx => ctx.wantsVibration,
-      handle: () => render('vibrationOptions', {
-        options: recommendationProducts('vibration').map(p => `${p.code} giá ${p.price}`).join(' và ')
-          || 'một số mẫu có rung'
-      })
     },
     {
       name: 'FEATURE_OR_LARGE_OR_RECOMMEND',
@@ -926,7 +937,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     normalizeText,
     shouldSilenceAfterCompleteOrder,
     wantsHuman,
-    wantsKeywordImage,
+    wantsKeywordImage: (text, kw) => wantsKeywordImage(text, kw, config),
     wantsMenuImages,
     wantsProductImage,
     // Cho test/debug nếu cần
@@ -971,7 +982,7 @@ module.exports = {
     wantsGiftInfo,
     wantsHuman,
     wantsInspection,
-    wantsKeywordImage,
+    wantsKeywordImage: (text, keyword) => wantsKeywordImage(text, keyword, {}),
     wantsMenuImages,
     wantsNewProducts,
     wantsOfficePickup,

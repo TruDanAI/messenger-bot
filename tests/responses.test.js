@@ -1,5 +1,5 @@
 const { describe, it, expect } = require('./harness');
-const { renderTemplate, render, TEMPLATES, HELPERS } = require('../responses');
+const { renderTemplate, render, TEMPLATES, HELPERS } = require('../core/responses');
 
 describe('renderTemplate basic', () => {
   it('thay biến đơn', () => {

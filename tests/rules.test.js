@@ -1,7 +1,10 @@
 const { describe, it, expect } = require('./harness');
-const products = require('../products');
-const shopConfig = require('../shop-config');
-const { createRuleEngine, STATES, detectors } = require('../rules');
+const path = require('path');
+const { loadProducts } = require('../core/products');
+const shopConfig = require('../shops/adult-shop/config');
+const { createRuleEngine, STATES, detectors } = require('../core/rules');
+
+const products = loadProducts(path.join(__dirname, '..', 'shops', 'adult-shop', 'products.csv'));
 
 // Mock contextStore (đầy đủ giống storage.js)
 function makeStore() {
@@ -286,7 +289,7 @@ describe('Engine: template override per-shop', () => {
 });
 
 describe('Engine: backward-compat exports', () => {
-  const m = require('../rules');
+  const m = require('../core/rules');
   it('createRuleEngine là function', () => {
     expect(typeof m.createRuleEngine).toBe('function');
   });
