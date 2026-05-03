@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const storage = require('./core/storage');
-const { pushLeadToSheet } = require('./core/sheets-webhook');
+const { pushLeadToSheet, startSheetOutboxWorker } = require('./core/sheets-webhook');
 const { loadProducts } = require('./core/products');
 const { createRuleEngine } = require('./core/rules');
 
@@ -443,9 +443,24 @@ function getImageFilenameForProduct(product) {
 
 // ========== ANTI-SPAM ẢNH ==========
 const IMAGE_COOLDOWN_MS = 5 * 60 * 1000; // 5 phút mỗi loại ảnh / mỗi user
+const IMAGE_CACHE_SWEEP_MS = 60 * 1000; // dọn rác mỗi 1 phút
 const recentlySentImages = new Map(); // key = `${userId}:${filename}` -> timestamp
 
+function pruneRecentlySentImages(now = Date.now()) {
+  const expireBefore = now - IMAGE_COOLDOWN_MS;
+  for (const [key, at] of recentlySentImages.entries()) {
+    if (at <= expireBefore) recentlySentImages.delete(key);
+  }
+}
+
+const imageCacheGcTimer = setInterval(() => {
+  pruneRecentlySentImages();
+}, IMAGE_CACHE_SWEEP_MS);
+imageCacheGcTimer.unref?.();
+
 function shouldSendImage(userId, filename) {
+  // Quét nhanh theo đường nóng để Map không phình nếu traffic cao bất thường.
+  pruneRecentlySentImages();
   const key = `${userId}:${filename}`;
   const last = recentlySentImages.get(key);
   if (last && Date.now() - last < IMAGE_COOLDOWN_MS) return false;
@@ -786,6 +801,7 @@ async function handleEvent(event, baseUrlOverride = '') {
   // Nhận diện sđt → ghi lead vào customers.csv để nhân viên xem lại.
   // Phần storage tự xếp hàng ghi file để nhiều khách nhắn cùng lúc không làm lẫn dòng CSV.
   const leadDetails = buildLeadDetails(userText, senderId);
+  const prevOrderDraft = storage.getOrderDraft(senderId);
   const hasOrderDetail = Boolean(
     leadDetails.productCode || leadDetails.phone || leadDetails.name || leadDetails.address
   );
@@ -793,6 +809,19 @@ async function handleEvent(event, baseUrlOverride = '') {
     ? storage.mergeOrderDraft(senderId, leadDetails)
     : {};
   const currentLead = Object.keys(mergedOrderDraft).length ? mergedOrderDraft : leadDetails;
+
+  // CONFIRMED lưu từ phiên trước + khách gửi đơn mới → xóa cờ để "ok" lại tạo transition và đẩy Sheet.
+  const substantiveLead = Boolean(leadDetails.phone || leadDetails.name || leadDetails.address);
+  const productChanged = Boolean(
+    leadDetails.productCode &&
+    String(leadDetails.productCode).toUpperCase() !== String(prevOrderDraft.productCode || '').toUpperCase()
+  );
+  if (
+    storage.getSessionState(senderId) === STATES.CONFIRMED &&
+    (substantiveLead || productChanged)
+  ) {
+    storage.setSessionState(senderId, '');
+  }
 
   if (looksLikePhone(userText)) {
     storage.appendCustomer({
@@ -820,6 +849,7 @@ async function handleEvent(event, baseUrlOverride = '') {
     const nowConfirmed = storage.getSessionState(senderId) === STATES.CONFIRMED;
     const justConfirmed = nowConfirmed && sessionBeforeConfirm !== STATES.CONFIRMED;
     if (justConfirmed) {
+      console.log(`📤 Đơn vừa CONFIRMED — gửi lead lên Google Sheet (${senderId}).`);
       void pushLeadToSheet(buildConfirmedSheetLead(senderId, { messageId: mid || '', userText }));
     }
     console.log(`⏸️  Bỏ qua tin xác nhận ngắn sau khi đã đủ thông tin đơn: ${senderId}`);
@@ -960,6 +990,7 @@ if (require.main === module) {
   server = app.listen(PORT, async () => {
     console.log(`🚀 Bot shop="${ACTIVE_SHOP_ID}" port ${PORT} (sản phẩm: ${products.length}, Gemini: ${USE_GEMINI ? GEMINI_MODEL : 'off'})`);
     await checkPageToken();
+    startSheetOutboxWorker();
   });
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));

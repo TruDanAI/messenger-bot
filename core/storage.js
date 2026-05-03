@@ -30,18 +30,29 @@ if (!state.context) state.context = {};
 const mids = new Set(loadJSON(MIDS_FILE, []));
 const MID_LIMIT = 5000;
 let customerWriteQueue = Promise.resolve();
+let stateWriteQueue = Promise.resolve();
 
 let saveTimer = null;
+async function writeJsonAtomic(targetFile, payload) {
+  const tempFile = `${targetFile}.tmp`;
+  await fs.promises.writeFile(tempFile, JSON.stringify(payload), 'utf8');
+  await fs.promises.rename(tempFile, targetFile);
+}
+
 function scheduleSave() {
   if (saveTimer) return;
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    fs.writeFile(STATE_FILE, JSON.stringify(state), err => {
-      if (err) console.error('Lỗi ghi state:', err.message);
-    });
-    fs.writeFile(MIDS_FILE, JSON.stringify([...mids].slice(-MID_LIMIT)), err => {
-      if (err) console.error('Lỗi ghi mids:', err.message);
-    });
+    const stateSnapshot = JSON.parse(JSON.stringify(state));
+    const midsSnapshot = [...mids].slice(-MID_LIMIT);
+    stateWriteQueue = stateWriteQueue
+      .then(async () => {
+        await writeJsonAtomic(STATE_FILE, stateSnapshot);
+        await writeJsonAtomic(MIDS_FILE, midsSnapshot);
+      })
+      .catch(err => {
+        console.error('Lỗi ghi state/mids:', err.message);
+      });
   }, 1500);
 }
 
