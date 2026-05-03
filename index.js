@@ -160,7 +160,10 @@ function buildImageIndex() {
     for (const file of files) {
       const ext = path.extname(file).toLowerCase();
       if (!ALLOWED_IMAGE_EXT.has(ext)) continue;
-      index.set(file.toLowerCase(), path.join(dir, file));
+      // Ưu tiên ảnh trong shop hiện tại, tránh bị thư mục global ghi đè.
+      if (!index.has(file.toLowerCase())) {
+        index.set(file.toLowerCase(), path.join(dir, file));
+      }
     }
   }
   return index;
@@ -587,7 +590,30 @@ function splitExplicitOrderFields(text) {
   };
 }
 
+function splitByPlusWithPhone(text) {
+  const raw = cleanLeadPart(text);
+  if (!/\+/.test(raw)) return null;
+
+  const parts = raw
+    .split(/\s*\+\s*/)
+    .map(part => stripLeadPrefixes(part))
+    .map(part => cleanLeadPart(part))
+    .filter(Boolean);
+
+  if (parts.length < 2) return null;
+
+  const phoneIdx = parts.findIndex(part => Boolean(extractPhone(part)));
+  if (phoneIdx < 0) return null;
+
+  const name = cleanLeadPart(parts.slice(0, phoneIdx).join(' '));
+  const address = cleanLeadPart(parts.slice(phoneIdx + 1).join(', '));
+  return { name, address };
+}
+
 function splitNameAndAddress(text) {
+  const plusFormat = splitByPlusWithPhone(text);
+  if (plusFormat) return plusFormat;
+
   const withoutPhone = String(text || '').replace(/(?:\+?84|0)\d{8,10}/g, ' ');
   const explicit = splitExplicitOrderFields(withoutPhone);
   if (explicit) return explicit;
@@ -635,6 +661,27 @@ function splitNameAndAddress(text) {
     name: cleanLeadPart(parts.slice(0, 2).join(' ')),
     address: cleanLeadPart(parts.slice(2).join(' '))
   };
+}
+
+function normalizeLeadTextField(text) {
+  return cleanLeadPart(
+    String(text || '')
+      .replace(/(?:\+?84|0)\d{8,10}/g, ' ')
+      .replace(/\s*\+\s*/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+  );
+}
+
+function buildDepositMessage(senderId) {
+  const draft = storage.getOrderDraft(senderId);
+  const productCode = String(draft.productCode || storage.getLastProductCode(senderId) || 'mã shop đã tư vấn').trim();
+  return `Dạ em đã nhận đủ thông tin đơn hàng ${productCode}. Để bảo mật thông tin và đẩy đơn nhanh, shop áp dụng quy định cọc trước 50k tiền ship (hoặc thanh toán full để được freeship). Anh/chị quét mã QR dưới đây và ghi nội dung CK là SĐT của anh/chị nhé. Chuyển xong nhắn "ok" hoặc gửi bill để em cho hàng đi luôn ạ!`;
+}
+
+function getShopQrImageUrl(baseUrlOverride = '') {
+  const qrPath = path.join(SHOP_DIR, 'images', 'qr-thanh-toan.png');
+  if (!fs.existsSync(qrPath)) return null;
+  return getPublicImageUrl('qr-thanh-toan.png', baseUrlOverride);
 }
 
 /**
@@ -708,7 +755,8 @@ function buildLeadDetails(userText, senderId) {
   return {
     productCode,
     phone,
-    ...parsed
+    name: normalizeLeadTextField(parsed.name),
+    address: normalizeLeadTextField(parsed.address)
   };
 }
 
@@ -851,6 +899,16 @@ async function handleEvent(event, baseUrlOverride = '') {
     if (justConfirmed) {
       console.log(`📤 Đơn vừa CONFIRMED — gửi lead lên Google Sheet (${senderId}).`);
       void pushLeadToSheet(buildConfirmedSheetLead(senderId, { messageId: mid || '', userText }));
+      try {
+        await sendMessage(senderId, buildDepositMessage(senderId));
+        const qrUrl = getShopQrImageUrl(baseUrlOverride);
+        if (qrUrl) {
+          await sendImage(senderId, qrUrl);
+          console.log(`🧾 Đã gửi QR thanh toán cho ${senderId}`);
+        }
+      } catch (err) {
+        console.error('❌ Lỗi gửi hướng dẫn cọc/QR:', err.response?.data || err.message);
+      }
     }
     console.log(`⏸️  Bỏ qua tin xác nhận ngắn sau khi đã đủ thông tin đơn: ${senderId}`);
     return;
