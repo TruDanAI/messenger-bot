@@ -2,12 +2,20 @@ require('dotenv').config();
 const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
+const path = require('path');
 const { connectDB } = require('./core/db');
 const { messageQueue } = require('./core/queue');
-require('./core/worker'); // Khởi động Worker chạy ngầm cùng server
+const { startSheetOutboxWorker } = require('./core/sheets-webhook');
+require('./core/worker'); // Khởi động BullMQ Worker chạy ngầm cùng server
 
-// Kết nối DB ngay khi khởi động
-connectDB();
+// Lazy-load processor để lấy IMAGE_INDEX (tránh circular load)
+const processor = require('./core/processor');
+
+// Kết nối DB — chỉ gọi MỘT lần duy nhất ở đây
+connectDB().then(() => {
+  // Khởi động worker xử lý hàng đợi Google Sheets sau khi DB sẵn sàng
+  startSheetOutboxWorker();
+});
 
 const app = express();
 app.use(express.json({
@@ -15,8 +23,8 @@ app.use(express.json({
 }));
 
 const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
-const FB_APP_SECRET = process.env.FB_APP_SECRET;
-const PORT = process.env.PORT || 3000;
+const FB_APP_SECRET   = process.env.FB_APP_SECRET;
+const PORT            = process.env.PORT || 3000;
 
 // ========== XÁC THỰC CHỮ KÝ FB ==========
 function verifySignature(req) {
@@ -36,14 +44,33 @@ function verifySignature(req) {
   }
 }
 
+function inferBaseUrlFromRequest(req) {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const forwardedHost = req.get('x-forwarded-host');
+  if (forwardedProto && forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+  const host = req.get('host');
+  if (!host) return '';
+  return `${req.protocol || 'https'}://${host}`;
+}
+
 // ========== HEALTH CHECK ==========
-app.get('/', (_req, res) => res.send('🤖 ZenBot Webhook Server đang chạy!'));
+app.get('/', (_req, res) => res.send('🤖 ZenBot đang chạy!'));
 app.get('/healthz', (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()) }));
+
+// ========== SERVE ẢNH SẢN PHẨM ==========
+app.get('/media/:filename', (req, res) => {
+  const { IMAGE_INDEX } = processor;
+  const fullPath = IMAGE_INDEX && IMAGE_INDEX.get(String(req.params.filename || '').toLowerCase());
+  if (!fullPath) return res.sendStatus(404);
+  res.sendFile(fullPath);
+});
 
 // ========== WEBHOOK VERIFY (Meta yêu cầu) ==========
 app.get('/webhook', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
+  const mode      = req.query['hub.mode'];
+  const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
   if (mode === 'subscribe' && token === FB_VERIFY_TOKEN) {
@@ -53,19 +80,6 @@ app.get('/webhook', (req, res) => {
     res.sendStatus(403);
   }
 });
-
-function inferBaseUrlFromRequest(req) {
-    const forwardedProto = req.get('x-forwarded-proto');
-    const forwardedHost = req.get('x-forwarded-host');
-    if (forwardedProto && forwardedHost) {
-      return `${forwardedProto}://${forwardedHost}`;
-    }
-  
-    const host = req.get('host');
-    if (!host) return '';
-    const proto = req.protocol || 'https';
-    return `${proto}://${host}`;
-}
 
 // ========== NHẬN TIN NHẮN (THE PRODUCER) ==========
 app.post('/webhook', async (req, res) => {
@@ -83,48 +97,69 @@ app.post('/webhook', async (req, res) => {
   const baseUrlOverride = inferBaseUrlFromRequest(req);
 
   for (const entry of body.entry || []) {
-    const pageId = entry.id; // Lỗ hổng #2: Lấy Page ID để định tuyến Shop sau này
-    
-    // Hiện tại: Tạm hardcode shopId từ env hoặc mặc định để tương thích bản cũ
+    const pageId = entry.id;
     const shopId = process.env.SHOP_ID || 'adult-shop';
 
     for (const event of entry.messaging || []) {
       const senderId = event.sender?.id;
       if (!senderId) continue;
 
-      // NÉM VÀO QUEUE thay vì xử lý ngay
-      await messageQueue.add('process-chat', {
-        shopId,
-        pageId,
-        senderId,
-        event,
-        baseUrlOverride
-      }, {
-        attempts: 3, // Retry 3 lần nếu lỗi API
-        backoff: { type: 'fixed', delay: 5000 },
-        jobId: event.message?.mid || undefined // Đảm bảo không xử lý trùng MID
-      });
+      try {
+        await messageQueue.add('process-chat', {
+          shopId,
+          pageId,
+          senderId,
+          event,
+          baseUrlOverride
+        }, {
+          attempts: 3,
+          backoff: { type: 'fixed', delay: 5000 },
+          jobId: event.message?.mid || undefined
+        });
+      } catch (err) {
+        console.error('❌ Lỗi thêm vào Queue:', err.message);
+      }
     }
   }
 });
 
-// Admin Export CSV vẫn giữ nguyên ở đây vì file CSV đang dùng local
-const { storage } = require('./core/processor'); // Sẽ export storage ra tạm thời
+// ========== ADMIN EXPORT ==========
+const storage = processor.storage;
+const ADMIN_EXPORT_TOKEN = process.env.ADMIN_EXPORT_TOKEN || '';
+
 app.get('/admin/customers.csv', (req, res) => {
-    const ADMIN_EXPORT_TOKEN = process.env.ADMIN_EXPORT_TOKEN;
-    const token = req.query.token || req.get('x-admin-token');
-    if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {
-      return res.sendStatus(401);
-    }
-    
-    // Tạm lấy file của processor.js (vì nó import storage.js)
-    const file = path.join(process.env.DATA_DIR || path.join(__dirname, 'data'), 'customers.csv');
-    if (!fs.existsSync(file)) return res.status(404).send('Chưa có file customers.csv.');
-    res.download(file, 'customers.csv');
+  const token = req.query.token || req.get('x-admin-token');
+  if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {
+    return res.sendStatus(401);
+  }
+  const file = storage.getCustomersFile();
+  if (!fs.existsSync(file)) return res.status(404).send('Chưa có file customers.csv.');
+  res.download(file, 'customers.csv');
 });
 
-const path = require('path');
+app.get('/admin/state/:userId', (req, res) => {
+  const token = req.query.token || req.get('x-admin-token');
+  if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {
+    return res.sendStatus(401);
+  }
+  const userId = req.params.userId;
+  res.json({
+    userId,
+    inHandoff: storage.inHandoff(userId),
+    lastProductCode: storage.getLastProductCode(userId),
+    orderDraft: storage.getOrderDraft(userId),
+    sessionState: storage.getSessionState(userId)
+  });
+});
+
+// ========== GRACEFUL SHUTDOWN ==========
+function shutdown(signal) {
+  console.log(`🛑 Nhận ${signal}, đang dừng server...`);
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));
 
 app.listen(PORT, () => {
-    console.log(`🚀 Webhook Server (ZenBot) đang chạy trên port ${PORT}`);
+  console.log(`🚀 Webhook Server (ZenBot) đang chạy trên port ${PORT}`);
 });

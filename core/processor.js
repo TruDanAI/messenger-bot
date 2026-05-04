@@ -1,6 +1,5 @@
 require('dotenv').config();
 
-const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -9,12 +8,6 @@ const storage = require('./storage');
 const { pushLeadToSheet, startSheetOutboxWorker } = require('./sheets-webhook');
 const { loadProducts } = require('./products');
 const { createRuleEngine } = require('./rules');
-const { connectDB } = require('./db');
-const Shop = require('./models/Shop');
-const { messageQueue, Worker } = require('./queue');
-
-// Kết nối Database ngay khi khởi động
-connectDB();
 
 
 const ROOT_DIR = path.join(__dirname, '..');
@@ -109,39 +102,15 @@ const {
   STATES
 } = rules;
 
-// ========== ENV ==========
-const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
+// ========== ENV (chỉ các biến cần thiết cho việc gửi tin) ==========
 const FB_PAGE_TOKEN   = process.env.FB_PAGE_TOKEN;
-const FB_APP_SECRET   = process.env.FB_APP_SECRET;
 const GEMINI_API_KEY  = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL    = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const USE_GEMINI      = String(process.env.USE_GEMINI || 'true').toLowerCase() !== 'false';
-const PORT            = process.env.PORT || 3000;
-const ADMIN_EXPORT_TOKEN = process.env.ADMIN_EXPORT_TOKEN || '';
 const PUBLIC_BASE_URL =
   process.env.PUBLIC_BASE_URL ||
   (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '') ||
   process.env.RENDER_EXTERNAL_URL ||
   '';
-
-const required = { FB_VERIFY_TOKEN, FB_PAGE_TOKEN };
-if (USE_GEMINI) required.GEMINI_API_KEY = GEMINI_API_KEY;
-const missing = Object.entries(required).filter(([, v]) => !v).map(([k]) => k);
-if (missing.length) {
-  console.error('❌ Thiếu biến môi trường bắt buộc:', missing.join(', '));
-  console.error('   Hãy điền vào file .env (local) hoặc Variables trên Railway/Render.');
-  process.exit(1);
-}
-if (!FB_APP_SECRET) {
-  console.warn('⚠️  Chưa set FB_APP_SECRET — webhook sẽ KHÔNG xác thực chữ ký.');
-  console.warn('   Khuyến nghị thêm để tránh request giả từ ngoài.');
-}
-
-// ========== APP ==========
-const app = express();
-app.use(express.json({
-  verify: (req, _res, buf) => { req.rawBody = buf; }
-}));
 
 // ========== IMAGE SERVING ==========
 const ALLOWED_IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp']);
@@ -201,12 +170,7 @@ function getPublicImageUrl(filename, baseUrlOverride = '') {
   return `${base}/media/${encodeURIComponent(filename)}`;
 }
 
-app.get('/media/:filename', (req, res) => {
-  const filename = req.params.filename;
-  const fullPath = IMAGE_INDEX.get(String(filename || '').toLowerCase());
-  if (!fullPath) return res.sendStatus(404);
-  res.sendFile(fullPath);
-});
+// Route /media/:filename được xử lý bởi index.js, processor chỉ export IMAGE_INDEX
 
 // ========== SYSTEM PROMPT ==========
 function buildSystemPrompt() {
@@ -792,41 +756,6 @@ async function sendTelegramAlert(leadData, shopConfig) {
   }
 }
 
-// ========== WEBHOOK VERIFY (Meta yêu cầu) ==========
-app.get('/webhook', (req, res) => {
-  const mode = req.query['hub.mode'];
-  const token = req.query['hub.verify_token'];
-  const challenge = req.query['hub.challenge'];
-
-  if (mode === 'subscribe' && token === FB_VERIFY_TOKEN) {
-    console.log('✅ Webhook verified!');
-    res.status(200).send(challenge);
-  } else {
-    res.sendStatus(403);
-  }
-});
-
-// ========== NHẬN TIN NHẮN ==========
-app.post('/webhook', (req, res) => {
-  if (!verifySignature(req)) {
-    console.warn('⚠️  Sai chữ ký webhook, từ chối request.');
-    return res.sendStatus(403);
-  }
-
-  res.sendStatus(200); // Trả 200 ngay để Meta không retry
-
-  const body = req.body;
-  if (body.object !== 'page') return;
-
-  for (const entry of body.entry || []) {
-    for (const event of entry.messaging || []) {
-      const inferredBaseUrl = inferBaseUrlFromRequest(req);
-      handleEvent(event, inferredBaseUrl).catch(err => {
-        console.error('❌ handleEvent:', err.response?.data || err.message);
-      });
-    }
-  }
-});
 
 async function handleMessage(shopConfig, messageData) {
   const { event, baseUrlOverride } = messageData;
@@ -1006,6 +935,7 @@ async function handleMessage(shopConfig, messageData) {
 module.exports = {
   handleMessage,
   storage,
+  IMAGE_INDEX,
   buildDeterministicReply,
   buildFallbackReply,
   buildLeadDetails
