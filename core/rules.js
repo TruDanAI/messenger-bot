@@ -254,6 +254,7 @@ function wantsFeatureAdvice(text) {
 
 function wantsNewProducts(text) {
   const t = preprocess(text);
+  if (/(?:roi|thi|vua)\s*moi/.test(t)) return false;
   return /(?:hang|mau|san\s*pham).*(?:moi|cap\s*nhat|ve\s*them)/.test(t)
     || /(?:moi\s*ve|co\s*gi\s*moi)/.test(t);
 }

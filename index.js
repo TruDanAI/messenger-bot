@@ -760,6 +760,27 @@ function buildLeadDetails(userText, senderId) {
   };
 }
 
+async function sendTelegramAlert(leadData) {
+  try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    if (!botToken || !chatId) return;
+
+    const text = `🚨 CÓ ĐƠN HÀNG MỚI!
+👤 Tên: ${leadData.name || 'Không có'}
+📞 SĐT: ${leadData.phone || 'Không có'}
+🏠 Địa chỉ: ${leadData.address || 'Không có'}
+📦 Sản phẩm: ${leadData.productCode || 'Không có'}`;
+
+    await axios.post(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      chat_id: chatId,
+      text: text
+    });
+  } catch (err) {
+    console.error('❌ Lỗi gửi Telegram alert:', err.response?.data || err.message);
+  }
+}
+
 // ========== WEBHOOK VERIFY (Meta yêu cầu) ==========
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -898,7 +919,9 @@ async function handleEvent(event, baseUrlOverride = '') {
     const justConfirmed = nowConfirmed && sessionBeforeConfirm !== STATES.CONFIRMED;
     if (justConfirmed) {
       console.log(`📤 Đơn vừa CONFIRMED — gửi lead lên Google Sheet (${senderId}).`);
-      void pushLeadToSheet(buildConfirmedSheetLead(senderId, { messageId: mid || '', userText }));
+      const confirmedLead = buildConfirmedSheetLead(senderId, { messageId: mid || '', userText });
+      void pushLeadToSheet(confirmedLead);
+      sendTelegramAlert(confirmedLead);
       try {
         await sendMessage(senderId, buildDepositMessage(senderId));
         const qrUrl = getShopQrImageUrl(baseUrlOverride);
