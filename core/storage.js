@@ -229,5 +229,42 @@ module.exports = {
       text: customer.text || '',
       history: customer.history || ''
     });
+  },
+
+  // 🆕 Hỗ trợ đồng bộ Redis cho Worker (Trám lỗ hổng State In-Memory)
+  async loadUserFromRedis(userId, redisClient) {
+    if (!userId) return;
+    try {
+        const dataStr = await redisClient.get(`user_state:${userId}`);
+        if (dataStr) {
+            const data = JSON.parse(dataStr);
+            if (data.history) state.history[userId] = data.history;
+            if (data.handoff) state.handoff[userId] = data.handoff;
+            if (data.context) state.context[userId] = data.context;
+        } else {
+            // Khởi tạo mới nếu chưa có
+            state.history[userId] = [];
+            delete state.handoff[userId];
+            state.context[userId] = {};
+        }
+    } catch (e) {
+        console.error(`Lỗi load Redis cho user ${userId}:`, e.message);
+    }
+  },
+
+  async saveUserToRedis(userId, redisClient) {
+    if (!userId) return;
+    try {
+        const payload = {
+            history: state.history[userId] || [],
+            handoff: state.handoff[userId] || null,
+            context: state.context[userId] || {}
+        };
+        // Lưu vào Redis với TTL 3 ngày (tối ưu RAM)
+        await redisClient.setex(`user_state:${userId}`, 3 * 24 * 60 * 60, JSON.stringify(payload));
+    } catch (e) {
+        console.error(`Lỗi save Redis cho user ${userId}:`, e.message);
+    }
   }
 };
+
