@@ -152,6 +152,14 @@ describe('Engine: intent router cơ bản', () => {
     expect(r).toContain('MÃ10');
     expect(/^Dạ trong ngân sách khoảng 150k/m.test(String(r))).toBe(true);
   });
+  it('"300 cành ... nên lấy mã nào" → trả null để processor gọi Gemini', () => {
+    const r = engine.buildDeterministicReply('Mình đang có khoảng 300 cành, shop tư vấn giúp nên lấy mã nào dùng ok nhất ạ', 'u_budget_canh');
+    expect(r).toBe(null);
+  });
+  it('"nên lấy mã nào" không bị hiểu là chốt đơn', () => {
+    const r = engine.buildDeterministicReply('shop tư vấn nên lấy mã nào ổn nhất', 'u_recommend');
+    expect(String(r).includes('muốn chốt mẫu nào')).toBe(false);
+  });
   it('PRODUCT_NOT_FOUND khi mã ngoài menu', () => {
     expect(engine.buildDeterministicReply('cho xem MÃ99', 'u4')).toContain('MÃ99');
   });
