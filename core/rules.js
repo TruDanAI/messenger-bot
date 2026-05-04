@@ -88,7 +88,7 @@ function asksWhyRepeatedInfo(text) {
 
 function rejectsOrderIntent(text) {
   const t = preprocess(text);
-  return /(chua|khong|ko|k)\s*(chot|mua|lay|dat|len\s*don)/.test(t)
+  return /\b(chua|khong|ko|k)\s*(chot|mua|lay|dat|len\s*don)\b/.test(t)
     || /(noi|bao)\s*vay\s*thoi/.test(t)
     || /tham\s*khao\s*thoi/.test(t);
 }
@@ -146,6 +146,8 @@ function wantsKeywordImage(text, keyword, config = {}) {
 
 function isOrderIntent(text) {
   const t = preprocess(text);
+  if (/(?:ma|mau|loai)\s*nao/.test(t)) return false;
+  if (/nen\s*(?:mua|lay|chon)\b/.test(t)) return false;
   return /\b(?:chot|lay|dat|mua|giu|len\s*don)\b/.test(t);
 }
 
@@ -516,7 +518,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       : false;
     const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
     const wantsPhoto = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
-    const budgetMatch = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})\s*k\b/);
+    const budgetMatch = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})(?:\s*(k|nghin|ngan|cu|c))\b/);
     const budget = budgetMatch ? Number(budgetMatch[1]) : null;
 
     return {
@@ -849,7 +851,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     // chiếm hết. Đã loại bỏ.
     {
       name: 'BUDGET',
-      match: ctx => Boolean(ctx.budget),
+      match: ctx => Boolean(ctx.budget) && !wantsRecommendation(ctx.text),
       handle: ctx => {
         if (ctx.budget <= 200 && (ctx.wantsVibration || ctx.wantsLarge)) {
           return render('budgetTightCustom');
@@ -866,7 +868,10 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     },
     {
       name: 'FEATURE_OR_LARGE_OR_RECOMMEND',
-      match: ctx => wantsFeatureAdvice(ctx.text) || ctx.wantsLarge || wantsRecommendation(ctx.text),
+      match: ctx =>
+        wantsFeatureAdvice(ctx.text)
+        || ctx.wantsLarge
+        || (wantsRecommendation(ctx.text) && !ctx.budget),
       handle: ctx => {
         if (ctx.wantsLarge) {
           const options = recommendationProducts('large')
