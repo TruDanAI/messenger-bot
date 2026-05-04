@@ -6,6 +6,7 @@ const path = require('path');
 const { connectDB } = require('./core/db');
 const { messageQueue } = require('./core/queue');
 const { startSheetOutboxWorker } = require('./core/sheets-webhook');
+const Shop = require('./core/models/Shop');
 require('./core/worker'); // Khởi động BullMQ Worker chạy ngầm cùng server
 
 // Lazy-load processor để lấy IMAGE_INDEX (tránh circular load)
@@ -98,7 +99,10 @@ app.post('/webhook', async (req, res) => {
 
   for (const entry of body.entry || []) {
     const pageId = entry.id;
-    const shopId = process.env.SHOP_ID || 'adult-shop';
+    
+    // Tìm shop dựa vào pageId (Webhook routing thực thụ)
+    const shop = await Shop.findOne({ 'credentials.fbPageId': pageId }).lean();
+    const shopId = shop ? shop._id : (process.env.SHOP_ID || 'adult-shop');
 
     for (const event of entry.messaging || []) {
       const senderId = event.sender?.id;

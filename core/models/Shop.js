@@ -13,6 +13,7 @@ const shopSchema = new mongoose.Schema({
     
     // Thông tin xác thực riêng biệt của từng shop
     credentials: {
+        fbPageId: { type: String, index: true }, // Dùng để định tuyến từ Webhook -> Shop
         fbPageToken: { type: String, required: true },
         fbVerifyToken: { type: String },
         googleSheetUrl: { type: String },
