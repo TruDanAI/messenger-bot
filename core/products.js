@@ -32,10 +32,6 @@ function loadProducts(csvPath) {
     image: cleanCell(row.image || row.imageFile)
   })).filter(product => product.code && product.price);
 
-  if (!products.length) {
-    throw new Error(`Không load được sản phẩm từ ${csvPath}`);
-  }
-
   return products;
 }
 

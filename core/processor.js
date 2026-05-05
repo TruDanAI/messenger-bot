@@ -111,8 +111,8 @@ function getPublicImageUrl(shopId, filename, baseUrlOverride = '') {
   if (!baseRaw || !filename) return null;
   const base = baseRaw.replace(/\/+$/, '');
 
-  // Nếu filename đã là URL (bắt đầu bằng http hoặc /static)
-  if (filename.startsWith('http') || filename.startsWith('/static')) {
+  // Nếu filename đã là URL hoặc path public nội bộ.
+  if (filename.startsWith('http') || filename.startsWith('/static') || filename.startsWith('/media')) {
     return filename.startsWith('/') ? `${base}${filename}` : filename;
   }
 
@@ -155,6 +155,7 @@ async function handleMessage(shopConfig, messageData) {
   const { event, baseUrlOverride } = messageData;
   const senderId = event.sender?.id;
   const shopId = shopConfig._id;
+  const stateUserId = `${shopId}:${senderId}`;
   const runtime = getShopRuntime(shopId);
   const { rules, products, config } = runtime;
 
@@ -164,7 +165,7 @@ async function handleMessage(shopConfig, messageData) {
   if (mid && storage.seenMid(mid)) return;
   if (mid) storage.markMid(mid);
 
-  if (storage.inHandoff(senderId)) return;
+  if (storage.inHandoff(stateUserId)) return;
 
   let userText = null;
   if (event.message?.text) userText = event.message.text;
@@ -174,8 +175,8 @@ async function handleMessage(shopConfig, messageData) {
   console.log(`📩 [${shopId}][${senderId}]: ${userText}`);
 
   if (rules.wantsHuman(userText)) {
-    storage.setHandoff(senderId, Date.now() + HANDOFF_MS);
-    await sendMessage(senderId, rules.render('humanHandoff'), shopConfig);
+    storage.setHandoff(stateUserId, Date.now() + HANDOFF_MS);
+    await sendMessage(senderId, rules.render('humanHandoff'), shopConfig, stateUserId);
     return;
   }
 
@@ -183,9 +184,11 @@ async function handleMessage(shopConfig, messageData) {
   const imageFiles = [];
   if (rules.wantsMenuImages(userText)) {
     // Ưu tiên menu_images từ Database, nếu rỗng mới dùng mặc định
-    const menus = (config.menu_images && config.menu_images.length) 
-                  ? config.menu_images 
-                  : (config.menuImages || ['menu1.png', 'menu2.png']);
+    const menus = (shopConfig.menu_images && shopConfig.menu_images.length)
+                  ? shopConfig.menu_images
+                  : (config.menu_images && config.menu_images.length)
+                    ? config.menu_images
+                    : (config.menuImages || ['menu1.png', 'menu2.png']);
     imageFiles.push(...menus);
   }
   const kwImg = rules.wantsKeywordImage(userText);
@@ -207,25 +210,25 @@ async function handleMessage(shopConfig, messageData) {
   }
 
   // 2. Xử lý logic hội thoại & Lead
-  const leadDetails = buildLeadDetails(userText, senderId, rules);
+  const leadDetails = buildLeadDetails(userText, stateUserId, rules);
   if (leadDetails.phone || (leadDetails.name && leadDetails.address)) {
     // 🆕 Quan trọng: Cập nhật vào Draft State để bot "nhớ" thông tin cho session
-    storage.mergeOrderDraft(senderId, leadDetails);
+    storage.mergeOrderDraft(stateUserId, leadDetails);
     storage.appendCustomer({ type: 'lead', senderId, ...leadDetails, at: new Date().toISOString() });
   }
 
-  const deterministic = rules.buildDeterministicReply(userText, senderId);
+  const deterministic = rules.buildDeterministicReply(userText, stateUserId);
   if (deterministic) {
-    await sendMessage(senderId, deterministic, shopConfig);
+    await sendMessage(senderId, deterministic, shopConfig, stateUserId);
     
     // Nếu vừa xác nhận đơn, gửi alert
-    if (storage.getSessionState(senderId) === rules.STATES.CONFIRMED) {
+    if (storage.getSessionState(stateUserId) === rules.STATES.CONFIRMED) {
       const alertData = { ...leadDetails, shopName: shopConfig.name };
       // pushLeadToSheet, sendTelegramAlert... (giản lược để an toàn)
     }
   } else if (shopConfig.features?.enableAI) {
     const systemPrompt = buildSystemPrompt(config, products);
-    const history = storage.getHistory(senderId).map(h => ({ role: h.role === 'bot' ? 'model' : 'user', parts: [{ text: h.text }] }));
+    const history = storage.getHistory(stateUserId).map(h => ({ role: h.role === 'bot' ? 'model' : 'user', parts: [{ text: h.text }] }));
     history.push({ role: 'user', parts: [{ text: userText }] });
     
     const apiKey = shopConfig.credentials?.geminiApiKey || process.env.GEMINI_API_KEY;
@@ -234,22 +237,22 @@ async function handleMessage(shopConfig, messageData) {
       contents: history
     });
     const aiReply = res.data.candidates[0].content.parts[0].text;
-    await sendMessage(senderId, aiReply, shopConfig);
+    await sendMessage(senderId, aiReply, shopConfig, stateUserId);
   } else {
-    await sendMessage(senderId, rules.buildFallbackReply(userText, senderId), shopConfig);
+    await sendMessage(senderId, rules.buildFallbackReply(userText, stateUserId), shopConfig, stateUserId);
   }
 }
 
 // ========== FB API ==========
 
-async function sendMessage(recipientId, text, shopConfig) {
+async function sendMessage(recipientId, text, shopConfig, stateUserId = recipientId) {
   const token = shopConfig.credentials?.fbPageToken;
   try {
     await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${token}`, {
       recipient: { id: recipientId },
       message: { text }
     });
-    storage.appendHistory(recipientId, { role: 'bot', text });
+    storage.appendHistory(stateUserId, { role: 'bot', text });
   } catch (err) {
     console.error('❌ SendMessage Fail:', err.response?.data || err.message);
   }

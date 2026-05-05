@@ -73,7 +73,7 @@ const TEMPLATES = {
 
   // ===== Fallback / scope guide =====
   /** Khi rule không khớp — giữ khách trong khung menu, gợi mở tự nhiên. */
-  catalogScopeGuide: 'Dạ {{shopName}} nghe ạ! Anh/chị đang quan tâm mẫu nào hoặc cần em tư vấn theo tầm giá bao nhiêu cứ nhắn nhé. Nếu muốn xem nhanh danh sách các mẫu đang sẵn hàng, anh/chị gõ "menu" để em gửi trọn bộ cho mình chọn ạ.',
+  catalogScopeGuide: 'Dạ {{shopName}} nghe ạ! Hiện em chỉ tư vấn theo menu và danh sách sản phẩm của shop, chưa có thông tin ngoài danh sách. Anh/chị đang quan tâm mẫu nào hoặc cần em tư vấn theo tầm giá bao nhiêu cứ nhắn nhé. Nếu muốn xem nhanh danh sách các mẫu đang sẵn hàng, anh/chị gõ "menu" để em gửi trọn bộ cho mình chọn ạ.',
 
   // ===== Handoff =====
   // NOTE: captureOnlyAskPhone tồn tại để các shop có workflow "capture lead trước"

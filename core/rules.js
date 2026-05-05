@@ -265,7 +265,7 @@ function asksForOrderInfo(text) {
 // địa chỉ/tên người. Từ "to" lớn/nhỏ nên để wantsLarge/plugin xử lý.
 function wantsFeatureAdvice(text) {
   const t = preprocess(text);
-  return /(?:nho\s*gon|silicon|tu\s*van\s*them|tu\s*van\s*ky|muon\s*biet\s*them)/.test(t);
+  return /(?:nho\s*gon|silicon|tu\s*van\s*them|tu\s*van\s*ky|muon\s*biet\s*them|\bmau\s+to\s+khong\b|\bto\s+khong\b)/.test(t);
 }
 
 function wantsNewProducts(text) {

@@ -72,7 +72,19 @@
             display: flex;
             flex-direction: column;
             padding: 0;
+            transition: transform 0.22s ease;
         }
+
+        .sidebar-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.52);
+            backdrop-filter: blur(2px);
+            z-index: 25;
+        }
+
+        .sidebar-backdrop.active { display: block; }
 
         .sidebar-logo {
             padding: 28px 24px 24px;
@@ -203,6 +215,16 @@
         .topbar-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
 
         .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+        .mobile-menu-btn {
+            display: none;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
 
         /* BUTTONS */
         .btn {
@@ -379,6 +401,78 @@
         }
         .shop-stat-box .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); font-weight: 600; margin-bottom: 5px; }
         .shop-stat-box .value { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+
+        .menu-panel {
+            padding: 20px;
+            background: rgba(99,102,241,0.05);
+            border-color: var(--accent);
+            margin-bottom: 20px;
+        }
+
+        .menu-config-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .menu-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .menu-thumb,
+        .product-image-thumb {
+            background: rgba(255,255,255,0.035);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .menu-thumb {
+            aspect-ratio: 4 / 3;
+        }
+
+        .menu-thumb img,
+        .product-image-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .menu-thumb.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            font-size: 12px;
+            border-style: dashed;
+        }
+
+        .product-image-cell {
+            display: grid;
+            grid-template-columns: 46px minmax(160px, 1fr) 34px;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .product-image-thumb {
+            width: 46px;
+            height: 46px;
+            border-radius: 7px;
+        }
+
+        .product-image-thumb.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            font-size: 14px;
+        }
 
         /* EMPTY STATE */
         .empty-state {
@@ -587,10 +681,30 @@
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-240px); }
+            .sidebar { transform: translateX(-240px); box-shadow: 0 20px 60px rgba(0,0,0,0.4); }
+            .sidebar.open { transform: translateX(0); }
             .main-content { margin-left: 0; }
             .shop-grid { grid-template-columns: 1fr; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
+            .topbar { padding: 12px 16px; align-items: flex-start; gap: 12px; }
+            .mobile-menu-btn { display: inline-flex; }
+            .topbar-actions { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+            .search-bar { flex: 1 1 100%; order: 2; }
+            .search-bar input { width: 100%; }
+            .page-body { padding: 20px 16px; }
+            .section-header { align-items: flex-start; gap: 12px; flex-direction: column; }
+            .menu-config-row { grid-template-columns: 1fr; }
+            .product-image-cell { grid-template-columns: 40px minmax(150px, 1fr) 34px; }
+            .modal-body, .modal-header, .modal-footer { padding-left: 20px; padding-right: 20px; }
+            .form-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 520px) {
+            .stats-grid { grid-template-columns: 1fr; }
+            .topbar { flex-wrap: wrap; }
+            .topbar > div:nth-child(2) { width: 100%; }
+            .btn { white-space: nowrap; }
+            .menu-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         /* TABLE (LEADS & PRODUCTS) */
         .table-container {
@@ -635,9 +749,10 @@
 
 <!-- TOAST -->
 <div id="toast-container"></div>
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
 
 <!-- SIDEBAR -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
     <div class="sidebar-logo">
         <div class="logo-icon"><i class="fas fa-robot"></i></div>
         <div>
@@ -697,9 +812,14 @@
 
     <!-- TOPBAR -->
     <header class="topbar">
-        <div>
-            <div class="topbar-title" id="topbarTitle">Quản lý Shop</div>
-            <div class="topbar-sub" id="topbarSub">Cấu hình chatbot và gói dịch vụ cho từng cửa hàng</div>
+        <div style="display:flex;align-items:flex-start;gap:12px">
+            <button class="btn btn-ghost mobile-menu-btn" onclick="toggleSidebar()" title="Mở menu">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div>
+                <div class="topbar-title" id="topbarTitle">Quản lý Shop</div>
+                <div class="topbar-sub" id="topbarSub">Cấu hình chatbot và gói dịch vụ cho từng cửa hàng</div>
+            </div>
         </div>
         <div class="topbar-actions">
             <!-- Tùy view sẽ hiển thị công cụ khác nhau, ta sẽ xử lý bằng JS -->
@@ -868,7 +988,7 @@
             </div>
 
             <!-- QUICK MENU CONFIG -->
-            <div class="table-container" style="padding:20px; background:rgba(99,102,241,0.05); border-color:var(--accent); margin-bottom:20px">
+            <div class="table-container menu-panel">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px">
                     <div style="font-weight:700; font-size:14px; color:var(--accent2)">
                         <i class="fas fa-images"></i> Cấu hình Menu & Bảng giá Shop
@@ -877,14 +997,17 @@
                         <!-- Badge status will go here -->
                     </div>
                 </div>
-                <div style="display:flex; gap:10px">
+                <div class="menu-config-row">
                     <div style="flex:1">
-                        <input class="form-input" id="quickMenuImages" placeholder="URL ảnh menu (cách nhau bởi dấu phẩy)...">
+                        <input class="form-input" id="quickMenuImages" placeholder="URL ảnh menu (cách nhau bởi dấu phẩy)..." oninput="updateMenuPreview()">
                         <div class="form-hint">Dùng để gửi cho khách khi nhắn "menu". Hệ thống sẽ tự lưu khi bạn nhấn "Lưu Thay Đổi" bên dưới.</div>
                     </div>
                     <button class="btn btn-ghost" onclick="triggerQuickMenuUpload()" style="height:42px">
                         <i class="fas fa-upload"></i> Tải ảnh lên
                     </button>
+                </div>
+                <div class="menu-preview-grid" id="menuPreviewGrid">
+                    <div class="menu-thumb empty"><i class="fas fa-image"></i></div>
                 </div>
             </div>
 
@@ -1138,7 +1261,15 @@
 
 <script>
     // ─── CONFIG ─────────────────────────────────────────────
-    const API_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token') || '';
+    const API_TOKEN = urlToken || localStorage.getItem('zenbot_admin_token') || '';
+    if (urlToken) {
+        localStorage.setItem('zenbot_admin_token', urlToken);
+        urlParams.delete('token');
+        const cleanUrl = `${window.location.pathname}${urlParams.toString() ? '?' + urlParams.toString() : ''}${window.location.hash}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+    }
     let currentShops  = [];
     let filteredShops = [];
     let currentLeads  = [];
@@ -1149,6 +1280,36 @@
     let selectedPlan  = 'BASIC';
     let activeView    = 'shopView';
 
+    function authHeaders(extra = {}) {
+        return API_TOKEN ? { ...extra, 'x-admin-token': API_TOKEN } : extra;
+    }
+
+    function fetchAdmin(url, options = {}) {
+        return fetch(url, {
+            ...options,
+            headers: authHeaders(options.headers || {})
+        });
+    }
+
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.getElementById('sidebarBackdrop').classList.toggle('active');
+    }
+
+    function closeSidebar() {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebarBackdrop').classList.remove('active');
+    }
+
+    function resolveImageUrl(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        if (/^https?:\/\//i.test(raw)) return raw;
+        if (raw.startsWith('/')) return raw;
+        if (!editingProductShopId) return raw;
+        return `/media/${editingProductShopId}/${encodeURIComponent(raw)}`;
+    }
+
     // ─── INIT ────────────────────────────────────────────────
     fetchShops();
     fetchLeads();
@@ -1156,6 +1317,7 @@
     // ─── VIEW SWITCHING ──────────────────────────────────────
     function switchView(viewId, navEl) {
         activeView = viewId;
+        closeSidebar();
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
         document.getElementById(viewId).classList.add('active');
         
@@ -1209,12 +1371,15 @@
     // ─── API ─────────────────────────────────────────────────
     async function fetchShops() {
         try {
-            const res = await fetch(`/api/admin/shops?token=${API_TOKEN}`);
-            if (res.status === 401) {
+            const res = await fetchAdmin('/api/admin/shops');
+            if (!res.ok) {
+                const message = res.status === 503
+                    ? 'Server chưa cấu hình ADMIN_EXPORT_TOKEN'
+                    : 'Token không hợp lệ';
                 document.getElementById('shopGrid').innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-lock"></i>
-                        <p style="font-size:15px;font-weight:600;margin-bottom:6px">Token không hợp lệ</p>
+                        <p style="font-size:15px;font-weight:600;margin-bottom:6px">${escHtml(message)}</p>
                         <p>Thêm <code style="background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;font-family:monospace">?token=YOUR_TOKEN</code> vào URL</p>
                     </div>`;
                 return;
@@ -1355,7 +1520,7 @@
     // ─── LEADS API & RENDER ──────────────────────────────────
     async function fetchLeads() {
         try {
-            const res = await fetch(`/api/admin/leads?token=${API_TOKEN}`);
+            const res = await fetchAdmin('/api/admin/leads');
             if (res.ok) {
                 currentLeads = await res.json();
                 filteredLeads = [...currentLeads];
@@ -1420,13 +1585,14 @@
         
         try {
             // 1. Tải cấu hình Shop để lấy Menu
-            const shopRes = await fetch(`/api/admin/shops?token=${API_TOKEN}`);
+            const shopRes = await fetchAdmin('/api/admin/shops');
             if (shopRes.ok) {
                 const shops = await shopRes.json();
                 const shop = shops.find(s => s._id === editingProductShopId);
                 if (shop) {
                     const menuInput = document.getElementById('quickMenuImages');
                     menuInput.value = (shop.menu_images || []).join(', ');
+                    updateMenuPreview();
                     
                     const badge = document.getElementById('menuStatusBadge');
                     if (!shop.menu_images || shop.menu_images.length === 0) {
@@ -1438,7 +1604,7 @@
             }
 
             // 2. Tải sản phẩm (CSV)
-            const res = await fetch(`/api/admin/products/${editingProductShopId}?token=${API_TOKEN}`);
+            const res = await fetchAdmin(`/api/admin/products/${editingProductShopId}`);
             if (res.ok) {
                 currentProducts = await res.json();
                 renderProducts();
@@ -1446,6 +1612,44 @@
         } catch (err) {
             showToast('Lỗi tải dữ liệu', 'error');
         }
+    }
+
+    function getMenuImagesFromInput() {
+        return document.getElementById('quickMenuImages').value
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+    }
+
+    function updateMenuPreview() {
+        const grid = document.getElementById('menuPreviewGrid');
+        if (!grid) return;
+        const images = getMenuImagesFromInput();
+        if (!images.length) {
+            grid.innerHTML = '<div class="menu-thumb empty"><i class="fas fa-image"></i></div>';
+            return;
+        }
+        grid.innerHTML = images.map(src => `
+            <div class="menu-thumb" title="${escHtml(src)}">
+                <img src="${escHtml(resolveImageUrl(src))}" alt="Menu image" loading="lazy" onerror="this.parentElement.classList.add('empty');this.remove();">
+            </div>
+        `).join('');
+    }
+
+    function productImagePreviewHTML(value = '') {
+        const src = resolveImageUrl(value);
+        if (!src) return '<div class="product-image-thumb empty"><i class="fas fa-image"></i></div>';
+        return `
+            <div class="product-image-thumb" title="${escHtml(value)}">
+                <img src="${escHtml(src)}" alt="Ảnh sản phẩm" loading="lazy" onerror="this.parentElement.classList.add('empty');this.remove();">
+            </div>`;
+    }
+
+    function updateProductImagePreview(input) {
+        const cell = input.closest('.product-image-cell');
+        if (!cell) return;
+        const oldPreview = cell.querySelector('.product-image-thumb');
+        if (oldPreview) oldPreview.outerHTML = productImagePreviewHTML(input.value.trim());
     }
 
     function renderProducts() {
@@ -1467,8 +1671,9 @@
                 </select>
             </td>
             <td>
-                <div style="display:flex;gap:4px">
-                    <input class="form-input" style="padding:6px;font-size:12.5px;flex:1" type="text" name="image" value="${escHtml(p.image||'')}" placeholder="sp1.jpg">
+                <div class="product-image-cell">
+                    ${productImagePreviewHTML(p.image || '')}
+                    <input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="image" value="${escHtml(p.image||'')}" placeholder="sp1.jpg" oninput="updateProductImagePreview(this)">
                     <button class="btn btn-ghost btn-sm" onclick="triggerUpload(this)" title="Tải ảnh lên" style="padding:0 8px;border-color:rgba(255,255,255,0.1)">
                         <i class="fas fa-upload" style="font-size:10px"></i>
                     </button>
@@ -1495,8 +1700,9 @@
                 </select>
             </td>
             <td>
-                <div style="display:flex;gap:4px">
-                    <input class="form-input" style="padding:6px;font-size:12.5px;flex:1" type="text" name="image" placeholder="anh1.jpg">
+                <div class="product-image-cell">
+                    ${productImagePreviewHTML('')}
+                    <input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="image" placeholder="anh1.jpg" oninput="updateProductImagePreview(this)">
                     <button class="btn btn-ghost btn-sm" onclick="triggerUpload(this)" title="Tải ảnh lên" style="padding:0 8px;border-color:rgba(255,255,255,0.1)">
                         <i class="fas fa-upload" style="font-size:10px"></i>
                     </button>
@@ -1514,8 +1720,8 @@
 
     let currentUploadInput = null;
     function triggerUpload(btn) {
-        currentUploadInput = btn.parentElement.querySelector('input[name="image"]');
-        document.getElementById('hiddenFileInput').click();
+        currentUploadInput = btn.closest('.product-image-cell').querySelector('input[name="image"]');
+        document.getElementById('productFileInput').click();
     }
 
     async function handleFileUpload(e) {
@@ -1531,13 +1737,14 @@
         formData.append('file', file);
         
         try {
-            const res = await fetch(`/api/admin/upload/${editingProductShopId}?token=${API_TOKEN}`, {
+            const res = await fetchAdmin(`/api/admin/upload/${editingProductShopId}`, {
                 method: 'POST',
                 body: formData
             });
             if (res.ok) {
                 const data = await res.json();
                 currentUploadInput.value = data.filename;
+                updateProductImagePreview(currentUploadInput);
                 showToast('Đã tải ảnh lên thành công', 'success');
             } else {
                 const err = await res.json();
@@ -1568,18 +1775,18 @@
             }
         });
 
-        const menuImages = document.getElementById('quickMenuImages').value.split(',').map(s => s.trim()).filter(Boolean);
+        const menuImages = getMenuImagesFromInput();
 
         try {
             // 1. Lưu Sản phẩm (CSV)
-            const res = await fetch(`/api/admin/products/${editingProductShopId}?token=${API_TOKEN}`, {
+            const res = await fetchAdmin(`/api/admin/products/${editingProductShopId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newData)
             });
 
             // 2. Lưu Menu (MongoDB)
-            const shopRes = await fetch(`/api/admin/shops/${editingProductShopId}?token=${API_TOKEN}`, {
+            const shopRes = await fetchAdmin(`/api/admin/shops/${editingProductShopId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ menu_images: menuImages })
@@ -1597,29 +1804,34 @@
     }
 
     function triggerQuickMenuUpload() {
-        isMenuUpload = true;
-        // Giả lập click vào input file ẩn, nhưng trỏ kết quả vào ô Quick Menu
-        const hiddenInput = document.getElementById('hiddenFileInput');
-        hiddenInput.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                const res = await fetch(`/api/admin/upload/${editingProductShopId}?token=${API_TOKEN}&type=shop`, {
-                    method: 'POST',
-                    body: formData
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    const input = document.getElementById('quickMenuImages');
-                    input.value = input.value ? `${input.value}, ${data.url}` : data.url;
-                    showToast('Đã tải ảnh menu lên', 'success');
-                }
-            } catch (err) { showToast('Lỗi upload', 'error'); }
+        document.getElementById('menuFileInput').click();
+    }
+
+    async function handleQuickMenuUpload(e) {
+        const file = e.target.files[0];
+        if (!file || !editingProductShopId) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const res = await fetchAdmin(`/api/admin/upload/${editingProductShopId}?type=shop`, {
+                method: 'POST',
+                body: formData
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const input = document.getElementById('quickMenuImages');
+                input.value = input.value ? `${input.value}, ${data.url}` : data.url;
+                updateMenuPreview();
+                showToast('Đã tải ảnh menu lên', 'success');
+            } else {
+                const err = await res.json();
+                showToast(err.message || 'Lỗi upload menu', 'error');
+            }
+        } catch (err) {
+            showToast('Lỗi upload', 'error');
+        } finally {
             e.target.value = '';
-        };
-        hiddenInput.click();
+        }
     }
 
     // ─── ANALYTICS (CHART) ───────────────────────────────────
@@ -1743,7 +1955,20 @@
 
     function exportLeadsCsv() {
         if (!API_TOKEN) { showToast('Cần token để xuất CSV', 'error'); return; }
-        window.open(`/admin/customers.csv?token=${API_TOKEN}`, '_blank');
+        fetchAdmin('/admin/customers.csv')
+            .then(async res => {
+                if (!res.ok) throw new Error('Không thể xuất CSV');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'customers.csv';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            })
+            .catch(() => showToast('Không thể xuất CSV', 'error'));
     }
 
     // ─── MODAL ───────────────────────────────────────────────
@@ -1827,9 +2052,9 @@
         if (!isEditing || gemKey)   payload.credentials.geminiApiKey = gemKey;
 
         try {
-            const url    = isEditing ? `/api/admin/shops/${id}?token=${API_TOKEN}` : `/api/admin/shops?token=${API_TOKEN}`;
+            const url    = isEditing ? `/api/admin/shops/${id}` : '/api/admin/shops';
             const method = isEditing ? 'PATCH' : 'POST';
-            const res    = await fetch(url, {
+            const res    = await fetchAdmin(url, {
                 method, headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
@@ -1863,7 +2088,7 @@
     async function doDelete() {
         if (!pendingDeleteId) return;
         closeConfirm();
-        const res = await fetch(`/api/admin/shops/${pendingDeleteId}?token=${API_TOKEN}`, { method: 'DELETE' });
+        const res = await fetchAdmin(`/api/admin/shops/${pendingDeleteId}`, { method: 'DELETE' });
         if (res.ok) {
             showToast('Đã xóa shop thành công', 'success');
             await fetchShops();
@@ -1920,7 +2145,7 @@
         if (e.key === 'Escape') { closeModal(); closeConfirm(); }
     });
 </script>
-    <div id="toast-container"></div>
-    <input type="file" id="hiddenFileInput" style="display:none" accept="image/*" onchange="handleFileUpload(event)">
+    <input type="file" id="productFileInput" style="display:none" accept="image/*" onchange="handleFileUpload(event)">
+    <input type="file" id="menuFileInput" style="display:none" accept="image/*" onchange="handleQuickMenuUpload(event)">
 </body>
 </html>

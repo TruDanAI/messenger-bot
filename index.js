@@ -3,9 +3,10 @@ const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 const { parse } = require('csv-parse/sync');
 const { connectDB } = require('./core/db');
-const { messageQueue } = require('./core/queue');
+const { messageQueue, connection: redisConnection } = require('./core/queue');
 const { startSheetOutboxWorker } = require('./core/sheets-webhook');
 const Shop = require('./core/models/Shop');
 require('./core/worker'); // Khởi động BullMQ Worker chạy ngầm cùng server
@@ -20,6 +21,7 @@ connectDB().then(() => {
 });
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf; }
 }));
@@ -28,6 +30,69 @@ app.use(express.static(path.join(__dirname, 'public')));
 const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
 const FB_APP_SECRET   = process.env.FB_APP_SECRET;
 const PORT            = process.env.PORT || 3000;
+
+// ========== BASIC REQUEST HARDENING ==========
+function clientKey(req) {
+  const forwarded = String(req.get('x-forwarded-for') || '').split(',')[0].trim();
+  return forwarded || req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function createRateLimiter({ windowMs, max, name }) {
+  const hits = new Map();
+  const disabled = process.env.DISABLE_RATE_LIMIT === 'true';
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, bucket] of hits.entries()) {
+      if (bucket.resetAt <= now) hits.delete(key);
+    }
+  }, Math.max(windowMs, 30000)).unref?.();
+
+  return (req, res, next) => {
+    if (disabled) return next();
+    const now = Date.now();
+    const key = `${name}:${clientKey(req)}`;
+    const current = hits.get(key);
+    const bucket = current && current.resetAt > now
+      ? current
+      : { count: 0, resetAt: now + windowMs };
+
+    bucket.count += 1;
+    hits.set(key, bucket);
+
+    const remaining = Math.max(0, max - bucket.count);
+    res.set('X-RateLimit-Limit', String(max));
+    res.set('X-RateLimit-Remaining', String(remaining));
+    res.set('X-RateLimit-Reset', String(Math.ceil(bucket.resetAt / 1000)));
+
+    if (bucket.count > max) {
+      return res.status(429).json({
+        message: 'Too many requests',
+        retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000)
+      });
+    }
+
+    next();
+  };
+}
+
+const adminRateLimit = createRateLimiter({
+  name: 'admin',
+  windowMs: Number(process.env.ADMIN_RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  max: Number(process.env.ADMIN_RATE_LIMIT_MAX) || 120
+});
+
+const uploadRateLimit = createRateLimiter({
+  name: 'upload',
+  windowMs: Number(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS) || 10 * 60 * 1000,
+  max: Number(process.env.UPLOAD_RATE_LIMIT_MAX) || 40
+});
+
+const webhookRateLimit = createRateLimiter({
+  name: 'webhook',
+  windowMs: Number(process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  max: Number(process.env.WEBHOOK_RATE_LIMIT_MAX) || 300
+});
 
 // ========== XÁC THỰC CHỮ KÝ FB ==========
 function verifySignature(req) {
@@ -69,7 +134,53 @@ app.use('/assets', express.static(ASSETS_DIR));
 
 // ========== HEALTH CHECK ==========
 app.get('/', (_req, res) => res.send('🤖 ZenBot đang chạy!'));
-app.get('/healthz', (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()) }));
+app.get('/healthz', async (_req, res) => {
+  const checks = {
+    uptime: Math.round(process.uptime()),
+    mongodb: {
+      ok: mongoose.connection.readyState === 1,
+      state: mongoose.connection.readyState
+    },
+    redis: { ok: false },
+    dataDir: { ok: false, path: processor.storage.getDataDir() },
+    shopsDir: { ok: false, path: SHOPS_DIR },
+    queue: { ok: false, name: messageQueue.name }
+  };
+
+  try {
+    await redisConnection.ping();
+    checks.redis.ok = true;
+  } catch (err) {
+    checks.redis.error = err.message;
+  }
+
+  try {
+    await messageQueue.waitUntilReady();
+    checks.queue.ok = true;
+  } catch (err) {
+    checks.queue.error = err.message;
+  }
+
+  async function checkWritableDir(target, key) {
+    try {
+      await fs.promises.mkdir(target, { recursive: true });
+      const probe = path.join(target, `.health-${process.pid}-${Date.now()}`);
+      await fs.promises.writeFile(probe, 'ok', 'utf8');
+      await fs.promises.unlink(probe);
+      checks[key].ok = true;
+    } catch (err) {
+      checks[key].error = err.message;
+    }
+  }
+
+  await Promise.all([
+    checkWritableDir(checks.dataDir.path, 'dataDir'),
+    checkWritableDir(checks.shopsDir.path, 'shopsDir')
+  ]);
+
+  const ok = checks.mongodb.ok && checks.redis.ok && checks.dataDir.ok && checks.shopsDir.ok && checks.queue.ok;
+  res.status(ok ? 200 : 503).json({ ok, checks });
+});
 
 // ========== SERVE ẢNH SẢN PHẨM (Multi-tenant) ==========
 app.get('/media/:shopId/:filename', (req, res) => {
@@ -103,7 +214,7 @@ app.get('/webhook', (req, res) => {
 });
 
 // ========== NHẬN TIN NHẮN (THE PRODUCER) ==========
-app.post('/webhook', async (req, res) => {
+app.post('/webhook', webhookRateLimit, async (req, res) => {
   if (!verifySignature(req)) {
     console.warn('⚠️  Sai chữ ký webhook, từ chối request.');
     return res.sendStatus(403);
@@ -160,8 +271,44 @@ app.post('/webhook', async (req, res) => {
 
 // ========== ZENBOT CENTRAL (SHOP MANAGEMENT API) ==========
 const ADMIN_EXPORT_TOKEN = process.env.ADMIN_EXPORT_TOKEN || '';
+const ALLOW_UNSAFE_ADMIN_WITHOUT_TOKEN = process.env.ALLOW_UNSAFE_ADMIN_WITHOUT_TOKEN === 'true';
+
+app.use('/api/admin', adminRateLimit);
+app.use('/admin', adminRateLimit);
+
+function sanitizeShop(shop) {
+  const raw = typeof shop.toObject === 'function' ? shop.toObject() : { ...shop };
+  return {
+    ...raw,
+    credentials: {
+      fbPageId: raw.credentials?.fbPageId || '',
+      hasFbPageToken: Boolean(raw.credentials?.fbPageToken),
+      hasGeminiApiKey: Boolean(raw.credentials?.geminiApiKey),
+      hasTelegramBotToken: Boolean(raw.credentials?.telegramBotToken),
+      hasGoogleSheetUrl: Boolean(raw.credentials?.googleSheetUrl),
+      telegramChatId: raw.credentials?.telegramChatId || ''
+    }
+  };
+}
+
+function isValidShopId(id) {
+  return /^[a-zA-Z0-9_-]{1,64}$/.test(String(id || ''));
+}
+
+function requireValidShopId(req, res, next) {
+  const shopId = req.params.shopId || req.params.id;
+  if (!isValidShopId(shopId)) {
+    return res.status(400).json({ message: 'Shop ID không hợp lệ' });
+  }
+  next();
+}
 
 function adminAuth(req, res, next) {
+  if (!ADMIN_EXPORT_TOKEN && !ALLOW_UNSAFE_ADMIN_WITHOUT_TOKEN) {
+    return res.status(503).json({
+      message: 'Admin API chưa được cấu hình ADMIN_EXPORT_TOKEN'
+    });
+  }
   const token = req.query.token || req.get('x-admin-token');
   if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {
     return res.status(401).json({ message: 'Unauthorized' });
@@ -171,8 +318,8 @@ function adminAuth(req, res, next) {
 
 app.get('/api/admin/shops', adminAuth, async (req, res) => {
   try {
-    const shops = await Shop.find().sort({ createdAt: -1 });
-    res.json(shops);
+    const shops = await Shop.find().sort({ createdAt: -1 }).lean();
+    res.json(shops.map(sanitizeShop));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -180,36 +327,42 @@ app.get('/api/admin/shops', adminAuth, async (req, res) => {
 
 app.post('/api/admin/shops', adminAuth, async (req, res) => {
   try {
+    if (!isValidShopId(req.body?._id)) {
+      return res.status(400).json({ message: 'Shop ID không hợp lệ' });
+    }
     const shop = new Shop(req.body);
     await shop.save();
-    res.status(201).json(shop);
+    res.status(201).json(sanitizeShop(shop));
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-app.patch('/api/admin/shops/:id', adminAuth, async (req, res) => {
+app.patch('/api/admin/shops/:id', adminAuth, requireValidShopId, async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = { ...req.body };
     // Xử lý nested objects cho credentials và features
     if (req.body.credentials) {
       const shop = await Shop.findById(id);
+      if (!shop) return res.status(404).json({ message: 'Shop không tồn tại' });
       updateData.credentials = { ...(shop.credentials || {}), ...req.body.credentials };
     }
     if (req.body.features) {
       const shop = await Shop.findById(id);
+      if (!shop) return res.status(404).json({ message: 'Shop không tồn tại' });
       updateData.features = { ...(shop.features || {}), ...req.body.features };
     }
     
     const shop = await Shop.findByIdAndUpdate(id, updateData, { new: true });
-    res.json(shop);
+    if (!shop) return res.status(404).json({ message: 'Shop không tồn tại' });
+    res.json(sanitizeShop(shop));
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-app.delete('/api/admin/shops/:id', adminAuth, async (req, res) => {
+app.delete('/api/admin/shops/:id', adminAuth, requireValidShopId, async (req, res) => {
   try {
     await Shop.findByIdAndDelete(req.params.id);
     res.json({ message: 'Shop deleted' });
@@ -241,7 +394,7 @@ app.get('/api/admin/leads', adminAuth, (req, res) => {
 });
 
 // ========== PRODUCT MANAGEMENT ==========
-app.get('/api/admin/products/:shopId', adminAuth, (req, res) => {
+app.get('/api/admin/products/:shopId', adminAuth, requireValidShopId, (req, res) => {
   try {
     const file = path.join(SHOPS_DIR, req.params.shopId, 'products.csv');
     if (!fs.existsSync(file)) return res.json([]);
@@ -271,8 +424,7 @@ const multer = require('multer');
 const storageMulter = multer.diskStorage({
   destination: (req, file, cb) => {
     const shopId = req.params.shopId || 'default';
-    // BẮT BUỘC lưu vào Volume /data của Railway để không mất ảnh khi deploy
-    const dir = path.join('/data', 'shops', shopId, 'images');
+    const dir = path.join(SHOPS_DIR, shopId, 'images');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -289,18 +441,19 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|webp/;
     const ext = path.extname(file.originalname).toLowerCase();
-    if (allowed.test(ext)) cb(null, true);
+    const mimeOk = /^image\/(jpeg|png|webp)$/.test(String(file.mimetype || '').toLowerCase());
+    if (allowed.test(ext) && mimeOk) cb(null, true);
     else cb(new Error('Chỉ hỗ trợ ảnh (jpg, png, webp)'));
   }
 });
 
-app.post('/api/admin/upload/:shopId', adminAuth, upload.single('file'), async (req, res) => {
+app.post('/api/admin/upload/:shopId', uploadRateLimit, adminAuth, requireValidShopId, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Vui lòng chọn file' });
     
     const shopId = req.params.shopId;
     // URL truy cập qua web (phục vụ dashboard hiển thị)
-    const webUrl = `/static/shops/${shopId}/images/${req.file.filename}`;
+    const webUrl = `/media/${shopId}/${req.file.filename}`;
 
     // Nếu là upload ảnh đại diện/logo cho Shop thì cập nhật vào MongoDB
     if (req.query.type === 'shop') {
@@ -316,7 +469,7 @@ app.post('/api/admin/upload/:shopId', adminAuth, upload.single('file'), async (r
   }
 });
 
-app.post('/api/admin/products/:shopId', adminAuth, (req, res) => {
+app.post('/api/admin/products/:shopId', adminAuth, requireValidShopId, (req, res) => {
   try {
     const file = path.join(SHOPS_DIR, req.params.shopId, 'products.csv');
     const dir = path.dirname(file);
@@ -340,6 +493,9 @@ app.post('/api/admin/products/:shopId', adminAuth, (req, res) => {
 
 app.get('/admin/customers.csv', (req, res) => {
   const token = req.query.token || req.get('x-admin-token');
+  if (!ADMIN_EXPORT_TOKEN && !ALLOW_UNSAFE_ADMIN_WITHOUT_TOKEN) {
+    return res.sendStatus(503);
+  }
   if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {
     return res.sendStatus(401);
   }
@@ -350,6 +506,9 @@ app.get('/admin/customers.csv', (req, res) => {
 
 app.get('/admin/state/:userId', (req, res) => {
   const token = req.query.token || req.get('x-admin-token');
+  if (!ADMIN_EXPORT_TOKEN && !ALLOW_UNSAFE_ADMIN_WITHOUT_TOKEN) {
+    return res.sendStatus(503);
+  }
   if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {
     return res.sendStatus(401);
   }
