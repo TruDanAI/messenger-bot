@@ -4,7 +4,7 @@
 
 const TEMPLATES = {
   // ===== Chào / xác nhận / từ chối =====
-  greeting: 'Dạ em chào anh/chị ạ. Anh/chị muốn xem danh sách sản phẩm của {{shopName}}, hỏi theo ngân sách, hay đang quan tâm mã nào để em tư vấn nhanh nhé.',
+  greeting: 'Dạ em chào anh/chị ạ. Bên em tư vấn theo đúng các mã trên menu {{shopName}} thôi nhé. Anh/chị muốn xem menu, nói ngân sách, hay đang xem mã nào — em hỗ trợ nhanh cho mình ạ.',
   rejectOrder: 'Dạ em hiểu ạ, mình cứ tham khảo thoải mái nhé. Khi nào muốn chốt mẫu nào thì nhắn em mã sản phẩm hoặc tên món là được ạ.',
   cancelOrder: 'Dạ không sao ạ. Nếu mình chưa xác nhận với nhân viên thì shop chưa lên đơn đâu ạ. Khi nào muốn tham khảo hoặc chốt lại mẫu nào, anh/chị nhắn em mã sản phẩm là được nhé.',
   changeProduct: 'Dạ đổi mẫu được ạ. Anh/chị nhắn giúp em mã sản phẩm muốn đổi sang, ví dụ MÃ8 hoặc MÃ13, em kiểm tra và báo lại giá/thông tin cho mình nhé.',
@@ -20,11 +20,11 @@ const TEMPLATES = {
   infoMissingWithProduct: 'Dạ em nhận thông tin rồi ạ. Để chốt {{productCode}}, anh/chị gửi thêm {{missing}} để shop xác nhận đơn và giao hàng nhé.',
   infoMissingNoProduct: 'Dạ em nhận thông tin rồi ạ. Anh/chị chọn giúp em mã sản phẩm muốn lấy, hoặc nhắn "menu" để em gửi danh sách sản phẩm nhé.',
   orderInfoRequest: 'Dạ có ạ, để chốt đơn{{productSuffix}} anh/chị gửi giúp em {{orderInfoFields}} nhé. Shop sẽ xác nhận lại đơn trước khi giao.',
-  orderIntentNoProduct: 'Dạ anh/chị muốn chốt mẫu nào thì nhắn giúp em mã sản phẩm nhé, ví dụ MÃ8 hoặc MÃ13. Em sẽ xác nhận giá rồi xin thông tin giao hàng ạ.',
+  orderIntentNoProduct: 'Dạ để em chốt đúng mẫu trong menu, anh/chị cho em mã đang lấy (ví dụ MÃ8 / ma8) nhé. Em báo lại giá và xin {{orderInfoFields}} theo chính sách shop ạ.',
   orderIntentWithProduct: 'Dạ em chốt {{productCode}} giá {{price}} cho anh/chị nhé. Anh/chị gửi giúp em {{orderInfoFields}} ạ. Hàng được {{privacy}}.',
 
   // ===== Sản phẩm / giá / so sánh =====
-  productNotFound: 'Dạ hiện shop chưa có {{codes}} trong danh sách ạ. Anh/chị xem menu rồi chọn mã khác giúp em nhé, hoặc cho em biết ngân sách/nhu cầu để em gợi ý mẫu gần nhất.',
+  productNotFound: 'Dạ mã {{codes}} hiện không nằm trong menu shop nên bên em không tư vấn/sale mẫu đó ạ. Anh/chị xem lại menu hoặc nhắn ngân sách + nhu cầu (nhỏ gọn / rung / size…) để em gợi ý 1–2 mã gần nhất trong danh sách nhé.',
   priceClarification: 'Dạ {{productCode}} giá {{price}} ạ. Mẫu này {{stockText}}{{giftText}}.',
   comparison: 'Dạ em so sánh nhanh cho anh/chị nhé:\n{{lines}}\nNếu ưu tiên tiết kiệm thì chọn mẫu giá thấp hơn; nếu muốn trải nghiệm thật/to hơn thì chọn mẫu kích thước lớn hơn ạ.',
   productList: 'Dạ em gửi thông tin nhanh cho anh/chị nhé:\n{{lines}}\n{{photoNote}}',
@@ -32,7 +32,7 @@ const TEMPLATES = {
   productListAskPhoto: 'Anh/chị muốn xem ảnh hoặc chốt mẫu nào thì nhắn em mã đó nhé.',
 
   // ===== Hình ảnh / menu =====
-  menuSent: 'Dạ em gửi menu ảnh sản phẩm cho anh/chị rồi ạ. Anh/chị xem mẫu nào ưng thì nhắn mã (ví dụ MÃ8 hoặc ma8), em báo giá và tư vấn nhanh hơn nhé.',
+  menuSent: 'Dạ em gửi menu ảnh rồi ạ — mình cứ chọn trong đó giúp em nhé. Mẫu nào ưng thì nhắn mã (MÃ8 / ma8…), em báo giá và hỗ trợ chốt đúng mẫu trong menu ạ.',
   productImage: 'Dạ em gửi ảnh {{productCode}} cho anh/chị tham khảo nhé. {{compactProductName}}, anh/chị muốn chốt thì gửi giúp em {{orderInfoFields}} ạ.',
   gelInfo: 'Dạ shop có sản phẩm gel trong menu ạ. Anh/chị xem ảnh kèm tin nhắn hoặc nhắn em mã để em báo giá chi tiết nhé.',
   newProducts: 'Dạ hiện shop tư vấn theo danh sách menu đang có ạ. Nếu có mẫu mới shop sẽ cập nhật thêm vào menu; anh/chị muốn xem lại danh sách hiện tại thì em gửi ảnh menu cho mình tham khảo nhé.',
@@ -61,11 +61,14 @@ const TEMPLATES = {
 
   // ===== Tư vấn theo ngân sách / tính năng =====
   budgetTightCustom: 'Dạ với mức ngân sách khoảng 200k, em gợi ý anh/chị xem các mẫu trong danh sách phù hợp phía trên ạ. Anh/chị ưu tiên nhỏ gọn hay size lớn hơn để em lọc tiếp nhé?',
-  budgetOptions: 'Dạ trong ngân sách khoảng {{budget}}k, anh/chị có thể tham khảo:\n{{lines}}\nAnh/chị thích phân khúc nào hoặc có yêu cầu cụ thể để em lọc tiếp ạ?',
-  budgetNoOptions: 'Dạ ngân sách khoảng {{budget}}k thì shop chưa có mẫu phù hợp trong danh sách hiện tại ạ. Anh/chị có thể tăng ngân sách hoặc xem các mẫu gần mức đó trong menu nhé.',
+  budgetOptions: 'Dạ trong khoảng {{budget}}k, em lọc trong menu được các mẫu sau:\n{{lines}}\nAnh/chị thích hướng nào (nhỏ gọn / có rung / size lớn…) để em gợi ý sát hơn trong danh sách nhé.',
+  budgetNoOptions: 'Dạ với khoảng {{budget}}k thì trong menu hiện tại shop chưa có mẫu nào đủ phù hợp ạ. Anh/chị nâng giá một chút hoặc nhắn "menu" để em chỉ mẫu gần mức đó nhất trong khung sản phẩm nhé.',
   vibrationOptions: 'Dạ các mẫu có tính năng tương tự gồm {{options}}. Anh/chị muốn xem ảnh mẫu nào ạ?',
   largeOptions: 'Dạ nếu anh/chị thích mẫu kích thước lớn hơn thì có {{options}}. Anh/chị muốn tầm giá nào để em tư vấn sát hơn ạ?',
-  featureAdviceDefault: 'Dạ anh/chị cho em biết ngân sách hoặc mẫu đang xem, em gợi ý 1–2 lựa chọn phù hợp trong menu nhé.',
+  featureAdviceDefault: 'Dạ em gợi ý trong phạm vi menu thôi ạ. Anh/chị cho em tầm giá hoặc mã đang xem, hoặc mô tả nhanh (nhỏ gọn / rung / to hơn…) — em chọn 1–2 mã phù hợp trong danh sách cho mình nhé.',
+
+  /** Khi rule không khớp (BASIC / fallback) — giữ khách trong khung menu, không bịa ngoài danh sách. */
+  catalogScopeGuide: 'Dạ em chỉ tư vấn các mã có trên menu {{shopName}} thôi ạ; món ngoài danh sách thì bên em không có để báo giá/chốt. Anh/chị nhắn giúp em ngân sách hoặc mã đang xem, hoặc gõ "menu" để em gửi ảnh danh sách — mình chọn trong đó em hỗ trợ tiếp nhé.',
 
   // ===== Handoff =====
   captureOnlyAskPhone: 'Dạ em đã nhận tin của anh/chị ạ. Nhân viên sẽ vào hỗ trợ ngay; nếu tiện anh/chị để lại SĐT giúp em để shop liên hệ nhanh hơn nhé.',

@@ -154,7 +154,7 @@ describe('Engine: intent router cơ bản', () => {
     const r = eng.buildDeterministicReply('loại 150k thế nào vậy shop', 'u_150');
     expect(r).toContain('150');
     expect(r).toContain('MÃ10');
-    expect(/^Dạ trong ngân sách khoảng 150k/m.test(String(r))).toBe(true);
+    expect(/^Dạ trong khoảng 150k/m.test(String(r))).toBe(true);
   });
   it('"300 cành ... nên lấy mã nào" → trả null để processor gọi Gemini', () => {
     const r = engine.buildDeterministicReply('Mình đang có khoảng 300 cành, shop tư vấn giúp nên lấy mã nào dùng ok nhất ạ', 'u_budget_canh');
@@ -183,6 +183,22 @@ describe('Engine: intent router cơ bản', () => {
     const r = eng.buildDeterministicReply('tôi ko muốn mua nữa nhé shop', 'u_nomua');
     expect(String(r).includes('chốt MÃ7')).toBe(false);
     expect(/không sao|tham khảo|hủy|không lấy/i.test(String(r))).toBe(true);
+  });
+});
+
+describe('Engine: Basic fallback trong khung catalog', () => {
+  const customConfig = { ...shopConfig };
+  delete customConfig.fallbackReply;
+  const eng = createRuleEngine({
+    products,
+    config: customConfig,
+    contextStore: makeStore()
+  });
+
+  it('buildFallbackReply dùng catalogScopeGuide khi không có fallbackReply', () => {
+    const r = eng.buildFallbackReply('cho em hoi tai nghe sony xm5 gia sao shop', 'u_oob');
+    expect(String(r).toLowerCase()).toContain('menu');
+    expect(/kh[oô]ng\s+c[oó]|chỉ\s+tư\s+vấn|ngoài\s+danh\s+sách/i.test(String(r))).toBe(true);
   });
 });
 

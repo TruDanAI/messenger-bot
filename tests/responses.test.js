@@ -68,6 +68,7 @@ describe('TEMPLATES coverage', () => {
     'deliveryPreorder', 'deliveryDefault', 'returnPolicy',
     'budgetTightCustom', 'budgetOptions', 'budgetNoOptions',
     'vibrationOptions', 'largeOptions', 'featureAdviceDefault',
+    'catalogScopeGuide', 'captureOnlyAskPhone',
     'humanHandoff', 'systemBusy'
   ];
   for (const k of required) {

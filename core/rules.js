@@ -710,7 +710,11 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       name: 'ORDER_INTENT',
       match: ctx => isOrderIntent(ctx.text),
       handle: ctx => {
-        if (!ctx.selectedProduct) return render('orderIntentNoProduct');
+        if (!ctx.selectedProduct) {
+          return render('orderIntentNoProduct', {
+            orderInfoFields: config.policies.orderInfoFields || 'thông tin giao hàng'
+          });
+        }
         return render('orderIntentWithProduct', {
           productCode: ctx.selectedProduct.code,
           price: explainPrice(ctx.selectedProduct.price),
@@ -954,7 +958,12 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
   function buildFallbackReply(userText, userId = '') {
     const deterministic = buildDeterministicReply(userText, userId);
     if (deterministic) return deterministic;
-    return config.fallbackReply || render('systemBusy');
+    const customFb = config.fallbackReply != null ? String(config.fallbackReply).trim() : '';
+    if (customFb) return config.fallbackReply;
+    return (
+      render('catalogScopeGuide', { shopName: config.shopName || 'shop' })
+      || render('systemBusy')
+    );
   }
 
   return {
