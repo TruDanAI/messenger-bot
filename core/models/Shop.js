@@ -40,11 +40,10 @@ const shopSchema = new mongoose.Schema({
     timestamps: true // Tự động có createdAt, updatedAt
 });
 
-shopSchema.pre('validate', function applyFeaturesByPlan(next) {
+shopSchema.pre('validate', function applyFeaturesByPlan() {
     if (this.isNew || this.isModified('plan')) {
         this.features = { ...getPlanFeatures(this.plan) };
     }
-    next();
 });
 
 const Shop = mongoose.model('Shop', shopSchema);
