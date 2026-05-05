@@ -151,6 +151,17 @@ function isOrderIntent(text) {
   return /\b(?:chot|lay|dat|mua|giu|len\s*don)\b/.test(t);
 }
 
+/** Hỏi có mã nào dưới/trên mức giá — không phải hỏi giá 1 mã đang chọn (tránh ăn lastProduct). */
+function isBudgetPresenceQuestion(text) {
+  const t = preprocess(text);
+  if (/\b(?:khong|chua)\s+(?:co|con)\b.*\bma\b.*\bduoi\b/.test(t)) return true;
+  if (/\b(?:co|con)\s+(?:cac\s*)?ma\s+nao\b.*\bduoi\b/.test(t)) return true;
+  if (/\bma\s+nao\b.*\bduoi\b/.test(t)) return true;
+  if (/\bduoi\b.*\d{2,4}\s*(?:k|nghin|ngan|cu|c)\b/.test(t)) return true;
+  if (/\btren\b.*\d{2,4}\s*(?:k|nghin|ngan|cu|c)\b/.test(t)) return true;
+  return false;
+}
+
 function isPriceClarification(text) {
   const t = preprocess(text);
   const hasExplicitPriceQuestion = /(?:bao\s*nhieu|may\s*tien|gia\s*(?:nhieu|sao|the\s*nao|bao\s*nhieu)|bao\s*gia)/.test(t);
@@ -158,11 +169,20 @@ function isPriceClarification(text) {
 
   const hasPriceKeyword = /\bgia\b/.test(t);
   const hasPriceAmount = /(?:\d+\s*(?:trieu|tr|k)\b|\d+\.\d+k\b)/.test(t);
-  const hasClarificationMarker = isQuestion(text)
-    || /\b(?:hay|la|phai|dung|khong|ko|k|ha|a|vay|nhi)\b/.test(t);
+  const hasLooseMarker = isQuestion(text)
+    || /\b(?:hay|la|phai|dung|ha|vay|nhi)\b/.test(t)
+    || (hasPriceAmount && /\d+\s*(?:k|nghin|ngan|c)\s+a\s*$/i.test(t));
+  // Tránh: "không có mã nào dưới 100k" → token `khong` chỉ là phủ định, không phải hỏi xác nhận giá.
+  const hasStrongMarker = /\b(?:khong|ko)\b/.test(t)
+    && !/(?:khong|chua)\s+(?:co|con)\b/.test(t);
+  const hasClarificationMarker = hasLooseMarker || hasStrongMarker;
 
   if (hasPriceKeyword && !hasPriceAmount) return true;
-  return (hasPriceKeyword || hasPriceAmount) && hasClarificationMarker;
+  if ((hasPriceKeyword || hasPriceAmount) && hasClarificationMarker) {
+    if (isBudgetPresenceQuestion(text)) return false;
+    return true;
+  }
+  return false;
 }
 
 function wantsShippingPrivacy(text) {
@@ -290,6 +310,8 @@ function wantsCancelOrder(text) {
   if (/\bhuy\b\s*(?:don|hang|mua|lay|chot|nhe)?/.test(t) && /\b(?:huy|don|hang)\b/.test(t)) return true;
   // 2) "không/ko/k + (lấy|chốt|mua|đặt|lên đơn)" — bỏ qua "không sao", "không hiểu" v.v.
   if (/(?:khong|ko|k)\s+(?:lay|chot|mua|dat|len\s*don)\b/.test(t)) return true;
+  // 2b) "không/ko muốn + (mua|lấy|chốt|đặt)" — VD: "tôi ko muốn mua nữa"
+  if (/(?:khong|ko|k)\s+muon\s+(?:mua|lay|chot|dat)\b/.test(t)) return true;
   // 3) "thôi không/ko + (lấy|chốt|mua|đặt|lên đơn|đơn|hàng)" — yêu cầu HẬU TỐ rõ ràng.
   if (/thoi\s*(?:khong|ko)\s+(?:lay|chot|mua|dat|len\s*don|don|hang)\b/.test(t)) return true;
   // 4) "không cần nữa", "không lấy nữa"
@@ -700,6 +722,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     {
       name: 'PRICE_CLARIFICATION',
       match: ctx => {
+        if (isBudgetPresenceQuestion(ctx.text)) return false;
         if (!isPriceClarification(ctx.text) || !ctx.selectedProduct) return false;
         const t = ctx.normalized;
         // "loại 150k thế nào" — hỏi mẫu theo mức giá; không báo giá mã lastProduct.
@@ -974,6 +997,7 @@ module.exports = {
     asksWhyRepeatedInfo,
     asksForOrderInfo,
     rejectsOrderIntent,
+    isBudgetPresenceQuestion,
     wantsAddressChange,
     wantsAgePolicy,
     wantsBestSeller,

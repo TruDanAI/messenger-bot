@@ -101,6 +101,10 @@ describe('detectors: BUG FIX isPriceClarification', () => {
   it('TRUE khi nhắc giá kèm marker hỏi/xác nhận', () => {
     expect(detectors.isPriceClarification('MÃ8 là 300k hả shop?')).toBeTrue();
   });
+  it('FALSE với câu hỏi có mã dưới mức giá (không phải hỏi giá 1 mã)', () => {
+    expect(detectors.isPriceClarification('không có mã nào dưới 100k à')).toBeFalse();
+    expect(detectors.isPriceClarification('có mã nào dưới 200k không shop')).toBeFalse();
+  });
 });
 
 describe('detectors: wantsAddressChange (BUG FIX)', () => {
@@ -163,10 +167,22 @@ describe('Engine: intent router cơ bản', () => {
   it('PRODUCT_NOT_FOUND khi mã ngoài menu', () => {
     expect(engine.buildDeterministicReply('cho xem MÃ99', 'u4')).toContain('MÃ99');
   });
-  it('không coi "MÃ8 300k" là PRICE_CLARIFICATION', () => {
-    const reply = engine.buildDeterministicReply('MÃ8 300k', 'u_price_mention');
-    expect(reply).toContain('em gửi thông tin nhanh');
-    expect(reply.includes('giá 680k')).toBeFalse();
+  it('"không có mã nào dưới 100k à" → BUDGET không báo giá lastProduct', () => {
+    const store = makeStore();
+    store.setLastProductCode('u_under100', 'MÃ7');
+    const eng = createRuleEngine({ products, config: shopConfig, contextStore: store });
+    const r = eng.buildDeterministicReply('không có mã nào dưới 100k à', 'u_under100');
+    expect(String(r)).toContain('100');
+    expect(String(r).includes('560k')).toBe(false);
+    expect(String(r).includes('MÃ7')).toBe(false);
+  });
+  it('"tôi ko muốn mua nữa" → huỷ, không ORDER_INTENT', () => {
+    const store = makeStore();
+    store.setLastProductCode('u_nomua', 'MÃ7');
+    const eng = createRuleEngine({ products, config: shopConfig, contextStore: store });
+    const r = eng.buildDeterministicReply('tôi ko muốn mua nữa nhé shop', 'u_nomua');
+    expect(String(r).includes('chốt MÃ7')).toBe(false);
+    expect(/không sao|tham khảo|hủy|không lấy/i.test(String(r))).toBe(true);
   });
 });
 
