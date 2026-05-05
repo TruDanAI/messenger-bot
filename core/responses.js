@@ -67,8 +67,8 @@ const TEMPLATES = {
   largeOptions: 'Dạ nếu anh/chị thích mẫu kích thước lớn hơn thì có {{options}}. Anh/chị muốn tầm giá nào để em tư vấn sát hơn ạ?',
   featureAdviceDefault: 'Dạ anh/chị cứ cho em biết tầm ngân sách hoặc sở thích (thích loại nhỏ nhắn hay to hơn một chút), em sẽ lựa 1-2 mẫu ưng ý nhất đang sẵn hàng gửi mình xem ngay nhé.',
 
-  /** Khi rule không khớp (BASIC / fallback) — giữ khách trong khung menu, không bịa ngoài danh sách. */
-  catalogScopeGuide: 'Dạ hiện tại bên em chỉ sẵn các mã trong menu của {{shopName}} thôi ạ. Anh/chị cho em xin mức ngân sách hoặc gõ "menu" để xem danh sách nhé, em sẽ rà soát và gửi mẫu phù hợp nhất đang có ạ.',
+  /** Khi rule không khớp (BASIC / fallback) — giữ khách trong khung menu, gợi mở tự nhiên. */
+  catalogScopeGuide: 'Dạ {{shopName}} nghe ạ! Anh/chị đang quan tâm mẫu nào hoặc cần em tư vấn theo tầm giá bao nhiêu cứ nhắn nhé. Nếu muốn xem nhanh danh sách các mẫu đang sẵn hàng, anh/chị gõ "menu" để em gửi trọn bộ cho mình chọn ạ.',
 
   // ===== Handoff =====
   captureOnlyAskPhone: 'Dạ em đã nhận tin của anh/chị ạ. Nhân viên sẽ vào hỗ trợ ngay; nếu tiện anh/chị để lại SĐT giúp em để shop liên hệ nhanh hơn nhé.',
