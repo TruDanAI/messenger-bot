@@ -3,310 +3,1374 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZenBot Central | Dashboard Quản Trị</title>
+    <title>ZenBot — Sales AI Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .gradient-text { background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .btn-primary { background: linear-gradient(135deg, #0ea5e9, #6366f1); transition: all 0.3s ease; }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
-        .card-hover { transition: all 0.3s ease; }
-        .card-hover:hover { transform: translateY(-4px); border-color: rgba(99, 102, 241, 0.4); }
-        input, select { background: #1e293b !important; border: 1px solid #334155 !important; color: white !important; }
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 50; align-items: center; justify-content: center; }
-        .modal.active { display: flex; }
+        :root {
+            --bg-base:    #080c14;
+            --bg-panel:   #0d1421;
+            --bg-card:    #111827;
+            --border:     rgba(255,255,255,0.07);
+            --border-hi:  rgba(99,102,241,0.45);
+            --accent:     #6366f1;
+            --accent2:    #22d3ee;
+            --accent3:    #f472b6;
+            --text-main:  #f0f4ff;
+            --text-muted: #64748b;
+            --text-dim:   #334155;
+            --green:      #10b981;
+            --red:        #ef4444;
+            --amber:      #f59e0b;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-base);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Background mesh */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 10% 0%, rgba(99,102,241,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 40% at 90% 100%, rgba(34,211,238,0.06) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Noise texture */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        h1, h2, h3, h4, .font-display { font-family: 'Syne', sans-serif; }
+
+        /* SIDEBAR */
+        .sidebar {
+            position: fixed;
+            left: 0; top: 0; bottom: 0;
+            width: 240px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+        }
+
+        .sidebar-logo {
+            padding: 28px 24px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 38px; height: 38px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 17px;
+            box-shadow: 0 0 20px rgba(99,102,241,0.35);
+            flex-shrink: 0;
+        }
+
+        .logo-text { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; letter-spacing: -0.03em; }
+        .logo-text span { color: var(--accent2); }
+
+        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
+
+        .nav-section-label {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            padding: 12px 12px 6px;
+        }
+
+        .nav-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.18s;
+            text-decoration: none;
+            margin-bottom: 2px;
+            position: relative;
+        }
+
+        .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text-main); }
+
+        .nav-item.active {
+            background: rgba(99,102,241,0.12);
+            color: var(--text-main);
+        }
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 20%; bottom: 20%;
+            width: 3px;
+            background: var(--accent);
+            border-radius: 0 3px 3px 0;
+        }
+
+        .nav-item i { width: 18px; text-align: center; font-size: 13px; }
+
+        .nav-badge {
+            margin-left: auto;
+            background: var(--accent);
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 99px;
+        }
+
+        .sidebar-footer {
+            padding: 16px 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .user-card {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+        }
+
+        .user-avatar {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--accent), var(--accent3));
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .status-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 6px var(--green);
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* MAIN */
+        .main-content {
+            margin-left: 240px;
+            padding: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* TOPBAR */
+        .topbar {
+            position: sticky; top: 0; z-index: 20;
+            background: rgba(8,12,20,0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 32px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+
+        .topbar-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; }
+        .topbar-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+
+        .topbar-actions { display: flex; align-items: center; gap: 12px; }
+
+        /* BUTTONS */
+        .btn {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%);
+            color: white;
+            box-shadow: 0 2px 12px rgba(99,102,241,0.3);
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(99,102,241,0.5); }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-ghost {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover { background: rgba(255,255,255,0.08); color: var(--text-main); }
+
+        .btn-danger {
+            background: rgba(239,68,68,0.1);
+            color: #f87171;
+            border: 1px solid rgba(239,68,68,0.2);
+        }
+        .btn-danger:hover { background: rgba(239,68,68,0.2); }
+
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+        /* PAGE BODY */
+        .page-body { padding: 32px; }
+
+        /* STATS GRID */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 22px 24px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .stat-card:hover { border-color: rgba(99,102,241,0.25); }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            border-radius: 14px 14px 0 0;
+        }
+
+        .stat-card.accent-blue::before  { background: linear-gradient(90deg, var(--accent), transparent); }
+        .stat-card.accent-green::before { background: linear-gradient(90deg, var(--green), transparent); }
+        .stat-card.accent-cyan::before  { background: linear-gradient(90deg, var(--accent2), transparent); }
+        .stat-card.accent-amber::before { background: linear-gradient(90deg, var(--amber), transparent); }
+
+        .stat-icon {
+            width: 36px; height: 36px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; margin-bottom: 14px;
+        }
+
+        .stat-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+        .stat-value { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 6px; }
+        .stat-meta  { font-size: 11.5px; color: var(--text-muted); }
+
+        /* SECTION HEADER */
+        .section-header {
+            display: flex; align-items: flex-end; justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .section-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; }
+        .section-sub   { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+        /* SEARCH BAR */
+        .search-bar {
+            display: flex; align-items: center; gap: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0 14px;
+            transition: border-color 0.2s;
+        }
+        .search-bar:focus-within { border-color: var(--accent); }
+        .search-bar input {
+            background: none; border: none; outline: none;
+            color: var(--text-main); font-family: 'DM Sans', sans-serif;
+            font-size: 13px; padding: 9px 0; width: 220px;
+        }
+        .search-bar i { color: var(--text-dim); font-size: 13px; }
+
+        /* SHOP GRID */
+        .shop-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+
+        /* SHOP CARD */
+        .shop-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 22px;
+            transition: all 0.22s;
+            cursor: default;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .shop-card:hover {
+            border-color: rgba(99,102,241,0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .shop-card .card-actions {
+            display: flex; gap: 8px;
+            margin-top: 16px;
+            opacity: 0;
+            transform: translateY(4px);
+            transition: all 0.2s;
+        }
+        .shop-card:hover .card-actions { opacity: 1; transform: translateY(0); }
+
+        .shop-avatar {
+            width: 44px; height: 44px; border-radius: 11px;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Syne', sans-serif;
+            font-weight: 800; font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .shop-meta { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
+        .shop-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; margin-bottom: 3px; }
+        .shop-id   { font-family: 'DM Mono', monospace, 'DM Sans'; font-size: 11px; color: var(--text-muted); }
+
+        .shop-badges { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+
+        .badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 9px; border-radius: 5px;
+            font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
+        }
+
+        .badge-plan-lite       { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
+        .badge-plan-basic      { background: rgba(34,211,238,0.1);   color: var(--accent2); border: 1px solid rgba(34,211,238,0.2); }
+        .badge-plan-pro        { background: rgba(99,102,241,0.12);  color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
+        .badge-plan-enterprise { background: rgba(245,158,11,0.12); color: #fcd34d; border: 1px solid rgba(245,158,11,0.25); }
+
+        .badge-active   { background: rgba(16,185,129,0.1); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+        .badge-inactive { background: rgba(239,68,68,0.1);  color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .badge-ai       { background: rgba(167,139,250,0.1); color: #c4b5fd; border: 1px solid rgba(167,139,250,0.2); }
+
+        .shop-stats-row {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .shop-stat-box {
+            background: rgba(255,255,255,0.025);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+        .shop-stat-box .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-dim); font-weight: 600; margin-bottom: 5px; }
+        .shop-stat-box .value { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+
+        /* EMPTY STATE */
+        .empty-state {
+            grid-column: 1 / -1;
+            text-align: center; padding: 80px 40px;
+            color: var(--text-muted);
+        }
+        .empty-state i { font-size: 40px; margin-bottom: 16px; opacity: 0.3; }
+        .empty-state p { font-size: 14px; }
+
+        /* MODAL */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.75);
+            backdrop-filter: blur(6px);
+            z-index: 100;
+            align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal-box {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            width: 100%; max-width: 680px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            animation: modal-in 0.22s cubic-bezier(0.34,1.56,0.64,1);
+        }
+
+        @keyframes modal-in {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-header {
+            padding: 28px 32px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: flex-start; justify-content: space-between;
+        }
+
+        .modal-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px; }
+        .modal-sub   { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+
+        .modal-close {
+            background: none; border: none; cursor: pointer;
+            color: var(--text-muted); font-size: 18px; padding: 4px;
+            transition: color 0.15s; line-height: 1;
+        }
+        .modal-close:hover { color: var(--text-main); }
+
+        .modal-body { padding: 28px 32px; }
+        .modal-footer {
+            padding: 20px 32px;
+            border-top: 1px solid var(--border);
+            display: flex; gap: 10px;
+        }
+
+        /* FORM */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-full  { grid-column: 1 / -1; }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+
+        label {
+            font-size: 12px; font-weight: 600;
+            letter-spacing: 0.04em; color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .form-input, .form-select {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text-main);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13.5px;
+            outline: none;
+            transition: border-color 0.18s, box-shadow 0.18s;
+            width: 100%;
+        }
+        .form-input:focus, .form-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+        }
+        .form-input::placeholder { color: var(--text-dim); }
+        .form-select option { background: var(--bg-panel); }
+
+        .form-hint { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+        .toggle-group {
+            display: flex; align-items: center; gap: 20px;
+            padding: 14px 16px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .toggle-item {
+            display: flex; align-items: center; gap: 10px;
+            cursor: pointer;
+        }
+
+        .toggle-item input[type="checkbox"] {
+            width: 18px; height: 18px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .toggle-item span { font-size: 13px; font-weight: 500; }
+
+        /* DIVIDER */
+        .form-section-label {
+            font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em;
+            text-transform: uppercase; color: var(--text-dim);
+            display: flex; align-items: center; gap: 10px;
+            margin: 4px 0;
+        }
+        .form-section-label::after {
+            content: ''; flex: 1; height: 1px;
+            background: var(--border);
+        }
+
+        /* TOAST */
+        #toast-container {
+            position: fixed; top: 20px; right: 20px;
+            z-index: 999; display: flex; flex-direction: column; gap: 10px;
+        }
+
+        .toast {
+            display: flex; align-items: center; gap: 12px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 18px;
+            min-width: 280px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            animation: toast-in 0.3s ease;
+            font-size: 13.5px;
+        }
+        .toast.success { border-left: 3px solid var(--green); }
+        .toast.error   { border-left: 3px solid var(--red); }
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateX(20px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        /* CONFIRM DIALOG */
+        .confirm-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            align-items: center; justify-content: center;
+        }
+        .confirm-overlay.active { display: flex; }
+
+        .confirm-box {
+            background: var(--bg-panel);
+            border: 1px solid rgba(239,68,68,0.25);
+            border-radius: 14px;
+            padding: 32px;
+            max-width: 400px; width: 100%;
+            animation: modal-in 0.2s ease;
+            text-align: center;
+        }
+
+        .confirm-icon { font-size: 32px; color: #f87171; margin-bottom: 12px; }
+        .confirm-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; margin-bottom: 8px; }
+        .confirm-msg { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
+        .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 3px; }
+
+        /* LOADING SKELETON */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-card) 25%, rgba(255,255,255,0.04) 50%, var(--bg-card) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-shimmer 1.4s infinite;
+            border-radius: 6px;
+        }
+        @keyframes skeleton-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+        /* PLAN select highlight */
+        .plan-selector { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 2px; }
+        .plan-option {
+            border: 1px solid var(--border);
+            border-radius: 8px; padding: 10px 8px;
+            text-align: center; cursor: pointer;
+            transition: all 0.18s; font-size: 11.5px;
+        }
+        .plan-option .plan-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 12px; margin-bottom: 3px; }
+        .plan-option .plan-desc { font-size: 10px; color: var(--text-muted); }
+        .plan-option.selected { border-color: var(--accent); background: rgba(99,102,241,0.1); }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .shop-grid { grid-template-columns: repeat(2, 1fr); }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-240px); }
+            .main-content { margin-left: 0; }
+            .shop-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+        /* TABLE (LEADS) */
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            overflow-x: auto;
+        }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th {
+            background: rgba(255,255,255,0.02);
+            padding: 14px 20px;
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        td {
+            padding: 16px 20px;
+            font-size: 13.5px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: var(--text-main);
+        }
+        tr:hover td { background: rgba(255,255,255,0.015); }
+        tr:last-child td { border-bottom: none; }
+        
+        .lead-type {
+            display: inline-block; padding: 3px 8px; border-radius: 4px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+        }
+        .type-lead { background: rgba(16,185,129,0.15); color: #34d399; }
+        .type-update { background: rgba(56,189,248,0.15); color: #7dd3fc; }
+        .type-handoff { background: rgba(245,158,11,0.15); color: #fcd34d; }
+
+        /* VIEW TOGGLE */
+        .view-section { display: none; animation: modal-in 0.3s ease; }
+        .view-section.active { display: block; }
     </style>
 </head>
-<body class="min-h-screen">
+<body>
 
-    <!-- Sidebar / Topbar -->
-    <nav class="glass sticky top-0 z-40 w-full px-6 py-4 flex justify-between items-center mb-8">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-gradient-to-br from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <i class="fas fa-robot text-white text-xl"></i>
-            </div>
-            <h1 class="text-2xl font-bold gradient-text tracking-tight">ZenBot Central</h1>
-        </div>
-        <div class="flex items-center gap-4">
-            <button onclick="openModal('shopModal')" class="btn-primary px-5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2">
-                <i class="fas fa-plus"></i> Thêm Shop Mới
-            </button>
-            <div class="h-8 w-px bg-slate-700"></div>
-            <span id="adminStatus" class="text-xs text-slate-400 flex items-center gap-2">
-                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Hệ thống Online
-            </span>
-        </div>
-    </nav>
+<!-- TOAST -->
+<div id="toast-container"></div>
 
-    <main class="max-w-7xl mx-auto px-6 pb-12">
-        <!-- Stats Row -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-            <div class="glass p-6 rounded-2xl">
-                <p class="text-slate-400 text-sm mb-1">Tổng số Shop</p>
-                <h3 id="statTotalShops" class="text-3xl font-bold">0</h3>
-            </div>
-            <div class="glass p-6 rounded-2xl">
-                <p class="text-slate-400 text-sm mb-1">Shop đang chạy</p>
-                <h3 id="statActiveShops" class="text-3xl font-bold text-green-400">0</h3>
-            </div>
-            <div class="glass p-6 rounded-2xl">
-                <p class="text-slate-400 text-sm mb-1">Tính năng AI</p>
-                <h3 id="statAiShops" class="text-3xl font-bold text-indigo-400">0</h3>
-            </div>
-            <div class="glass p-6 rounded-2xl">
-                <p class="text-slate-400 text-sm mb-1">Dung lượng Lead</p>
-                <h3 class="text-3xl font-bold text-cyan-400">Tốt</h3>
-            </div>
-        </div>
-
-        <!-- Shop List Section -->
-        <div class="mb-6 flex justify-between items-end">
-            <div>
-                <h2 class="text-xl font-bold mb-1">Danh sách Shop</h2>
-                <p class="text-slate-400 text-sm">Quản lý cấu hình và gói cước của từng cửa hàng</p>
-            </div>
-            <div class="flex gap-2">
-                <div class="relative">
-                    <input type="text" placeholder="Tìm tên shop..." class="pl-10 pr-4 py-2 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <i class="fas fa-search absolute left-3 top-2.5 text-slate-500"></i>
-                </div>
-            </div>
-        </div>
-
-        <!-- Shop Grid -->
-        <div id="shopGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <!-- Loading State -->
-            <div class="col-span-full py-20 flex flex-col items-center justify-center opacity-50">
-                <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
-                <p>Đang tải dữ liệu từ MongoDB...</p>
-            </div>
-        </div>
-    </main>
-
-    <!-- Modal: Thêm/Sửa Shop -->
-    <div id="shopModal" class="modal px-4">
-        <div class="glass w-full max-w-2xl rounded-3xl p-8 shadow-2xl relative">
-            <button onclick="closeModal('shopModal')" class="absolute top-6 right-6 text-slate-500 hover:text-white">
-                <i class="fas fa-times text-xl"></i>
-            </button>
-            <h2 id="modalTitle" class="text-2xl font-bold mb-6">Thêm Shop Mới</h2>
-            
-            <form id="shopForm" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-400 mb-1">Shop ID (Viết liền, không dấu)</label>
-                        <input type="text" id="shopId" name="_id" required placeholder="ví dụ: nem-bui-xa" class="w-full px-4 py-2 rounded-xl">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-400 mb-1">Tên hiển thị (Brand Name)</label>
-                        <input type="text" id="shopName" name="name" required placeholder="ví dụ: Nem Bùi Xá" class="w-full px-4 py-2 rounded-xl">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-400 mb-1">Gói cước (Plan)</label>
-                        <select id="shopPlan" name="plan" class="w-full px-4 py-2 rounded-xl">
-                            <option value="LITE">LITE (Chỉ Regex)</option>
-                            <option value="BASIC" selected>BASIC (Regex + Fallback)</option>
-                            <option value="PRO">PRO (Full AI Gemini)</option>
-                            <option value="ENTERPRISE">ENTERPRISE (Premium)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-400 mb-1">Facebook Page Token</label>
-                        <input type="password" id="fbPageToken" name="credentials.fbPageToken" required placeholder="EAAG..." class="w-full px-4 py-2 rounded-xl">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-400 mb-1">Gemini API Key (Tùy chọn)</label>
-                        <input type="password" id="geminiApiKey" name="credentials.geminiApiKey" placeholder="Bỏ trống nếu dùng key chung" class="w-full px-4 py-2 rounded-xl">
-                    </div>
-                    <div class="flex items-center gap-6 pt-4">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" id="enableAI" name="features.enableAI" class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
-                            <span class="text-sm font-medium">Bật AI</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" id="isActive" name="isActive" checked class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
-                            <span class="text-sm font-medium">Hoạt động</span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="col-span-full pt-4 flex gap-3">
-                    <button type="submit" class="btn-primary flex-1 py-3 rounded-xl font-bold shadow-lg">LƯU CẤU HÌNH</button>
-                    <button type="button" onclick="closeModal('shopModal')" class="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-bold transition-all">HỦY</button>
-                </div>
-            </form>
+<!-- SIDEBAR -->
+<aside class="sidebar">
+    <div class="sidebar-logo">
+        <div class="logo-icon"><i class="fas fa-robot"></i></div>
+        <div>
+            <div class="logo-text">Zen<span>Bot</span></div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:1px;letter-spacing:0.05em">SALES AI</div>
         </div>
     </div>
 
-    <script>
-        let currentShops = [];
-        const API_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+    <nav class="sidebar-nav">
+        <div class="nav-section-label">Chính</div>
+        <a class="nav-item active" href="#" onclick="switchView('shopView', this); return false;">
+            <i class="fas fa-store"></i> Quản lý Shop
+            <span class="nav-badge" id="sidebarShopCount">0</span>
+        </a>
+        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+            <i class="fas fa-comment-dots"></i> Cuộc trò chuyện
+        </a>
+        <a class="nav-item" href="#" onclick="switchView('leadView', this); return false;">
+            <i class="fas fa-users"></i> Leads & Khách hàng
+            <span class="nav-badge" id="sidebarLeadCount" style="background:var(--green)">0</span>
+        </a>
 
-        async function fetchShops() {
-            try {
-                const res = await fetch(`/api/admin/shops?token=${API_TOKEN}`);
-                if (res.status === 401) {
-                    alert('Token không hợp lệ. Vui lòng thêm ?token=... vào URL');
-                    return;
-                }
-                const data = await res.json();
-                currentShops = data;
-                renderShops();
-                updateStats();
-            } catch (err) {
-                console.error('Lỗi tải shop:', err);
-                document.getElementById('shopGrid').innerHTML = `<p class="col-span-full text-center text-red-400">Không thể kết nối API. Vui lòng kiểm tra console.</p>`;
-            }
-        }
+        <div class="nav-section-label" style="margin-top:8px">Phân tích</div>
+        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+            <i class="fas fa-chart-line"></i> Hiệu suất Bot
+        </a>
+        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+            <i class="fas fa-funnel-dollar"></i> Tỷ lệ chuyển đổi
+        </a>
 
-        function renderShops() {
-            const grid = document.getElementById('shopGrid');
-            if (currentShops.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-20 text-center glass rounded-2xl opacity-50"><i class="fas fa-ghost text-4xl mb-4"></i><p>Chưa có shop nào được tạo.</p></div>`;
-                return;
-            }
+        <div class="nav-section-label" style="margin-top:8px">Hệ thống</div>
+        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+            <i class="fas fa-puzzle-piece"></i> Kịch bản & Flow
+        </a>
+        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+            <i class="fas fa-key"></i> API Keys
+        </a>
+        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+            <i class="fas fa-cog"></i> Cài đặt
+        </a>
+    </nav>
 
-            grid.innerHTML = currentShops.map(shop => `
-                <div class="glass p-6 rounded-2xl card-hover relative overflow-hidden group">
-                    <div class="absolute top-0 right-0 p-4">
-                        <span class="px-2 py-1 rounded text-[10px] font-bold ${getPlanColor(shop.plan)}">${shop.plan}</span>
-                    </div>
-                    <div class="flex items-start gap-4 mb-6">
-                        <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-slate-700">
-                            ${shop.name.charAt(0)}
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-lg">${shop.name}</h4>
-                            <p class="text-xs text-slate-500 font-mono">ID: ${shop._id}</p>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4 mb-6">
-                        <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
-                            <p class="text-[10px] text-slate-500 uppercase mb-1">Trạng thái</p>
-                            <div class="flex items-center gap-2">
-                                <div class="w-2 h-2 rounded-full ${shop.isActive ? 'bg-green-500' : 'bg-red-500'}"></div>
-                                <span class="text-sm">${shop.isActive ? 'Active' : 'Disabled'}</span>
-                            </div>
-                        </div>
-                        <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
-                            <p class="text-[10px] text-slate-500 uppercase mb-1">AI Gemini</p>
-                            <div class="flex items-center gap-2">
-                                <i class="fas fa-brain text-xs ${shop.features?.enableAI ? 'text-indigo-400' : 'text-slate-600'}"></i>
-                                <span class="text-sm">${shop.features?.enableAI ? 'Bật' : 'Tắt'}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onclick="editShop('${shop._id}')" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded-lg text-xs font-semibold transition-colors">
-                            <i class="fas fa-edit mr-1"></i> Cấu hình
-                        </button>
-                        <button onclick="deleteShop('${shop._id}')" class="px-3 bg-red-900/30 hover:bg-red-900/50 text-red-400 py-2 rounded-lg text-xs transition-colors">
-                            <i class="fas fa-trash"></i>
-                        </button>
+    <div class="sidebar-footer">
+        <div class="user-card">
+            <div class="user-avatar">A</div>
+            <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600">Admin</div>
+                <div style="font-size:11px;color:var(--text-muted)">Super Admin</div>
+            </div>
+            <div class="status-dot"></div>
+        </div>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main-content">
+
+    <!-- TOPBAR -->
+    <header class="topbar">
+        <div>
+            <div class="topbar-title" id="topbarTitle">Quản lý Shop</div>
+            <div class="topbar-sub" id="topbarSub">Cấu hình chatbot và gói dịch vụ cho từng cửa hàng</div>
+        </div>
+        <div class="topbar-actions">
+            <!-- Tùy view sẽ hiển thị công cụ khác nhau, ta sẽ xử lý bằng JS -->
+            <div class="search-bar" id="topbarSearch">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Tìm kiếm..." oninput="handleSearch()">
+            </div>
+            <button class="btn btn-primary" id="topbarBtn" onclick="openCreateModal()">
+                <i class="fas fa-plus"></i> Thêm Shop Mới
+            </button>
+        </div>
+    </header>
+
+    <!-- BODY -->
+    <div class="page-body">
+
+        <!-- SHOP VIEW -->
+        <div id="shopView" class="view-section active">
+
+        <!-- STATS -->
+        <div class="stats-grid">
+            <div class="stat-card accent-blue">
+                <div class="stat-icon" style="background:rgba(99,102,241,0.12);color:#a5b4fc">
+                    <i class="fas fa-store"></i>
+                </div>
+                <div class="stat-label">Tổng Shop</div>
+                <div class="stat-value" id="statTotal">—</div>
+                <div class="stat-meta">Đã kết nối hệ thống</div>
+            </div>
+            <div class="stat-card accent-green">
+                <div class="stat-icon" style="background:rgba(16,185,129,0.1);color:#34d399">
+                    <i class="fas fa-circle-check"></i>
+                </div>
+                <div class="stat-label">Đang hoạt động</div>
+                <div class="stat-value" id="statActive" style="color:var(--green)">—</div>
+                <div class="stat-meta">Bot đang trả lời khách</div>
+            </div>
+            <div class="stat-card accent-cyan">
+                <div class="stat-icon" style="background:rgba(34,211,238,0.1);color:var(--accent2)">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <div class="stat-label">Bật AI Gemini</div>
+                <div class="stat-value" id="statAI" style="color:var(--accent2)">—</div>
+                <div class="stat-meta">Dùng tính năng AI</div>
+            </div>
+            <div class="stat-card accent-amber">
+                <div class="stat-icon" style="background:rgba(245,158,11,0.1);color:var(--amber)">
+                    <i class="fas fa-server"></i>
+                </div>
+                <div class="stat-label">Hệ thống</div>
+                <div class="stat-value" style="font-size:22px;color:var(--amber)">Online</div>
+                <div class="stat-meta" id="systemMeta">MongoDB kết nối tốt</div>
+            </div>
+        </div>
+
+        <!-- SECTION HEADER -->
+        <div class="section-header">
+            <div>
+                <div class="section-title">Danh sách cửa hàng</div>
+                <div class="section-sub" id="shopCountLabel">Đang tải...</div>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-ghost btn-sm" onclick="fetchShops()" title="Làm mới">
+                    <i class="fas fa-rotate-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- SHOP GRID -->
+        <div class="shop-grid" id="shopGrid">
+            <!-- skeleton loaders -->
+            <div class="shop-card">
+                <div class="shop-meta">
+                    <div class="skeleton" style="width:44px;height:44px;border-radius:11px;"></div>
+                    <div style="flex:1">
+                        <div class="skeleton" style="height:16px;width:60%;margin-bottom:8px"></div>
+                        <div class="skeleton" style="height:11px;width:40%"></div>
                     </div>
                 </div>
-            `).join('');
-        }
+                <div style="display:flex;gap:8px;margin-bottom:16px">
+                    <div class="skeleton" style="height:20px;width:60px;border-radius:5px"></div>
+                    <div class="skeleton" style="height:20px;width:50px;border-radius:5px"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div class="skeleton" style="height:52px;border-radius:8px"></div>
+                    <div class="skeleton" style="height:52px;border-radius:8px"></div>
+                </div>
+            </div>
+            <div class="shop-card" style="opacity:0.6">
+                <div class="shop-meta">
+                    <div class="skeleton" style="width:44px;height:44px;border-radius:11px;"></div>
+                    <div style="flex:1">
+                        <div class="skeleton" style="height:16px;width:70%;margin-bottom:8px"></div>
+                        <div class="skeleton" style="height:11px;width:35%"></div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:16px">
+                    <div class="skeleton" style="height:20px;width:55px;border-radius:5px"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div class="skeleton" style="height:52px;border-radius:8px"></div>
+                    <div class="skeleton" style="height:52px;border-radius:8px"></div>
+                </div>
+            </div>
+        </div>
+        <!-- END SHOP VIEW -->
 
-        function getPlanColor(plan) {
-            switch(plan) {
-                case 'PRO': return 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30';
-                case 'ENTERPRISE': return 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
-                case 'LITE': return 'bg-slate-500/20 text-slate-400';
-                default: return 'bg-cyan-500/20 text-cyan-400';
+        <!-- LEAD VIEW -->
+        <div id="leadView" class="view-section">
+            <div class="stats-grid">
+                <div class="stat-card accent-green">
+                    <div class="stat-label">Tổng số Leads</div>
+                    <div class="stat-value" id="statTotalLeads" style="color:var(--green)">0</div>
+                </div>
+                <div class="stat-card accent-blue">
+                    <div class="stat-label">Đã để lại SĐT</div>
+                    <div class="stat-value" id="statPhones">0</div>
+                </div>
+            </div>
+
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Danh sách Khách hàng</div>
+                    <div class="section-sub">Dữ liệu được cập nhật tự động từ hệ thống chatbot</div>
+                </div>
+                <div>
+                    <button class="btn btn-ghost btn-sm" onclick="fetchLeads()" title="Làm mới">
+                        <i class="fas fa-rotate-right"></i>
+                    </button>
+                    <a href="/admin/customers.csv" target="_blank" class="btn btn-ghost btn-sm" style="margin-left:8px">
+                        <i class="fas fa-download"></i> Xuất CSV
+                    </a>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Thời gian</th>
+                            <th>Loại</th>
+                            <th>UID Khách</th>
+                            <th>Sản phẩm</th>
+                            <th>SĐT</th>
+                            <th>Tên & Địa chỉ</th>
+                            <th>Nội dung Chat</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leadTableBody">
+                        <tr><td colspan="7" style="text-align:center;padding:40px;opacity:0.5"><i class="fas fa-spinner fa-spin"></i> Đang tải dữ liệu...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- END LEAD VIEW -->
+
+    </div><!-- end page-body -->
+</div><!-- end main-content -->
+
+<!-- MODAL: Tạo/Sửa Shop -->
+<div class="modal-overlay" id="shopModal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="modalTitle">Thêm Shop Mới</div>
+                <div class="modal-sub" id="modalSub">Điền thông tin để kết nối chatbot với Facebook Page</div>
+            </div>
+            <button class="modal-close" onclick="closeModal()"><i class="fas fa-xmark"></i></button>
+        </div>
+
+        <form id="shopForm" onsubmit="handleSubmit(event)">
+            <div class="modal-body">
+                <!-- THÔNG TIN CƠ BẢN -->
+                <div class="form-section-label" style="margin-bottom:16px">Thông tin cơ bản</div>
+                <div class="form-grid" style="margin-bottom:20px">
+                    <div class="form-group">
+                        <label>Shop ID *</label>
+                        <input class="form-input" id="shopId" placeholder="vd: nem-bui-xa" required>
+                        <div class="form-hint">Viết liền, không dấu, dùng dấu gạch ngang</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Tên thương hiệu *</label>
+                        <input class="form-input" id="shopName" placeholder="vd: Nem Bùi Xá" required>
+                    </div>
+                </div>
+
+                <!-- GÓI DỊCH VỤ -->
+                <div class="form-section-label" style="margin-bottom:12px">Gói dịch vụ</div>
+                <div class="plan-selector" style="margin-bottom:20px" id="planSelector">
+                    <div class="plan-option" data-plan="LITE" onclick="selectPlan('LITE')">
+                        <div class="plan-name" style="color:#94a3b8">LITE</div>
+                        <div class="plan-desc">Regex only</div>
+                    </div>
+                    <div class="plan-option selected" data-plan="BASIC" onclick="selectPlan('BASIC')">
+                        <div class="plan-name" style="color:var(--accent2)">BASIC</div>
+                        <div class="plan-desc">+ Fallback</div>
+                    </div>
+                    <div class="plan-option" data-plan="PRO" onclick="selectPlan('PRO')">
+                        <div class="plan-name" style="color:#a5b4fc">PRO</div>
+                        <div class="plan-desc">Full AI</div>
+                    </div>
+                    <div class="plan-option" data-plan="ENTERPRISE" onclick="selectPlan('ENTERPRISE')">
+                        <div class="plan-name" style="color:#fcd34d">ENTERPRISE</div>
+                        <div class="plan-desc">Premium</div>
+                    </div>
+                </div>
+
+                <!-- CREDENTIALS -->
+                <div class="form-section-label" style="margin-bottom:16px">Xác thực & API</div>
+                <div class="form-grid" style="margin-bottom:20px">
+                    <div class="form-group">
+                        <label>Facebook Page Token *</label>
+                        <input class="form-input" type="password" id="fbPageToken" placeholder="EAAG..." required autocomplete="new-password">
+                        <div class="form-hint">Page Access Token từ Meta Developer</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Gemini API Key <span style="font-weight:400;text-transform:none;font-size:11px">(Tùy chọn)</span></label>
+                        <input class="form-input" type="password" id="geminiApiKey" placeholder="Bỏ trống để dùng key hệ thống" autocomplete="new-password">
+                        <div class="form-hint">Chỉ cần khi muốn dùng key riêng</div>
+                    </div>
+                </div>
+
+                <!-- TOGGLES -->
+                <div class="form-section-label" style="margin-bottom:12px">Cài đặt tính năng</div>
+                <div class="toggle-group">
+                    <label class="toggle-item">
+                        <input type="checkbox" id="enableAI">
+                        <div>
+                            <span style="font-weight:600;font-size:13px">Bật AI Gemini</span>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:1px">Cho phép bot trả lời bằng AI khi không khớp kịch bản</div>
+                        </div>
+                    </label>
+                    <div style="width:1px;height:36px;background:var(--border)"></div>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="isActive" checked>
+                        <div>
+                            <span style="font-weight:600;font-size:13px">Kích hoạt Shop</span>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:1px">Bot bắt đầu phản hồi ngay sau khi lưu</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary" style="flex:1" id="submitBtn">
+                    <i class="fas fa-floppy-disk"></i> Lưu cấu hình
+                </button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- CONFIRM DIALOG -->
+<div class="confirm-overlay" id="confirmDialog">
+    <div class="confirm-box">
+        <div class="confirm-icon"><i class="fas fa-triangle-exclamation"></i></div>
+        <div class="confirm-title">Xác nhận xóa?</div>
+        <div class="confirm-msg" id="confirmMsg">Hành động này không thể hoàn tác.</div>
+        <div class="confirm-actions">
+            <button class="btn btn-danger" id="confirmYes">Xóa</button>
+            <button class="btn btn-ghost" onclick="closeConfirm()">Hủy</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ─── CONFIG ─────────────────────────────────────────────
+    const API_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+    let currentShops  = [];
+    let filteredShops = [];
+    let currentLeads  = [];
+    let filteredLeads = [];
+    let editingId     = null;
+    let selectedPlan  = 'BASIC';
+    let activeView    = 'shopView';
+
+    // ─── INIT ────────────────────────────────────────────────
+    fetchShops();
+    fetchLeads();
+
+    // ─── VIEW SWITCHING ──────────────────────────────────────
+    function switchView(viewId, navEl) {
+        activeView = viewId;
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        navEl.classList.add('active');
+
+        const title = document.getElementById('topbarTitle');
+        const sub = document.getElementById('topbarSub');
+        const btn = document.getElementById('topbarBtn');
+        const search = document.getElementById('searchInput');
+
+        if (viewId === 'shopView') {
+            title.textContent = 'Quản lý Shop';
+            sub.textContent = 'Cấu hình chatbot và gói dịch vụ cho từng cửa hàng';
+            btn.style.display = 'inline-flex';
+            search.placeholder = 'Tìm tên hoặc ID shop...';
+            search.value = ''; filterShops();
+        } else if (viewId === 'leadView') {
+            title.textContent = 'Khách hàng tiềm năng';
+            sub.textContent = 'Danh sách khách hàng để lại SĐT hoặc yêu cầu hỗ trợ';
+            btn.style.display = 'none';
+            search.placeholder = 'Tìm SĐT, tên, sản phẩm...';
+            search.value = ''; filterLeads();
+        }
+    }
+
+    function handleSearch() {
+        if (activeView === 'shopView') filterShops();
+        else if (activeView === 'leadView') filterLeads();
+    }
+
+    // ─── API ─────────────────────────────────────────────────
+    async function fetchShops() {
+        try {
+            const res = await fetch(`/api/admin/shops?token=${API_TOKEN}`);
+            if (res.status === 401) {
+                document.getElementById('shopGrid').innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-lock"></i>
+                        <p style="font-size:15px;font-weight:600;margin-bottom:6px">Token không hợp lệ</p>
+                        <p>Thêm <code style="background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;font-family:monospace">?token=YOUR_TOKEN</code> vào URL</p>
+                    </div>`;
+                return;
             }
+            currentShops = await res.json();
+            filteredShops = [...currentShops];
+            renderShops();
+            updateStats();
+        } catch (err) {
+            console.error(err);
+            document.getElementById('shopGrid').innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-plug-circle-xmark"></i>
+                    <p style="font-size:15px;font-weight:600;margin-bottom:6px">Không thể kết nối API</p>
+                    <p>Kiểm tra server và thử lại</p>
+                </div>`;
+        }
+    }
+
+    // ─── RENDER ──────────────────────────────────────────────
+    function renderShops(shops = filteredShops) {
+        const grid = document.getElementById('shopGrid');
+        if (!shops.length) {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-store-slash"></i>
+                    <p style="font-size:15px;font-weight:600;margin-bottom:6px">Chưa có shop nào</p>
+                    <p>Nhấn "Thêm Shop Mới" để bắt đầu</p>
+                </div>`;
+            return;
+        }
+        grid.innerHTML = shops.map(shop => shopCardHTML(shop)).join('');
+    }
+
+    function shopCardHTML(shop) {
+        const planClass = { LITE: 'badge-plan-lite', BASIC: 'badge-plan-basic', PRO: 'badge-plan-pro', ENTERPRISE: 'badge-plan-enterprise' }[shop.plan] || 'badge-plan-basic';
+        const avatarGrad = avatarGradient(shop.name);
+        const initial = shop.name.charAt(0).toUpperCase();
+
+        return `
+        <div class="shop-card" id="card-${shop._id}">
+            <div class="shop-meta">
+                <div class="shop-avatar" style="${avatarGrad}">${initial}</div>
+                <div style="flex:1;min-width:0">
+                    <div class="shop-name">${escHtml(shop.name)}</div>
+                    <div class="shop-id">${escHtml(shop._id)}</div>
+                </div>
+            </div>
+
+            <div class="shop-badges">
+                <span class="badge ${planClass}">${shop.plan}</span>
+                <span class="badge ${shop.isActive ? 'badge-active' : 'badge-inactive'}">
+                    <i class="fas fa-circle" style="font-size:6px"></i>
+                    ${shop.isActive ? 'Active' : 'Paused'}
+                </span>
+                ${shop.features?.enableAI ? `<span class="badge badge-ai"><i class="fas fa-brain" style="font-size:9px"></i> AI</span>` : ''}
+            </div>
+
+            <div class="shop-stats-row">
+                <div class="shop-stat-box">
+                    <div class="label">Trạng thái</div>
+                    <div class="value">
+                        <span style="width:7px;height:7px;border-radius:50%;display:inline-block;background:${shop.isActive ? 'var(--green)' : 'var(--red)'}"></span>
+                        ${shop.isActive ? 'Đang chạy' : 'Tạm dừng'}
+                    </div>
+                </div>
+                <div class="shop-stat-box">
+                    <div class="label">AI Gemini</div>
+                    <div class="value" style="color:${shop.features?.enableAI ? 'var(--accent2)' : 'var(--text-dim)'}">
+                        <i class="fas fa-brain" style="font-size:12px"></i>
+                        ${shop.features?.enableAI ? 'Bật' : 'Tắt'}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-actions">
+                <button class="btn btn-ghost btn-sm" style="flex:1" onclick="editShop('${escHtml(shop._id)}')">
+                    <i class="fas fa-pen-to-square"></i> Cấu hình
+                </button>
+                <button class="btn btn-danger btn-sm" onclick="confirmDelete('${escHtml(shop._id)}', '${escHtml(shop.name)}')">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>`;
+    }
+
+    // ─── STATS ───────────────────────────────────────────────
+    function updateStats() {
+        const total  = currentShops.length;
+        const active = currentShops.filter(s => s.isActive).length;
+        const ai     = currentShops.filter(s => s.features?.enableAI).length;
+
+        animateNumber('statTotal',  total);
+        animateNumber('statActive', active);
+        animateNumber('statAI',     ai);
+
+        document.getElementById('sidebarShopCount').textContent = total;
+        document.getElementById('shopCountLabel').textContent   = `${total} shop · ${active} đang hoạt động · ${ai} dùng AI`;
+    }
+
+    function animateNumber(id, target) {
+        const el = document.getElementById(id);
+        const start = parseInt(el.textContent) || 0;
+        const dur = 600, fps = 30;
+        let frame = 0;
+        const timer = setInterval(() => {
+            frame++;
+            el.textContent = Math.round(start + (target - start) * frame / fps);
+            if (frame >= fps) { el.textContent = target; clearInterval(timer); }
+        }, dur / fps);
+    }
+
+    // ─── FILTER ──────────────────────────────────────────────
+    function filterShops() {
+        const q = document.getElementById('searchInput').value.trim().toLowerCase();
+        filteredShops = q
+            ? currentShops.filter(s => s.name.toLowerCase().includes(q) || s._id.toLowerCase().includes(q))
+            : [...currentShops];
+        renderShops();
+    }
+
+    function filterLeads() {
+        const q = document.getElementById('searchInput').value.trim().toLowerCase();
+        filteredLeads = q
+            ? currentLeads.filter(l => 
+                (l.phone || '').includes(q) || 
+                (l.name || '').toLowerCase().includes(q) ||
+                (l.productCode || '').toLowerCase().includes(q) ||
+                (l.text || '').toLowerCase().includes(q)
+              )
+            : [...currentLeads];
+        renderLeads();
+    }
+
+    // ─── LEADS API & RENDER ──────────────────────────────────
+    async function fetchLeads() {
+        try {
+            const res = await fetch(`/api/admin/leads?token=${API_TOKEN}`);
+            if (res.ok) {
+                currentLeads = await res.json();
+                filteredLeads = [...currentLeads];
+                renderLeads();
+                
+                const withPhone = currentLeads.filter(l => l.phone).length;
+                document.getElementById('sidebarLeadCount').textContent = currentLeads.length;
+                animateNumber('statTotalLeads', currentLeads.length);
+                animateNumber('statPhones', withPhone);
+            }
+        } catch (err) {
+            console.error('Lỗi tải leads:', err);
+        }
+    }
+
+    function renderLeads() {
+        const tbody = document.getElementById('leadTableBody');
+        if (!filteredLeads.length) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted)">Không tìm thấy khách hàng nào.</td></tr>`;
+            return;
         }
 
-        function updateStats() {
-            document.getElementById('statTotalShops').innerText = currentShops.length;
-            document.getElementById('statActiveShops').innerText = currentShops.filter(s => s.isActive).length;
-            document.getElementById('statAiShops').innerText = currentShops.filter(s => s.features?.enableAI).length;
-        }
-
-        function openModal(id) {
-            document.getElementById('modalTitle').innerText = 'Thêm Shop Mới';
-            document.getElementById('shopForm').reset();
-            document.getElementById('shopId').disabled = false;
-            document.getElementById(id).classList.add('active');
-        }
-
-        function closeModal(id) {
-            document.getElementById(id).classList.remove('active');
-        }
-
-        function editShop(id) {
-            const shop = currentShops.find(s => s._id === id);
-            if (!shop) return;
+        tbody.innerHTML = filteredLeads.map(lead => {
+            const date = new Date(lead.at).toLocaleString('vi-VN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
             
-            document.getElementById('modalTitle').innerText = 'Chỉnh sửa: ' + shop.name;
-            document.getElementById('shopId').value = shop._id;
-            document.getElementById('shopId').disabled = true;
-            document.getElementById('shopName').value = shop.name;
-            document.getElementById('shopPlan').value = shop.plan;
-            document.getElementById('fbPageToken').value = '********'; // Không hiển thị token cũ
-            document.getElementById('geminiApiKey').value = shop.credentials?.geminiApiKey ? '********' : '';
-            document.getElementById('enableAI').checked = shop.features?.enableAI;
-            document.getElementById('isActive').checked = shop.isActive;
-            
-            document.getElementById('shopModal').classList.add('active');
-        }
+            let typeClass = 'type-lead';
+            let typeName = 'LEAD';
+            if (lead.type === 'handoff_request') { typeClass = 'type-handoff'; typeName = 'HỖ TRỢ'; }
+            if (lead.type === 'lead_update') { typeClass = 'type-update'; typeName = 'CẬP NHẬT'; }
 
-        async function deleteShop(id) {
-            if (!confirm(`Bạn có chắc muốn xóa Shop "${id}"? Hành động này không thể hoàn tác.`)) return;
-            const res = await fetch(`/api/admin/shops/${id}?token=${API_TOKEN}`, { method: 'DELETE' });
-            if (res.ok) fetchShops();
-        }
+            const phoneHtml = lead.phone ? `<span style="color:var(--green);font-weight:600"><i class="fas fa-phone" style="font-size:10px;margin-right:4px"></i>${escHtml(lead.phone)}</span>` : '<span style="color:var(--text-dim)">-</span>';
+            const nameAddress = [lead.name, lead.address].filter(Boolean).join(' - ') || '<span style="color:var(--text-dim)">-</span>';
+            const product = lead.productCode ? `<span style="background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;font-family:monospace;color:var(--accent2)">${escHtml(lead.productCode)}</span>` : '';
 
-        document.getElementById('shopForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const isEditing = document.getElementById('shopId').disabled;
-            const id = document.getElementById('shopId').value;
-            
-            const payload = {
-                _id: id,
-                name: document.getElementById('shopName').value,
-                plan: document.getElementById('shopPlan').value,
-                isActive: document.getElementById('isActive').checked,
-                credentials: {
-                    fbPageToken: document.getElementById('fbPageToken').value,
-                    geminiApiKey: document.getElementById('geminiApiKey').value
-                },
-                features: {
-                    enableAI: document.getElementById('enableAI').checked
-                }
-            };
+            return `
+            <tr>
+                <td style="color:var(--text-muted);font-size:12px">${date}</td>
+                <td><span class="lead-type ${typeClass}">${typeName}</span></td>
+                <td style="font-family:monospace;font-size:12px;color:var(--text-muted)">${escHtml(lead.senderId || '')}</td>
+                <td>${product}</td>
+                <td>${phoneHtml}</td>
+                <td><div style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(nameAddress)}">${escHtml(nameAddress)}</div></td>
+                <td><div style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted)" title="${escHtml(lead.text || '')}">${escHtml(lead.text || '')}</div></td>
+            </tr>`;
+        }).join('');
+    }
 
-            // Nếu đang sửa và token là ***** thì không gửi token lên để tránh ghi đè
-            if (isEditing && payload.credentials.fbPageToken === '********') delete payload.credentials.fbPageToken;
-            if (isEditing && payload.credentials.geminiApiKey === '********') delete payload.credentials.geminiApiKey;
+    // ─── MODAL ───────────────────────────────────────────────
+    function openCreateModal() {
+        editingId = null;
+        document.getElementById('modalTitle').textContent = 'Thêm Shop Mới';
+        document.getElementById('modalSub').textContent   = 'Điền thông tin để kết nối chatbot với Facebook Page';
+        document.getElementById('submitBtn').innerHTML    = '<i class="fas fa-floppy-disk"></i> Tạo Shop';
+        document.getElementById('shopForm').reset();
+        document.getElementById('shopId').disabled = false;
+        selectPlan('BASIC');
+        document.getElementById('isActive').checked = true;
+        document.getElementById('shopModal').classList.add('active');
+    }
 
-            const url = isEditing ? `/api/admin/shops/${id}?token=${API_TOKEN}` : `/api/admin/shops?token=${API_TOKEN}`;
+    function editShop(id) {
+        const shop = currentShops.find(s => s._id === id);
+        if (!shop) return;
+        editingId = id;
+
+        document.getElementById('modalTitle').textContent = `Sửa: ${shop.name}`;
+        document.getElementById('modalSub').textContent   = `ID: ${shop._id}`;
+        document.getElementById('submitBtn').innerHTML    = '<i class="fas fa-floppy-disk"></i> Lưu thay đổi';
+
+        document.getElementById('shopId').value    = shop._id;
+        document.getElementById('shopId').disabled = true;
+        document.getElementById('shopName').value  = shop.name;
+        selectPlan(shop.plan || 'BASIC');
+        document.getElementById('fbPageToken').value  = ''; // keep empty = don't change
+        document.getElementById('geminiApiKey').value = '';
+        document.getElementById('enableAI').checked   = !!shop.features?.enableAI;
+        document.getElementById('isActive').checked   = !!shop.isActive;
+
+        document.getElementById('fbPageToken').placeholder  = '(Để trống = giữ nguyên)';
+        document.getElementById('geminiApiKey').placeholder = '(Để trống = giữ nguyên)';
+        document.getElementById('fbPageToken').removeAttribute('required');
+
+        document.getElementById('shopModal').classList.add('active');
+    }
+
+    function closeModal() {
+        document.getElementById('shopModal').classList.remove('active');
+        document.getElementById('fbPageToken').setAttribute('required', '');
+        document.getElementById('fbPageToken').placeholder  = 'EAAG...';
+        document.getElementById('geminiApiKey').placeholder = 'Bỏ trống để dùng key hệ thống';
+    }
+
+    // ─── SUBMIT ──────────────────────────────────────────────
+    async function handleSubmit(e) {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
+        btn.disabled = true;
+
+        const isEditing = !!editingId;
+        const id = document.getElementById('shopId').value.trim();
+        const fbToken  = document.getElementById('fbPageToken').value;
+        const gemKey   = document.getElementById('geminiApiKey').value;
+
+        const payload = {
+            _id:      id,
+            name:     document.getElementById('shopName').value.trim(),
+            plan:     selectedPlan,
+            isActive: document.getElementById('isActive').checked,
+            features: { enableAI: document.getElementById('enableAI').checked },
+            credentials: {}
+        };
+
+        if (!isEditing || fbToken)  payload.credentials.fbPageToken  = fbToken;
+        if (!isEditing || gemKey)   payload.credentials.geminiApiKey = gemKey;
+
+        try {
+            const url    = isEditing ? `/api/admin/shops/${id}?token=${API_TOKEN}` : `/api/admin/shops?token=${API_TOKEN}`;
             const method = isEditing ? 'PATCH' : 'POST';
-
-            const res = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
+            const res    = await fetch(url, {
+                method, headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
             if (res.ok) {
-                closeModal('shopModal');
-                fetchShops();
+                closeModal();
+                await fetchShops();
+                showToast(isEditing ? `Đã cập nhật "${payload.name}"` : `Đã tạo shop "${payload.name}"`, 'success');
             } else {
                 const err = await res.json();
-                alert('Lỗi: ' + (err.message || 'Không thể lưu.'));
+                showToast('Lỗi: ' + (err.message || 'Không thể lưu.'), 'error');
             }
-        };
+        } catch (err) {
+            showToast('Lỗi kết nối server', 'error');
+        }
 
-        // Khởi tạo
-        fetchShops();
-    </script>
+        btn.innerHTML = '<i class="fas fa-floppy-disk"></i> Lưu cấu hình';
+        btn.disabled = false;
+    }
+
+    // ─── DELETE ──────────────────────────────────────────────
+    let pendingDeleteId = null;
+
+    function confirmDelete(id, name) {
+        pendingDeleteId = id;
+        document.getElementById('confirmMsg').textContent = `Bạn sắp xóa shop "${name}". Dữ liệu cấu hình sẽ bị xóa vĩnh viễn.`;
+        document.getElementById('confirmDialog').classList.add('active');
+        document.getElementById('confirmYes').onclick = doDelete;
+    }
+
+    async function doDelete() {
+        if (!pendingDeleteId) return;
+        closeConfirm();
+        const res = await fetch(`/api/admin/shops/${pendingDeleteId}?token=${API_TOKEN}`, { method: 'DELETE' });
+        if (res.ok) {
+            showToast('Đã xóa shop thành công', 'success');
+            await fetchShops();
+        } else {
+            showToast('Không thể xóa shop', 'error');
+        }
+        pendingDeleteId = null;
+    }
+
+    function closeConfirm() { document.getElementById('confirmDialog').classList.remove('active'); }
+
+    // ─── PLAN SELECTOR ───────────────────────────────────────
+    function selectPlan(plan) {
+        selectedPlan = plan;
+        document.querySelectorAll('.plan-option').forEach(el => {
+            el.classList.toggle('selected', el.dataset.plan === plan);
+        });
+    }
+
+    // ─── TOAST ───────────────────────────────────────────────
+    function showToast(msg, type = 'success') {
+        const icons = { success: 'fa-circle-check', error: 'fa-circle-xmark', info: 'fa-circle-info' };
+        const colors = { success: 'var(--green)', error: 'var(--red)', info: 'var(--accent2)' };
+        const container = document.getElementById('toast-container');
+        const t = document.createElement('div');
+        t.className = `toast ${type}`;
+        t.innerHTML = `<i class="fas ${icons[type] || icons.info}" style="color:${colors[type] || colors.info};font-size:16px"></i>${escHtml(msg)}`;
+        container.appendChild(t);
+        setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(20px)'; t.style.transition='all 0.3s'; setTimeout(()=>t.remove(), 300); }, 3000);
+    }
+
+    // ─── UTILS ───────────────────────────────────────────────
+    function avatarGradient(name) {
+        const hue = [...name].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+        return `background:linear-gradient(135deg,hsl(${hue},60%,40%),hsl(${hue+40},70%,55%))`;
+    }
+
+    function escHtml(str) {
+        const el = document.createElement('div');
+        el.appendChild(document.createTextNode(str));
+        return el.innerHTML;
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('shopModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+    document.getElementById('confirmDialog').addEventListener('click', function(e) {
+        if (e.target === this) closeConfirm();
+    });
+
+    // ESC to close
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { closeModal(); closeConfirm(); }
+    });
+</script>
 </body>
 </html>

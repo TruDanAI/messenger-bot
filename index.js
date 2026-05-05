@@ -3,6 +3,7 @@ const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { parse } = require('csv-parse/sync');
 const { connectDB } = require('./core/db');
 const { messageQueue } = require('./core/queue');
 const { startSheetOutboxWorker } = require('./core/sheets-webhook');
@@ -185,9 +186,27 @@ app.delete('/api/admin/shops/:id', adminAuth, async (req, res) => {
   }
 });
 
-// ========== ADMIN EXPORT ==========
+// ========== ADMIN EXPORT & LEADS ==========
 const storage = processor.storage;
-const ADMIN_EXPORT_TOKEN = process.env.ADMIN_EXPORT_TOKEN || '';
+
+app.get('/api/admin/leads', adminAuth, (req, res) => {
+  try {
+    const file = storage.getCustomersFile();
+    if (!fs.existsSync(file)) return res.json([]);
+    
+    const csv = fs.readFileSync(file, 'utf8');
+    const records = parse(csv, {
+      columns: true,
+      skip_empty_lines: true,
+      relax_column_count: true
+    });
+    
+    // Đảo ngược danh sách để lead mới nhất lên đầu
+    res.json(records.reverse());
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi đọc file leads: ' + err.message });
+  }
+});
 
 app.get('/admin/customers.csv', (req, res) => {
   const token = req.query.token || req.get('x-admin-token');
