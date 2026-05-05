@@ -883,10 +883,10 @@
                         <tr>
                             <th style="width:10%">Mã (Code) *</th>
                             <th style="width:15%">Giá (Price)</th>
-                            <th style="width:30%">Tên/Mô tả (Description)</th>
+                            <th style="width:20%">Mô tả (Description)</th>
                             <th style="width:15%">Size (Phân loại)</th>
-                            <th style="width:10%">Quà (Gift)</th>
                             <th style="width:10%">Preorder</th>
+                            <th style="width:20%">Ảnh (Image)</th>
                             <th style="width:10%">Xóa</th>
                         </tr>
                     </thead>
@@ -1417,15 +1417,15 @@
         <tr data-index="${i}">
             <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="code" value="${escHtml(p.code||'')}" placeholder="SP01"></td>
             <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="price" value="${escHtml(p.price||'')}" placeholder="250k"></td>
-            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="description" value="${escHtml(p.description||'')}" placeholder="Áo thun đen"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="description" value="${escHtml(p.description||'')}" placeholder="Áo thun"></td>
             <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="size" value="${escHtml(p.size||'')}" placeholder="S,M,L"></td>
-            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="gift" value="${escHtml(p.gift||'')}" placeholder="Kèm túi"></td>
             <td>
                 <select class="form-select" style="padding:6px;font-size:12.5px" name="preorder">
                     <option value="" ${!p.preorder ? 'selected' : ''}>Có sẵn</option>
                     <option value="yes" ${p.preorder ? 'selected' : ''}>Order</option>
                 </select>
             </td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="image" value="${escHtml(p.image||'')}" placeholder="sp1.jpg"></td>
             <td style="text-align:center">
                 <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent" onclick="removeProductRow(this)"><i class="fas fa-trash"></i></button>
             </td>
@@ -1438,15 +1438,15 @@
         tr.innerHTML = `
             <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="code" placeholder="Mã"></td>
             <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="price" placeholder="Giá"></td>
-            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="description" placeholder="Tên/Mô tả"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="description" placeholder="Mô tả"></td>
             <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="size" placeholder="Size"></td>
-            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="gift" placeholder="Quà tặng"></td>
             <td>
                 <select class="form-select" style="padding:6px;font-size:12.5px" name="preorder">
                     <option value="" selected>Có sẵn</option>
                     <option value="yes">Order</option>
                 </select>
             </td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="image" placeholder="anh1.jpg"></td>
             <td style="text-align:center">
                 <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent" onclick="removeProductRow(this)"><i class="fas fa-trash"></i></button>
             </td>`;

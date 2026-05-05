@@ -62,12 +62,21 @@ function inferBaseUrlFromRequest(req) {
 app.get('/', (_req, res) => res.send('🤖 ZenBot đang chạy!'));
 app.get('/healthz', (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()) }));
 
-// ========== SERVE ẢNH SẢN PHẨM ==========
-app.get('/media/:filename', (req, res) => {
-  const { IMAGE_INDEX } = processor;
-  const fullPath = IMAGE_INDEX && IMAGE_INDEX.get(String(req.params.filename || '').toLowerCase());
-  if (!fullPath) return res.sendStatus(404);
-  res.sendFile(fullPath);
+// ========== SERVE ẢNH SẢN PHẨM (Multi-tenant) ==========
+app.get('/media/:shopId/:filename', (req, res) => {
+  const { shopId, filename } = req.params;
+  const safeShopId = String(shopId || '').replace(/[\\/]/g, '');
+  const safeFilename = String(filename || '').replace(/[\\/]/g, '');
+  
+  // Tìm ảnh trong thư mục của shop
+  const shopImgPath = path.join(__dirname, 'shops', safeShopId, 'images', safeFilename);
+  if (fs.existsSync(shopImgPath)) return res.sendFile(shopImgPath);
+
+  // Fallback tìm trong thư mục assets chung
+  const assetsPath = path.join(__dirname, 'assets', safeFilename);
+  if (fs.existsSync(assetsPath)) return res.sendFile(assetsPath);
+
+  res.sendStatus(404);
 });
 
 // ========== WEBHOOK VERIFY (Meta yêu cầu) ==========
@@ -256,6 +265,14 @@ app.post('/api/admin/products/:shopId', adminAuth, (req, res) => {
     
     const csvContent = jsonToCsv(req.body);
     fs.writeFileSync(file, csvContent, 'utf8');
+
+    // Xóa cache của shop này để bot cập nhật dữ liệu mới ngay lập tức
+    const { RUNTIME_CACHE } = require('./core/processor');
+    if (RUNTIME_CACHE) {
+      RUNTIME_CACHE.delete(req.params.shopId);
+      console.log(`♻️  Đã clear cache cho shop: ${req.params.shopId} (do cập nhật sản phẩm)`);
+    }
+
     res.json({ message: 'Đã lưu sản phẩm thành công' });
   } catch (err) {
     res.status(500).json({ message: 'Lỗi ghi file sản phẩm: ' + err.message });
