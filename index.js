@@ -208,6 +208,46 @@ app.get('/api/admin/leads', adminAuth, (req, res) => {
   }
 });
 
+// ========== PRODUCT MANAGEMENT ==========
+app.get('/api/admin/products/:shopId', adminAuth, (req, res) => {
+  try {
+    const file = path.join(__dirname, 'shops', req.params.shopId, 'products.csv');
+    if (!fs.existsSync(file)) return res.json([]);
+    const csv = fs.readFileSync(file, 'utf8');
+    const records = parse(csv, { columns: true, skip_empty_lines: true, relax_column_count: true });
+    res.json(records);
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi đọc file sản phẩm: ' + err.message });
+  }
+});
+
+function jsonToCsv(items) {
+  if (!items || !items.length) return '';
+  const header = Object.keys(items[0]);
+  const rows = items.map(item => header.map(col => {
+    let val = item[col] || '';
+    if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n'))) {
+      val = '"' + val.replace(/"/g, '""') + '"';
+    }
+    return val;
+  }).join(','));
+  return [header.join(','), ...rows].join('\n');
+}
+
+app.post('/api/admin/products/:shopId', adminAuth, (req, res) => {
+  try {
+    const file = path.join(__dirname, 'shops', req.params.shopId, 'products.csv');
+    const dir = path.dirname(file);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    
+    const csvContent = jsonToCsv(req.body);
+    fs.writeFileSync(file, csvContent, 'utf8');
+    res.json({ message: 'Đã lưu sản phẩm thành công' });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi ghi file sản phẩm: ' + err.message });
+  }
+});
+
 app.get('/admin/customers.csv', (req, res) => {
   const token = req.query.token || req.get('x-admin-token');
   if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {

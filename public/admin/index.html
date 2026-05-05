@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-base:    #080c14;
@@ -592,7 +593,8 @@
             .main-content { margin-left: 0; }
             .shop-grid { grid-template-columns: 1fr; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
-        /* TABLE (LEADS) */
+        }
+        /* TABLE (LEADS & PRODUCTS) */
         .table-container {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -652,7 +654,7 @@
             <i class="fas fa-store"></i> Quản lý Shop
             <span class="nav-badge" id="sidebarShopCount">0</span>
         </a>
-        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+        <a class="nav-item" href="#" onclick="showToast('Xem Live Chat cần nâng cấp server Socket.io (Phase 2)','info');return false;">
             <i class="fas fa-comment-dots"></i> Cuộc trò chuyện
         </a>
         <a class="nav-item" href="#" onclick="switchView('leadView', this); return false;">
@@ -661,21 +663,21 @@
         </a>
 
         <div class="nav-section-label" style="margin-top:8px">Phân tích</div>
-        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+        <a class="nav-item" href="#" onclick="switchView('analyticsView', this); return false;">
             <i class="fas fa-chart-line"></i> Hiệu suất Bot
         </a>
-        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+        <a class="nav-item" href="#" onclick="showToast('Tỷ lệ chuyển đổi đã được gộp vào biểu đồ Hiệu suất Bot','info');return false;">
             <i class="fas fa-funnel-dollar"></i> Tỷ lệ chuyển đổi
         </a>
 
         <div class="nav-section-label" style="margin-top:8px">Hệ thống</div>
-        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+        <a class="nav-item" href="#" onclick="showToast('Đã được tích hợp vào nút Cấu Hình của từng Shop','info');return false;">
             <i class="fas fa-puzzle-piece"></i> Kịch bản & Flow
         </a>
-        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+        <a class="nav-item" href="#" onclick="showToast('Quản lý Token & API Key đã nằm trong Cấu Hình Shop','info');return false;">
             <i class="fas fa-key"></i> API Keys
         </a>
-        <a class="nav-item" href="#" onclick="showToast('Tính năng đang phát triển','info');return false;">
+        <a class="nav-item" href="#" onclick="showToast('Tính năng đổi mật khẩu/token hệ thống đang phát triển','info');return false;">
             <i class="fas fa-cog"></i> Cài đặt
         </a>
     </nav>
@@ -856,6 +858,86 @@
         </div>
         <!-- END LEAD VIEW -->
 
+        <!-- PRODUCT VIEW -->
+        <div id="productView" class="view-section">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Danh mục Sản phẩm</div>
+                    <div class="section-sub">Quản lý mã hàng, tên, giá cho: <span id="productShopName" style="color:var(--accent2);font-weight:700"></span></div>
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-ghost btn-sm" onclick="fetchProducts()" title="Làm mới">
+                        <i class="fas fa-rotate-right"></i>
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="addProductRow()">
+                        <i class="fas fa-plus"></i> Thêm Dòng Mới
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="saveProducts()" style="background:var(--green);box-shadow:0 2px 12px rgba(16,185,129,0.3)">
+                        <i class="fas fa-floppy-disk"></i> Lưu Thay Đổi
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-container" style="border-radius:14px">
+                <table id="productTable">
+                    <thead>
+                        <tr>
+                            <th style="width:10%">Mã (Code) *</th>
+                            <th style="width:15%">Giá (Price)</th>
+                            <th style="width:30%">Tên/Mô tả (Description)</th>
+                            <th style="width:15%">Size (Phân loại)</th>
+                            <th style="width:10%">Quà (Gift)</th>
+                            <th style="width:10%">Preorder</th>
+                            <th style="width:10%">Xóa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        <!-- Rows -->
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:12px;font-size:11.5px;color:var(--text-muted)">
+                <i class="fas fa-circle-info"></i> Lời khuyên: Để trống mã sản phẩm (Code) hệ thống sẽ tự bỏ qua khi lưu. Sửa trực tiếp vào ô tương ứng.
+            </div>
+        </div>
+        <!-- END PRODUCT VIEW -->
+
+        <!-- ANALYTICS VIEW -->
+        <div id="analyticsView" class="view-section">
+            <div class="stats-grid">
+                <div class="stat-card accent-blue">
+                    <div class="stat-label">Leads Tuần Này</div>
+                    <div class="stat-value" id="statWeekLeads">0</div>
+                    <div class="stat-meta">Tất cả tương tác</div>
+                </div>
+                <div class="stat-card accent-green">
+                    <div class="stat-label">Số ĐT Thu Thập</div>
+                    <div class="stat-value" id="statWeekPhones" style="color:var(--green)">0</div>
+                    <div class="stat-meta">Khách hàng chất lượng</div>
+                </div>
+                <div class="stat-card accent-amber">
+                    <div class="stat-label">Tỷ lệ chuyển đổi</div>
+                    <div class="stat-value" id="statConvRate" style="color:var(--amber)">0%</div>
+                    <div class="stat-meta">SĐT / Tổng Leads</div>
+                </div>
+            </div>
+
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Biểu đồ Tăng trưởng</div>
+                    <div class="section-sub">Phân tích khách hàng tiềm năng 7 ngày gần nhất (tổng hợp từ customers.csv)</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="renderAnalytics()" title="Làm mới biểu đồ">
+                    <i class="fas fa-rotate-right"></i>
+                </button>
+            </div>
+
+            <div class="table-container" style="padding:20px; border-radius:14px; background:var(--bg-card)">
+                <canvas id="leadsChart" height="80"></canvas>
+            </div>
+        </div>
+        <!-- END ANALYTICS VIEW -->
+
     </div><!-- end page-body -->
 </div><!-- end main-content -->
 
@@ -907,8 +989,8 @@
                     </div>
                 </div>
 
-                <!-- CREDENTIALS -->
-                <div class="form-section-label" style="margin-bottom:16px">Xác thực & API</div>
+                <!-- CREDENTIALS & PROMPT -->
+                <div class="form-section-label" style="margin-bottom:16px">Xác thực & AI Persona</div>
                 <div class="form-grid" style="margin-bottom:20px">
                     <div class="form-group">
                         <label>Facebook Page Token *</label>
@@ -919,6 +1001,11 @@
                         <label>Gemini API Key <span style="font-weight:400;text-transform:none;font-size:11px">(Tùy chọn)</span></label>
                         <input class="form-input" type="password" id="geminiApiKey" placeholder="Bỏ trống để dùng key hệ thống" autocomplete="new-password">
                         <div class="form-hint">Chỉ cần khi muốn dùng key riêng</div>
+                    </div>
+                    <div class="form-group form-full">
+                        <label>AI Persona (System Prompt)</label>
+                        <textarea class="form-input" id="customPrompt" rows="3" placeholder="Ví dụ: Bạn là nhân viên tư vấn bán hàng dễ thương, luôn dùng emoji ^^ và gọi khách là anh/chị..."></textarea>
+                        <div class="form-hint">Định hình tính cách và giọng văn cho AI Gemini khi tư vấn (Kịch bản & Flow).</div>
                     </div>
                 </div>
 
@@ -973,6 +1060,8 @@
     let filteredShops = [];
     let currentLeads  = [];
     let filteredLeads = [];
+    let currentProducts = [];
+    let editingProductShopId = null;
     let editingId     = null;
     let selectedPlan  = 'BASIC';
     let activeView    = 'shopView';
@@ -1000,13 +1089,26 @@
             sub.textContent = 'Cấu hình chatbot và gói dịch vụ cho từng cửa hàng';
             btn.style.display = 'inline-flex';
             search.placeholder = 'Tìm tên hoặc ID shop...';
+            search.style.display = 'block';
             search.value = ''; filterShops();
         } else if (viewId === 'leadView') {
             title.textContent = 'Khách hàng tiềm năng';
             sub.textContent = 'Danh sách khách hàng để lại SĐT hoặc yêu cầu hỗ trợ';
             btn.style.display = 'none';
             search.placeholder = 'Tìm SĐT, tên, sản phẩm...';
+            search.style.display = 'block';
             search.value = ''; filterLeads();
+        } else if (viewId === 'productView') {
+            title.textContent = 'Quản lý Sản phẩm';
+            sub.textContent = 'Chỉnh sửa file danh mục hàng hóa (products.csv)';
+            btn.style.display = 'none';
+            search.style.display = 'none';
+        } else if (viewId === 'analyticsView') {
+            title.textContent = 'Hiệu suất Bot';
+            sub.textContent = 'Báo cáo và thống kê tự động dựa trên dữ liệu thu thập được';
+            btn.style.display = 'none';
+            search.style.display = 'none';
+            renderAnalytics();
         }
     }
 
@@ -1102,6 +1204,9 @@
             <div class="card-actions">
                 <button class="btn btn-ghost btn-sm" style="flex:1" onclick="editShop('${escHtml(shop._id)}')">
                     <i class="fas fa-pen-to-square"></i> Cấu hình
+                </button>
+                <button class="btn btn-ghost btn-sm" style="flex:1;background:rgba(34,211,238,0.1);color:var(--accent2);border-color:rgba(34,211,238,0.2)" onclick="openProducts('${escHtml(shop._id)}', '${escHtml(shop.name)}')">
+                    <i class="fas fa-box-open"></i> Sản phẩm
                 </button>
                 <button class="btn btn-danger btn-sm" onclick="confirmDelete('${escHtml(shop._id)}', '${escHtml(shop.name)}')">
                     <i class="fas fa-trash"></i>
@@ -1209,6 +1314,219 @@
         }).join('');
     }
 
+    // ─── PRODUCTS API & RENDER ───────────────────────────────
+    function openProducts(shopId, shopName) {
+        editingProductShopId = shopId;
+        document.getElementById('productShopName').textContent = shopName;
+        // switch view
+        switchView('productView', document.querySelector('.nav-item.active'));
+        // Load data
+        fetchProducts();
+    }
+
+    async function fetchProducts() {
+        if (!editingProductShopId) return;
+        const tbody = document.getElementById('productTableBody');
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;opacity:0.5"><i class="fas fa-spinner fa-spin"></i> Đang tải danh mục...</td></tr>`;
+        
+        try {
+            const res = await fetch(`/api/admin/products/${editingProductShopId}?token=${API_TOKEN}`);
+            if (res.ok) {
+                currentProducts = await res.json();
+                renderProducts();
+            }
+        } catch (err) {
+            showToast('Lỗi tải sản phẩm', 'error');
+        }
+    }
+
+    function renderProducts() {
+        const tbody = document.getElementById('productTableBody');
+        if (!currentProducts.length) {
+            currentProducts = [{ code: '', price: '', description: '', size: '', gift: '', preorder: '' }]; // 1 blank row
+        }
+        
+        tbody.innerHTML = currentProducts.map((p, i) => `
+        <tr data-index="${i}">
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="code" value="${escHtml(p.code||'')}" placeholder="SP01"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="price" value="${escHtml(p.price||'')}" placeholder="250k"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="description" value="${escHtml(p.description||'')}" placeholder="Áo thun đen"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="size" value="${escHtml(p.size||'')}" placeholder="S,M,L"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="gift" value="${escHtml(p.gift||'')}" placeholder="Kèm túi"></td>
+            <td>
+                <select class="form-select" style="padding:6px;font-size:12.5px" name="preorder">
+                    <option value="" ${!p.preorder ? 'selected' : ''}>Có sẵn</option>
+                    <option value="yes" ${p.preorder ? 'selected' : ''}>Order</option>
+                </select>
+            </td>
+            <td style="text-align:center">
+                <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent" onclick="removeProductRow(this)"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`).join('');
+    }
+
+    function addProductRow() {
+        const tbody = document.getElementById('productTableBody');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="code" placeholder="Mã"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="price" placeholder="Giá"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="description" placeholder="Tên/Mô tả"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="size" placeholder="Size"></td>
+            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="gift" placeholder="Quà tặng"></td>
+            <td>
+                <select class="form-select" style="padding:6px;font-size:12.5px" name="preorder">
+                    <option value="" selected>Có sẵn</option>
+                    <option value="yes">Order</option>
+                </select>
+            </td>
+            <td style="text-align:center">
+                <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent" onclick="removeProductRow(this)"><i class="fas fa-trash"></i></button>
+            </td>`;
+        tbody.appendChild(tr);
+    }
+
+    function removeProductRow(btn) {
+        btn.closest('tr').remove();
+    }
+
+    async function saveProducts() {
+        if (!editingProductShopId) return;
+        const tbody = document.getElementById('productTableBody');
+        const rows = tbody.querySelectorAll('tr');
+        const newData = [];
+        
+        rows.forEach(tr => {
+            const inputs = tr.querySelectorAll('input, select');
+            const p = {};
+            inputs.forEach(i => p[i.name] = i.value.trim());
+            // Chỉ lưu những dòng có mã sản phẩm
+            if (p.code) {
+                // Ensure weight logic if present in schema, but we hide it for simplicity. We can leave it blank.
+                p.weight = '';
+                newData.push(p);
+            }
+        });
+
+        try {
+            const res = await fetch(`/api/admin/products/${editingProductShopId}?token=${API_TOKEN}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newData)
+            });
+            if (res.ok) {
+                showToast('Lưu danh mục thành công', 'success');
+            } else {
+                showToast('Không thể lưu', 'error');
+            }
+        } catch(e) {
+            showToast('Lỗi mạng', 'error');
+        }
+    }
+
+    // ─── ANALYTICS (CHART) ───────────────────────────────────
+    let leadsChartInstance = null;
+
+    async function renderAnalytics() {
+        // Đảm bảo có dữ liệu leads mới nhất
+        if (!currentLeads || currentLeads.length === 0) {
+            await fetchLeads();
+        }
+
+        // Tạo mảng 7 ngày gần nhất
+        const dates = [];
+        const leadCounts = [];
+        const phoneCounts = [];
+        
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+            dates.push(dateStr);
+            leadCounts.push(0);
+            phoneCounts.push(0);
+        }
+
+        let weekTotal = 0;
+        let weekPhones = 0;
+
+        // Gom nhóm dữ liệu từ customers.csv
+        currentLeads.forEach(lead => {
+            if (!lead.at) return;
+            const ld = new Date(lead.at).toISOString().split('T')[0];
+            const idx = dates.indexOf(ld);
+            if (idx !== -1) {
+                leadCounts[idx]++;
+                weekTotal++;
+                if (lead.phone) {
+                    phoneCounts[idx]++;
+                    weekPhones++;
+                }
+            }
+        });
+
+        // Cập nhật số liệu trên thẻ
+        animateNumber('statWeekLeads', weekTotal);
+        animateNumber('statWeekPhones', weekPhones);
+        document.getElementById('statConvRate').textContent = weekTotal > 0 ? Math.round((weekPhones / weekTotal) * 100) + '%' : '0%';
+
+        // Label đẹp (dạng DD/MM)
+        const labels = dates.map(d => {
+            const p = d.split('-');
+            return p[2] + '/' + p[1];
+        });
+
+        const ctx = document.getElementById('leadsChart').getContext('2d');
+        if (leadsChartInstance) {
+            leadsChartInstance.destroy();
+        }
+
+        leadsChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Khách để lại SĐT (Thành công)',
+                        data: phoneCounts,
+                        borderColor: '#10b981', // green
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Tổng Leads tương tác',
+                        data: leadCounts,
+                        borderColor: '#6366f1', // accent
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { labels: { color: '#64748b', font: { family: "'DM Sans', sans-serif" } } }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                        ticks: { color: '#64748b' }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                        ticks: { color: '#64748b', stepSize: 1 }
+                    }
+                }
+            }
+        });
+    }
+
     // ─── MODAL ───────────────────────────────────────────────
     function openCreateModal() {
         editingId = null;
@@ -1234,6 +1552,7 @@
         document.getElementById('shopId').value    = shop._id;
         document.getElementById('shopId').disabled = true;
         document.getElementById('shopName').value  = shop.name;
+        document.getElementById('customPrompt').value = shop.customPrompt || '';
         selectPlan(shop.plan || 'BASIC');
         document.getElementById('fbPageToken').value  = ''; // keep empty = don't change
         document.getElementById('geminiApiKey').value = '';
@@ -1252,6 +1571,7 @@
         document.getElementById('fbPageToken').setAttribute('required', '');
         document.getElementById('fbPageToken').placeholder  = 'EAAG...';
         document.getElementById('geminiApiKey').placeholder = 'Bỏ trống để dùng key hệ thống';
+        document.getElementById('customPrompt').value = '';
     }
 
     // ─── SUBMIT ──────────────────────────────────────────────
@@ -1270,6 +1590,7 @@
             _id:      id,
             name:     document.getElementById('shopName').value.trim(),
             plan:     selectedPlan,
+            customPrompt: document.getElementById('customPrompt').value.trim(),
             isActive: document.getElementById('isActive').checked,
             features: { enableAI: document.getElementById('enableAI').checked },
             credentials: {}
