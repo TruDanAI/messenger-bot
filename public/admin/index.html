@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZenBot Central | Dashboard Quản Trị</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .gradient-text { background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .btn-primary { background: linear-gradient(135deg, #0ea5e9, #6366f1); transition: all 0.3s ease; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); border-color: rgba(99, 102, 241, 0.4); }
+        input, select { background: #1e293b !important; border: 1px solid #334155 !important; color: white !important; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); z-index: 50; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- Sidebar / Topbar -->
+    <nav class="glass sticky top-0 z-40 w-full px-6 py-4 flex justify-between items-center mb-8">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-gradient-to-br from-cyan-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <i class="fas fa-robot text-white text-xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold gradient-text tracking-tight">ZenBot Central</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="openModal('shopModal')" class="btn-primary px-5 py-2 rounded-lg font-semibold text-sm flex items-center gap-2">
+                <i class="fas fa-plus"></i> Thêm Shop Mới
+            </button>
+            <div class="h-8 w-px bg-slate-700"></div>
+            <span id="adminStatus" class="text-xs text-slate-400 flex items-center gap-2">
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Hệ thống Online
+            </span>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 pb-12">
+        <!-- Stats Row -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+            <div class="glass p-6 rounded-2xl">
+                <p class="text-slate-400 text-sm mb-1">Tổng số Shop</p>
+                <h3 id="statTotalShops" class="text-3xl font-bold">0</h3>
+            </div>
+            <div class="glass p-6 rounded-2xl">
+                <p class="text-slate-400 text-sm mb-1">Shop đang chạy</p>
+                <h3 id="statActiveShops" class="text-3xl font-bold text-green-400">0</h3>
+            </div>
+            <div class="glass p-6 rounded-2xl">
+                <p class="text-slate-400 text-sm mb-1">Tính năng AI</p>
+                <h3 id="statAiShops" class="text-3xl font-bold text-indigo-400">0</h3>
+            </div>
+            <div class="glass p-6 rounded-2xl">
+                <p class="text-slate-400 text-sm mb-1">Dung lượng Lead</p>
+                <h3 class="text-3xl font-bold text-cyan-400">Tốt</h3>
+            </div>
+        </div>
+
+        <!-- Shop List Section -->
+        <div class="mb-6 flex justify-between items-end">
+            <div>
+                <h2 class="text-xl font-bold mb-1">Danh sách Shop</h2>
+                <p class="text-slate-400 text-sm">Quản lý cấu hình và gói cước của từng cửa hàng</p>
+            </div>
+            <div class="flex gap-2">
+                <div class="relative">
+                    <input type="text" placeholder="Tìm tên shop..." class="pl-10 pr-4 py-2 rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-slate-500"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shop Grid -->
+        <div id="shopGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Loading State -->
+            <div class="col-span-full py-20 flex flex-col items-center justify-center opacity-50">
+                <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+                <p>Đang tải dữ liệu từ MongoDB...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: Thêm/Sửa Shop -->
+    <div id="shopModal" class="modal px-4">
+        <div class="glass w-full max-w-2xl rounded-3xl p-8 shadow-2xl relative">
+            <button onclick="closeModal('shopModal')" class="absolute top-6 right-6 text-slate-500 hover:text-white">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+            <h2 id="modalTitle" class="text-2xl font-bold mb-6">Thêm Shop Mới</h2>
+            
+            <form id="shopForm" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-1">Shop ID (Viết liền, không dấu)</label>
+                        <input type="text" id="shopId" name="_id" required placeholder="ví dụ: nem-bui-xa" class="w-full px-4 py-2 rounded-xl">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-1">Tên hiển thị (Brand Name)</label>
+                        <input type="text" id="shopName" name="name" required placeholder="ví dụ: Nem Bùi Xá" class="w-full px-4 py-2 rounded-xl">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-1">Gói cước (Plan)</label>
+                        <select id="shopPlan" name="plan" class="w-full px-4 py-2 rounded-xl">
+                            <option value="LITE">LITE (Chỉ Regex)</option>
+                            <option value="BASIC" selected>BASIC (Regex + Fallback)</option>
+                            <option value="PRO">PRO (Full AI Gemini)</option>
+                            <option value="ENTERPRISE">ENTERPRISE (Premium)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-1">Facebook Page Token</label>
+                        <input type="password" id="fbPageToken" name="credentials.fbPageToken" required placeholder="EAAG..." class="w-full px-4 py-2 rounded-xl">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-400 mb-1">Gemini API Key (Tùy chọn)</label>
+                        <input type="password" id="geminiApiKey" name="credentials.geminiApiKey" placeholder="Bỏ trống nếu dùng key chung" class="w-full px-4 py-2 rounded-xl">
+                    </div>
+                    <div class="flex items-center gap-6 pt-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="enableAI" name="features.enableAI" class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm font-medium">Bật AI</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="isActive" name="isActive" checked class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-500">
+                            <span class="text-sm font-medium">Hoạt động</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-span-full pt-4 flex gap-3">
+                    <button type="submit" class="btn-primary flex-1 py-3 rounded-xl font-bold shadow-lg">LƯU CẤU HÌNH</button>
+                    <button type="button" onclick="closeModal('shopModal')" class="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-xl font-bold transition-all">HỦY</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentShops = [];
+        const API_TOKEN = new URLSearchParams(window.location.search).get('token') || '';
+
+        async function fetchShops() {
+            try {
+                const res = await fetch(`/api/admin/shops?token=${API_TOKEN}`);
+                if (res.status === 401) {
+                    alert('Token không hợp lệ. Vui lòng thêm ?token=... vào URL');
+                    return;
+                }
+                const data = await res.json();
+                currentShops = data;
+                renderShops();
+                updateStats();
+            } catch (err) {
+                console.error('Lỗi tải shop:', err);
+                document.getElementById('shopGrid').innerHTML = `<p class="col-span-full text-center text-red-400">Không thể kết nối API. Vui lòng kiểm tra console.</p>`;
+            }
+        }
+
+        function renderShops() {
+            const grid = document.getElementById('shopGrid');
+            if (currentShops.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-20 text-center glass rounded-2xl opacity-50"><i class="fas fa-ghost text-4xl mb-4"></i><p>Chưa có shop nào được tạo.</p></div>`;
+                return;
+            }
+
+            grid.innerHTML = currentShops.map(shop => `
+                <div class="glass p-6 rounded-2xl card-hover relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-4">
+                        <span class="px-2 py-1 rounded text-[10px] font-bold ${getPlanColor(shop.plan)}">${shop.plan}</span>
+                    </div>
+                    <div class="flex items-start gap-4 mb-6">
+                        <div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-xl border border-slate-700">
+                            ${shop.name.charAt(0)}
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-lg">${shop.name}</h4>
+                            <p class="text-xs text-slate-500 font-mono">ID: ${shop._id}</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+                            <p class="text-[10px] text-slate-500 uppercase mb-1">Trạng thái</p>
+                            <div class="flex items-center gap-2">
+                                <div class="w-2 h-2 rounded-full ${shop.isActive ? 'bg-green-500' : 'bg-red-500'}"></div>
+                                <span class="text-sm">${shop.isActive ? 'Active' : 'Disabled'}</span>
+                            </div>
+                        </div>
+                        <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+                            <p class="text-[10px] text-slate-500 uppercase mb-1">AI Gemini</p>
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-brain text-xs ${shop.features?.enableAI ? 'text-indigo-400' : 'text-slate-600'}"></i>
+                                <span class="text-sm">${shop.features?.enableAI ? 'Bật' : 'Tắt'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="editShop('${shop._id}')" class="flex-1 bg-slate-700 hover:bg-slate-600 py-2 rounded-lg text-xs font-semibold transition-colors">
+                            <i class="fas fa-edit mr-1"></i> Cấu hình
+                        </button>
+                        <button onclick="deleteShop('${shop._id}')" class="px-3 bg-red-900/30 hover:bg-red-900/50 text-red-400 py-2 rounded-lg text-xs transition-colors">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getPlanColor(plan) {
+            switch(plan) {
+                case 'PRO': return 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30';
+                case 'ENTERPRISE': return 'bg-amber-500/20 text-amber-400 border border-amber-500/30';
+                case 'LITE': return 'bg-slate-500/20 text-slate-400';
+                default: return 'bg-cyan-500/20 text-cyan-400';
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('statTotalShops').innerText = currentShops.length;
+            document.getElementById('statActiveShops').innerText = currentShops.filter(s => s.isActive).length;
+            document.getElementById('statAiShops').innerText = currentShops.filter(s => s.features?.enableAI).length;
+        }
+
+        function openModal(id) {
+            document.getElementById('modalTitle').innerText = 'Thêm Shop Mới';
+            document.getElementById('shopForm').reset();
+            document.getElementById('shopId').disabled = false;
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function editShop(id) {
+            const shop = currentShops.find(s => s._id === id);
+            if (!shop) return;
+            
+            document.getElementById('modalTitle').innerText = 'Chỉnh sửa: ' + shop.name;
+            document.getElementById('shopId').value = shop._id;
+            document.getElementById('shopId').disabled = true;
+            document.getElementById('shopName').value = shop.name;
+            document.getElementById('shopPlan').value = shop.plan;
+            document.getElementById('fbPageToken').value = '********'; // Không hiển thị token cũ
+            document.getElementById('geminiApiKey').value = shop.credentials?.geminiApiKey ? '********' : '';
+            document.getElementById('enableAI').checked = shop.features?.enableAI;
+            document.getElementById('isActive').checked = shop.isActive;
+            
+            document.getElementById('shopModal').classList.add('active');
+        }
+
+        async function deleteShop(id) {
+            if (!confirm(`Bạn có chắc muốn xóa Shop "${id}"? Hành động này không thể hoàn tác.`)) return;
+            const res = await fetch(`/api/admin/shops/${id}?token=${API_TOKEN}`, { method: 'DELETE' });
+            if (res.ok) fetchShops();
+        }
+
+        document.getElementById('shopForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const isEditing = document.getElementById('shopId').disabled;
+            const id = document.getElementById('shopId').value;
+            
+            const payload = {
+                _id: id,
+                name: document.getElementById('shopName').value,
+                plan: document.getElementById('shopPlan').value,
+                isActive: document.getElementById('isActive').checked,
+                credentials: {
+                    fbPageToken: document.getElementById('fbPageToken').value,
+                    geminiApiKey: document.getElementById('geminiApiKey').value
+                },
+                features: {
+                    enableAI: document.getElementById('enableAI').checked
+                }
+            };
+
+            // Nếu đang sửa và token là ***** thì không gửi token lên để tránh ghi đè
+            if (isEditing && payload.credentials.fbPageToken === '********') delete payload.credentials.fbPageToken;
+            if (isEditing && payload.credentials.geminiApiKey === '********') delete payload.credentials.geminiApiKey;
+
+            const url = isEditing ? `/api/admin/shops/${id}?token=${API_TOKEN}` : `/api/admin/shops?token=${API_TOKEN}`;
+            const method = isEditing ? 'PATCH' : 'POST';
+
+            const res = await fetch(url, {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                closeModal('shopModal');
+                fetchShops();
+            } else {
+                const err = await res.json();
+                alert('Lỗi: ' + (err.message || 'Không thể lưu.'));
+            }
+        };
+
+        // Khởi tạo
+        fetchShops();
+    </script>
+</body>
+</html>

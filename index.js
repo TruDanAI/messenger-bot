@@ -6,6 +6,7 @@ const path = require('path');
 const { connectDB } = require('./core/db');
 const { messageQueue } = require('./core/queue');
 const { startSheetOutboxWorker } = require('./core/sheets-webhook');
+const Shop = require('./core/models/Shop');
 require('./core/worker'); // Khởi động BullMQ Worker chạy ngầm cùng server
 
 // Lazy-load processor để lấy IMAGE_INDEX (tránh circular load)
@@ -21,6 +22,7 @@ const app = express();
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf; }
 }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;
 const FB_APP_SECRET   = process.env.FB_APP_SECRET;
@@ -120,6 +122,66 @@ app.post('/webhook', async (req, res) => {
         console.error('❌ Lỗi thêm vào Queue:', err.message);
       }
     }
+  }
+});
+
+// ========== ZENBOT CENTRAL (SHOP MANAGEMENT API) ==========
+const ADMIN_EXPORT_TOKEN = process.env.ADMIN_EXPORT_TOKEN || '';
+
+function adminAuth(req, res, next) {
+  const token = req.query.token || req.get('x-admin-token');
+  if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+  next();
+}
+
+app.get('/api/admin/shops', adminAuth, async (req, res) => {
+  try {
+    const shops = await Shop.find().sort({ createdAt: -1 });
+    res.json(shops);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/admin/shops', adminAuth, async (req, res) => {
+  try {
+    const shop = new Shop(req.body);
+    await shop.save();
+    res.status(201).json(shop);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.patch('/api/admin/shops/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body };
+    // Xử lý nested objects cho credentials và features
+    if (req.body.credentials) {
+      const shop = await Shop.findById(id);
+      updateData.credentials = { ...(shop.credentials || {}), ...req.body.credentials };
+    }
+    if (req.body.features) {
+      const shop = await Shop.findById(id);
+      updateData.features = { ...(shop.features || {}), ...req.body.features };
+    }
+    
+    const shop = await Shop.findByIdAndUpdate(id, updateData, { new: true });
+    res.json(shop);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.delete('/api/admin/shops/:id', adminAuth, async (req, res) => {
+  try {
+    await Shop.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Shop deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
