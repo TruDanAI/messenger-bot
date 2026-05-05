@@ -677,7 +677,7 @@
         <a class="nav-item" href="#" onclick="showToast('Quản lý Token & API Key đã nằm trong Cấu Hình Shop','info');return false;">
             <i class="fas fa-key"></i> API Keys
         </a>
-        <a class="nav-item" href="#" onclick="showToast('Tính năng đổi mật khẩu/token hệ thống đang phát triển','info');return false;">
+        <a class="nav-item" href="#" onclick="switchView('settingsView', this); return false;">
             <i class="fas fa-cog"></i> Cài đặt
         </a>
     </nav>
@@ -938,6 +938,63 @@
         </div>
         <!-- END ANALYTICS VIEW -->
 
+        <!-- SETTINGS VIEW -->
+        <div id="settingsView" class="view-section">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Cấu hình Hệ thống</div>
+                    <div class="section-sub">Thông tin quản trị toàn cục và kết nối API</div>
+                </div>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap:24px">
+                <div class="table-container" style="padding:24px; background:var(--bg-card)">
+                    <div style="font-weight:700; color:var(--accent2); margin-bottom:16px; font-size:14px">
+                        <i class="fas fa-shield-halved"></i> Bảo mật & Truy cập
+                    </div>
+                    <div class="form-group">
+                        <label>Admin Export Token (Hiện tại)</label>
+                        <div style="display:flex; gap:8px">
+                            <input class="form-input" type="text" id="settingAdminToken" readonly style="background:rgba(255,255,255,0.03); color:var(--text-muted)">
+                            <button class="btn btn-ghost" onclick="copyToken()"><i class="fas fa-copy"></i></button>
+                        </div>
+                        <div class="form-hint">Dùng để xác thực khi gọi API từ bên ngoài hoặc export dữ liệu.</div>
+                    </div>
+                </div>
+
+                <div class="table-container" style="padding:24px; background:var(--bg-card)">
+                    <div style="font-weight:700; color:var(--green); margin-bottom:16px; font-size:14px">
+                        <i class="fas fa-server"></i> Trạng thái Server
+                    </div>
+                    <div style="display:grid; grid-template-columns: 100px 1fr; gap:8px 12px; font-size:13px">
+                        <div style="color:var(--text-muted)">Nền tảng:</div>
+                        <div style="font-weight:600">Railway / Node.js</div>
+                        <div style="color:var(--text-muted)">Phiên bản:</div>
+                        <div style="font-family:monospace">v20.x.x</div>
+                        <div style="color:var(--text-muted)">Môi trường:</div>
+                        <div style="color:var(--green); font-weight:600">Production</div>
+                        <div style="color:var(--text-muted)">Database:</div>
+                        <div style="color:var(--accent2); font-weight:600">MongoDB Atlas (Connected)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-header" style="margin-top:30px">
+                <div>
+                    <div class="section-title">Tích hợp Webhook</div>
+                    <div class="section-sub">Dùng URL này để cấu hình Webhook trên Meta Developer Portal</div>
+                </div>
+            </div>
+            <div class="table-container" style="padding:20px; background:rgba(34,211,238,0.05); border-color:var(--accent2)">
+                <div style="display:flex; align-items:center; gap:12px">
+                    <div style="background:var(--accent2); padding:8px 12px; border-radius:8px; color:#000; font-weight:700; font-size:12px">POST</div>
+                    <div style="font-family:monospace; font-size:14px; flex:1" id="webhookUrlDisplay">https://.../webhook</div>
+                    <button class="btn btn-ghost btn-sm" onclick="copyWebhook()"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>
+        </div>
+        <!-- END SETTINGS VIEW -->
+
     </div><!-- end page-body -->
 </div><!-- end main-content -->
 
@@ -1109,6 +1166,12 @@
             btn.style.display = 'none';
             search.style.display = 'none';
             renderAnalytics();
+        } else if (viewId === 'settingsView') {
+            title.textContent = 'Cài đặt hệ thống';
+            sub.textContent = 'Quản lý bảo mật, Webhook và kiểm tra trạng thái máy chủ';
+            btn.style.display = 'none';
+            search.style.display = 'none';
+            renderSettings();
         }
     }
 
@@ -1525,6 +1588,25 @@
                 }
             }
         });
+    }
+
+        });
+    }
+
+    // ─── SETTINGS ────────────────────────────────────────────
+    function renderSettings() {
+        document.getElementById('settingAdminToken').value = API_TOKEN;
+        document.getElementById('webhookUrlDisplay').textContent = window.location.origin + '/webhook';
+    }
+
+    function copyToken() {
+        navigator.clipboard.writeText(API_TOKEN);
+        showToast('Đã sao chép Admin Token', 'success');
+    }
+
+    function copyWebhook() {
+        navigator.clipboard.writeText(window.location.origin + '/webhook');
+        showToast('Đã sao chép Webhook URL', 'success');
     }
 
     // ─── MODAL ───────────────────────────────────────────────
