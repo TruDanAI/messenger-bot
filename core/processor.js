@@ -10,6 +10,8 @@ const { loadProducts } = require('./products');
 const { createRuleEngine } = require('./rules');
 
 const ROOT_DIR = path.join(__dirname, '..');
+// Tự động nhận diện thư mục lưu trữ: Ưu tiên env SHOPS_DIR -> /data (Volume) -> ./shops (Local)
+const SHOPS_DIR = process.env.SHOPS_DIR || (fs.existsSync('/data') ? '/data' : path.join(ROOT_DIR, 'shops'));
 
 // ========== MULTI-TENANT RUNTIME MANAGER ==========
 
@@ -21,7 +23,10 @@ function normalizeShopId(raw) {
 
 function loadShopRuntime(shopId) {
   const safeShopId = normalizeShopId(shopId);
-  const shopDir = path.join(ROOT_DIR, 'shops', safeShopId);
+  // Nếu dùng /data trực tiếp làm volume thì shops sẽ nằm ngay trong đó
+  const shopDir = (SHOPS_DIR === '/data') ? path.join(SHOPS_DIR, safeShopId) : path.join(SHOPS_DIR, safeShopId);
+  
+  if (!fs.existsSync(SHOPS_DIR)) fs.mkdirSync(SHOPS_DIR, { recursive: true });
   
   if (!fs.existsSync(shopDir)) {
     fs.mkdirSync(shopDir, { recursive: true });

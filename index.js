@@ -58,6 +58,8 @@ function inferBaseUrlFromRequest(req) {
   return `${req.protocol || 'https'}://${host}`;
 }
 
+const SHOPS_DIR = process.env.SHOPS_DIR || (fs.existsSync('/data') ? '/data' : path.join(__dirname, 'shops'));
+
 // ========== HEALTH CHECK ==========
 app.get('/', (_req, res) => res.send('🤖 ZenBot đang chạy!'));
 app.get('/healthz', (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()) }));
@@ -68,8 +70,8 @@ app.get('/media/:shopId/:filename', (req, res) => {
   const safeShopId = String(shopId || '').replace(/[\\/]/g, '');
   const safeFilename = String(filename || '').replace(/[\\/]/g, '');
   
-  // Tìm ảnh trong thư mục của shop
-  const shopImgPath = path.join(__dirname, 'shops', safeShopId, 'images', safeFilename);
+  // Tìm ảnh trong thư mục của shop (ưu tiên Volume)
+  const shopImgPath = path.join(SHOPS_DIR, safeShopId, 'images', safeFilename);
   if (fs.existsSync(shopImgPath)) return res.sendFile(shopImgPath);
 
   // Fallback tìm trong thư mục assets chung
@@ -262,7 +264,7 @@ const multer = require('multer');
 const storageMulter = multer.diskStorage({
   destination: (req, file, cb) => {
     const shopId = req.params.shopId || 'default';
-    const dir = path.join(__dirname, 'shops', shopId, 'images');
+    const dir = path.join(SHOPS_DIR, shopId, 'images');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -298,7 +300,7 @@ app.post('/api/admin/upload/:shopId', adminAuth, upload.single('file'), (req, re
 
 app.post('/api/admin/products/:shopId', adminAuth, (req, res) => {
   try {
-    const file = path.join(__dirname, 'shops', req.params.shopId, 'products.csv');
+    const file = path.join(SHOPS_DIR, req.params.shopId, 'products.csv');
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     
