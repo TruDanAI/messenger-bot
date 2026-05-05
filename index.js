@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const sharp = require('sharp');
 const { parse } = require('csv-parse/sync');
 const { connectDB } = require('./core/db');
 const { messageQueue, connection: redisConnection } = require('./core/queue');
@@ -87,6 +88,75 @@ const uploadRateLimit = createRateLimiter({
   windowMs: Number(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS) || 10 * 60 * 1000,
   max: Number(process.env.UPLOAD_RATE_LIMIT_MAX) || 40
 });
+
+function safeBaseName(filename) {
+  const parsed = path.parse(String(filename || 'image'));
+  return parsed.name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+    .slice(0, 80) || 'image';
+}
+
+async function processUploadedImage(file, shopId) {
+  const image = sharp(file.path, { failOn: 'warning' }).rotate();
+  const metadata = await image.metadata();
+  const baseName = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${safeBaseName(file.originalname)}`;
+  const dir = path.dirname(file.path);
+  const optimizedName = `${baseName}.webp`;
+  const thumbName = `${baseName}-thumb.webp`;
+  const optimizedPath = path.join(dir, optimizedName);
+  const thumbPath = path.join(dir, thumbName);
+
+  await image
+    .clone()
+    .resize({
+      width: Number(process.env.IMAGE_MAX_WIDTH) || 1600,
+      height: Number(process.env.IMAGE_MAX_HEIGHT) || 1600,
+      fit: 'inside',
+      withoutEnlargement: true
+    })
+    .webp({ quality: Number(process.env.IMAGE_WEBP_QUALITY) || 82 })
+    .toFile(optimizedPath);
+
+  await image
+    .clone()
+    .resize(320, 320, { fit: 'cover', withoutEnlargement: true })
+    .webp({ quality: 72 })
+    .toFile(thumbPath);
+
+  await fs.promises.unlink(file.path).catch(() => {});
+
+  const optimizedStat = await fs.promises.stat(optimizedPath);
+  const thumbStat = await fs.promises.stat(thumbPath);
+  return {
+    filename: optimizedName,
+    originalName: file.originalname,
+    url: `/media/${shopId}/${optimizedName}`,
+    thumbnail: `/media/${shopId}/${thumbName}`,
+    variants: {
+      optimized: {
+        filename: optimizedName,
+        url: `/media/${shopId}/${optimizedName}`,
+        bytes: optimizedStat.size
+      },
+      thumbnail: {
+        filename: thumbName,
+        url: `/media/${shopId}/${thumbName}`,
+        bytes: thumbStat.size
+      }
+    },
+    source: {
+      bytes: file.size,
+      mime: file.mimetype,
+      width: metadata.width || null,
+      height: metadata.height || null,
+      format: metadata.format || null
+    }
+  };
+}
 
 const webhookRateLimit = createRateLimiter({
   name: 'webhook',
@@ -429,9 +499,7 @@ const storageMulter = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    // Giữ nguyên logic đặt tên file để đảm bảo tính duy nhất
-    const safeName = file.originalname.replace(/\s+/g, '-').toLowerCase();
-    cb(null, Date.now() + '-' + safeName);
+    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${path.extname(file.originalname).toLowerCase()}`);
   }
 });
 
@@ -452,19 +520,18 @@ app.post('/api/admin/upload/:shopId', uploadRateLimit, adminAuth, requireValidSh
     if (!req.file) return res.status(400).json({ message: 'Vui lòng chọn file' });
     
     const shopId = req.params.shopId;
-    // URL truy cập qua web (phục vụ dashboard hiển thị)
-    const webUrl = `/media/${shopId}/${req.file.filename}`;
+    const imageAsset = await processUploadedImage(req.file, shopId);
 
     // Nếu là upload ảnh đại diện/logo cho Shop thì cập nhật vào MongoDB
     if (req.query.type === 'shop') {
-      await Shop.findByIdAndUpdate(shopId, { image_url: webUrl });
+      await Shop.findByIdAndUpdate(shopId, { image_url: imageAsset.url });
     }
 
-    res.json({ 
-      filename: req.file.filename,
-      url: webUrl 
-    });
+    res.json(imageAsset);
   } catch (err) {
+    if (req.file?.path) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+    }
     res.status(500).json({ message: err.message });
   }
 });
