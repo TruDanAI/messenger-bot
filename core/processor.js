@@ -23,21 +23,30 @@ function loadShopRuntime(shopId) {
   const safeShopId = normalizeShopId(shopId);
   const shopDir = path.join(ROOT_DIR, 'shops', safeShopId);
   
+  if (!fs.existsSync(shopDir)) {
+    fs.mkdirSync(shopDir, { recursive: true });
+  }
+  
+  const imgDir = path.join(shopDir, 'images');
+  if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true });
+
   const configPath = path.join(shopDir, 'config.js');
   const csvPath = path.join(shopDir, 'products.csv');
   
-  if (!fs.existsSync(shopDir)) {
-    fs.mkdirSync(shopDir, { recursive: true });
-    fs.mkdirSync(path.join(shopDir, 'images'), { recursive: true });
-  }
-
+  // Tạo file config mặc định nếu chưa có (rất quan trọng khi dùng Volume trống)
   if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(configPath, `module.exports = { shopName: "${safeShopId}", menuImages: ["menu1.png", "menu2.png"] };`, 'utf8');
+    const defaultBotConfig = `module.exports = { 
+  shopName: "${safeShopId}", 
+  menuImages: ["menu1.png", "menu2.png"],
+  intents: { prepend: [], append: [] }
+};`;
+    fs.writeFileSync(configPath, defaultBotConfig, 'utf8');
   }
   if (!fs.existsSync(csvPath)) {
-    fs.writeFileSync(csvPath, 'code,price,description,size,gift,preorder,image\n', 'utf8');
+    fs.writeFileSync(csvPath, 'code,price,description,size,preorder,image\n', 'utf8');
   }
 
+  // Luôn xóa cache để load dữ liệu mới nhất
   if (require.cache[require.resolve(configPath)]) delete require.cache[require.resolve(configPath)];
   const shopConfig = require(configPath);
   const products = loadProducts(csvPath);
