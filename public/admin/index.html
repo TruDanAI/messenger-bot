@@ -1054,6 +1054,11 @@
                         <div class="form-hint">Page Access Token từ Meta Developer</div>
                     </div>
                     <div class="form-group">
+                        <label>Facebook Page ID *</label>
+                        <input class="form-input" type="text" id="fbPageId" placeholder="1023456789..." required>
+                        <div class="form-hint">Dùng để định danh webhook</div>
+                    </div>
+                    <div class="form-group">
                         <label>Gemini API Key <span style="font-weight:400;text-transform:none;font-size:11px">(Tùy chọn)</span></label>
                         <input class="form-input" type="password" id="geminiApiKey" placeholder="Bỏ trống để dùng key hệ thống" autocomplete="new-password">
                         <div class="form-hint">Chỉ cần khi muốn dùng key riêng</div>
@@ -1638,6 +1643,7 @@
         document.getElementById('customPrompt').value = shop.customPrompt || '';
         selectPlan(shop.plan || 'BASIC');
         document.getElementById('fbPageToken').value  = ''; // keep empty = don't change
+        document.getElementById('fbPageId').value     = shop.credentials?.fbPageId || '';
         document.getElementById('geminiApiKey').value = '';
         document.getElementById('enableAI').checked   = !!shop.features?.enableAI;
         document.getElementById('isActive').checked   = !!shop.isActive;
@@ -1653,6 +1659,7 @@
         document.getElementById('shopModal').classList.remove('active');
         document.getElementById('fbPageToken').setAttribute('required', '');
         document.getElementById('fbPageToken').placeholder  = 'EAAG...';
+        document.getElementById('fbPageId').value = '';
         document.getElementById('geminiApiKey').placeholder = 'Bỏ trống để dùng key hệ thống';
         document.getElementById('customPrompt').value = '';
     }
@@ -1667,6 +1674,7 @@
         const isEditing = !!editingId;
         const id = document.getElementById('shopId').value.trim();
         const fbToken  = document.getElementById('fbPageToken').value;
+        const fbId     = document.getElementById('fbPageId').value.trim();
         const gemKey   = document.getElementById('geminiApiKey').value;
 
         const payload = {
@@ -1676,7 +1684,9 @@
             customPrompt: document.getElementById('customPrompt').value.trim(),
             isActive: document.getElementById('isActive').checked,
             features: { enableAI: document.getElementById('enableAI').checked },
-            credentials: {}
+            credentials: {
+                fbPageId: fbId
+            }
         };
 
         if (!isEditing || fbToken)  payload.credentials.fbPageToken  = fbToken;

@@ -99,9 +99,23 @@ app.post('/webhook', async (req, res) => {
 
   const baseUrlOverride = inferBaseUrlFromRequest(req);
 
+  // Cache mapping pageId -> shopId
+  const shopCache = app.get('shopCache') || new Map();
+  if (!app.get('shopCache')) app.set('shopCache', shopCache);
+
   for (const entry of body.entry || []) {
     const pageId = entry.id;
-    const shopId = process.env.SHOP_ID || 'adult-shop';
+    let shopId = shopCache.get(pageId);
+
+    if (!shopId) {
+      const shop = await Shop.findOne({ "credentials.fbPageId": pageId });
+      if (shop) {
+        shopId = shop._id;
+        shopCache.set(pageId, shopId);
+      } else {
+        shopId = process.env.SHOP_ID || 'adult-shop';
+      }
+    }
 
     for (const event of entry.messaging || []) {
       const senderId = event.sender?.id;
