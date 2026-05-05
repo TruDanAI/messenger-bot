@@ -232,13 +232,17 @@ async function postGeminiWithRetry(history, shopConfig) {
   
   const apiKey = shopConfig.credentials?.geminiApiKey || process.env.GEMINI_API_KEY;
   const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const shopPrompt = String(shopConfig.customPrompt || '').trim();
+  const systemInstruction = shopPrompt
+    ? `${SYSTEM_PROMPT}\n\n[YÊU CẦU RIÊNG SHOP]\n${shopPrompt}`
+    : SYSTEM_PROMPT;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
-          system_instruction: { parts: [{ text: shopConfig.customPrompt || SYSTEM_PROMPT }] },
+          system_instruction: { parts: [{ text: systemInstruction }] },
           contents: history,
           generationConfig: { temperature: 0.8, maxOutputTokens: 800 }
         },
@@ -287,8 +291,13 @@ function buildCaptureOnlyReply(userText, senderId) {
   return 'Dạ em chào anh/chị ạ. Anh/chị đang quan tâm dòng nào hoặc tầm ngân sách nào để em gửi menu/mã phù hợp trước, rồi nhân viên sẽ vào hỗ trợ ngay ạ.';
 }
 
-async function callGemini(userId, userMessage, shopConfig) {
-  const history = storage.getHistory(userId);
+function buildConversationKey(shopConfig, userId) {
+  const shopId = String(shopConfig?._id || shopConfig?.id || ACTIVE_SHOP_ID || 'default-shop').trim();
+  return `${shopId}:${userId}`;
+}
+
+async function callGemini(conversationKey, userMessage, shopConfig) {
+  const history = storage.getHistory(conversationKey);
   history.push({ role: 'user', parts: [{ text: userMessage }] });
 
   // Giữ tối đa 20 tin nhắn để tiết kiệm token
@@ -299,7 +308,7 @@ async function callGemini(userId, userMessage, shopConfig) {
   const raw = res.data.candidates?.[0]?.content?.parts?.[0]?.text
     || 'Xin lỗi anh/chị, em chưa hiểu ý. Anh/chị có thể nói rõ hơn không ạ? 😊';
   const botReply = sanitizeGeminiReply(raw) || raw;
-  storage.setHistory(userId, history);
+  storage.setHistory(conversationKey, history);
 
   return botReply;
 }
@@ -809,6 +818,7 @@ async function handleMessage(shopConfig, messageData) {
   if (event.message?.text) userText = event.message.text;
   else if (event.postback?.payload) userText = event.postback.payload;
   if (!userText) return;
+  const conversationKey = buildConversationKey(shopConfig, senderId);
 
   console.log(`📩 [${senderId}]: ${userText}`);
 
@@ -887,7 +897,7 @@ async function handleMessage(shopConfig, messageData) {
       ...currentLead,
       phone: currentLead.phone || leadDetails.phone,
       text: userText,
-      history: storage.getHistory(senderId).slice(-10),
+      history: storage.getHistory(conversationKey).slice(-10),
       at: new Date().toISOString()
     });
   } else if ((leadDetails.name || leadDetails.address) && currentLead.phone && currentLead.name && currentLead.address) {
@@ -896,7 +906,7 @@ async function handleMessage(shopConfig, messageData) {
       senderId,
       ...currentLead,
       text: userText,
-      history: storage.getHistory(senderId).slice(-10),
+      history: storage.getHistory(conversationKey).slice(-10),
       at: new Date().toISOString()
     });
   }
@@ -950,7 +960,7 @@ async function handleMessage(shopConfig, messageData) {
       reply = buildFallbackReply(userText, senderId);
       console.log('🧩 enableAI=false (theo Gói cước), dùng fallback rule-based');
     } else {
-      reply = await callGemini(senderId, userText, shopConfig);
+      reply = await callGemini(conversationKey, userText, shopConfig);
     }
     if (isProbablyIncompleteReply(reply, userText)) {
       console.warn(`⚠️  Gemini trả lời có vẻ bị cụt, dùng fallback. Reply gốc: ${reply.replace(/\n/g, ' ')}`);
