@@ -333,11 +333,9 @@
         .shop-card .card-actions {
             display: flex; gap: 8px;
             margin-top: 16px;
-            opacity: 0;
-            transform: translateY(4px);
+            opacity: 1;
             transition: all 0.2s;
         }
-        .shop-card:hover .card-actions { opacity: 1; transform: translateY(0); }
 
         .shop-avatar {
             width: 44px; height: 44px; border-radius: 11px;
@@ -831,7 +829,7 @@
                     <button class="btn btn-ghost btn-sm" onclick="fetchLeads()" title="Làm mới">
                         <i class="fas fa-rotate-right"></i>
                     </button>
-                    <a href="/admin/customers.csv" target="_blank" class="btn btn-ghost btn-sm" style="margin-left:8px">
+                    <a id="exportCsvBtn" href="#" onclick="exportLeadsCsv(); return false;" class="btn btn-ghost btn-sm" style="margin-left:8px">
                         <i class="fas fa-download"></i> Xuất CSV
                     </a>
                 </div>
@@ -1604,6 +1602,11 @@
     function copyWebhook() {
         navigator.clipboard.writeText(window.location.origin + '/webhook');
         showToast('Đã sao chép Webhook URL', 'success');
+    }
+
+    function exportLeadsCsv() {
+        if (!API_TOKEN) { showToast('Cần token để xuất CSV', 'error'); return; }
+        window.open(`/admin/customers.csv?token=${API_TOKEN}`, '_blank');
     }
 
     // ─── MODAL ───────────────────────────────────────────────
