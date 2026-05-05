@@ -231,7 +231,7 @@ async function postGeminiWithRetry(history, shopConfig) {
   let lastErr;
   
   const apiKey = shopConfig.credentials?.geminiApiKey || process.env.GEMINI_API_KEY;
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = process.env.GEMINI_MODEL || 'gemini-1.5-pro';
   const shopPrompt = String(shopConfig.customPrompt || '').trim();
   const systemInstruction = shopPrompt
     ? `${SYSTEM_PROMPT}\n\n[YÊU CẦU RIÊNG SHOP]\n${shopPrompt}`
