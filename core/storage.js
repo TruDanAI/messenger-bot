@@ -129,6 +129,16 @@ module.exports = {
     scheduleSave();
   },
 
+  appendHistory(userId, entry) {
+    if (!state.history[userId]) state.history[userId] = [];
+    state.history[userId].push(entry);
+    // Giới hạn 15 tin nhắn gần nhất để tối ưu token
+    if (state.history[userId].length > 15) {
+      state.history[userId] = state.history[userId].slice(-15);
+    }
+    scheduleSave();
+  },
+
   setHandoff(userId, until) {
     state.handoff[userId] = until;
     scheduleSave();

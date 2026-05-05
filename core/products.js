@@ -29,7 +29,7 @@ function loadProducts(csvPath) {
     weight: cleanCell(row.weight),
     gift: cleanCell(row.gift),
     preorder: String(row.preorder || '').trim().toLowerCase() === 'true',
-    imageFile: cleanCell(row.imageFile)
+    image: cleanCell(row.image || row.imageFile)
   })).filter(product => product.code && product.price);
 
   if (!products.length) {
