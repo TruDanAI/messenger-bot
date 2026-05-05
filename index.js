@@ -58,7 +58,9 @@ function inferBaseUrlFromRequest(req) {
   return `${req.protocol || 'https'}://${host}`;
 }
 
-const SHOPS_DIR = process.env.SHOPS_DIR || (fs.existsSync('/data') ? '/data' : path.join(__dirname, 'shops'));
+// Fix SHOPS_DIR to absolute path on Railway Volume /data
+const SHOPS_DIR = process.env.SHOPS_DIR || (fs.existsSync('/data') ? '/data/shops' : path.join(__dirname, 'shops'));
+app.use('/static', express.static('/data'));
 
 // ========== HEALTH CHECK ==========
 app.get('/', (_req, res) => res.send('🤖 ZenBot đang chạy!'));
@@ -264,12 +266,13 @@ const multer = require('multer');
 const storageMulter = multer.diskStorage({
   destination: (req, file, cb) => {
     const shopId = req.params.shopId || 'default';
-    const dir = path.join(SHOPS_DIR, shopId, 'images');
+    // BẮT BUỘC lưu vào Volume /data của Railway để không mất ảnh khi deploy
+    const dir = path.join('/data', 'shops', shopId, 'images');
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    // Giữ nguyên tên gốc hoặc slugify nếu cần, ở đây giữ nguyên để dễ map với CSV
+    // Giữ nguyên logic đặt tên file để đảm bảo tính duy nhất
     const safeName = file.originalname.replace(/\s+/g, '-').toLowerCase();
     cb(null, Date.now() + '-' + safeName);
   }
@@ -286,12 +289,22 @@ const upload = multer({
   }
 });
 
-app.post('/api/admin/upload/:shopId', adminAuth, upload.single('file'), (req, res) => {
+app.post('/api/admin/upload/:shopId', adminAuth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Vui lòng chọn file' });
+    
+    const shopId = req.params.shopId;
+    // URL truy cập qua web (phục vụ dashboard hiển thị)
+    const webUrl = `/static/shops/${shopId}/images/${req.file.filename}`;
+
+    // Nếu là upload ảnh đại diện/logo cho Shop thì cập nhật vào MongoDB
+    if (req.query.type === 'shop') {
+      await Shop.findByIdAndUpdate(shopId, { image_url: webUrl });
+    }
+
     res.json({ 
       filename: req.file.filename,
-      url: `/media/${req.params.shopId}/${req.file.filename}`
+      url: webUrl 
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -10,8 +10,8 @@ const { loadProducts } = require('./products');
 const { createRuleEngine } = require('./rules');
 
 const ROOT_DIR = path.join(__dirname, '..');
-// Tự động nhận diện thư mục lưu trữ: Ưu tiên env SHOPS_DIR -> /data (Volume) -> ./shops (Local)
-const SHOPS_DIR = process.env.SHOPS_DIR || (fs.existsSync('/data') ? '/data' : path.join(ROOT_DIR, 'shops'));
+// Tự động nhận diện thư mục lưu trữ: Ưu tiên env SHOPS_DIR -> /data/shops (Volume) -> ./shops (Local)
+const SHOPS_DIR = process.env.SHOPS_DIR || (fs.existsSync('/data') ? '/data/shops' : path.join(ROOT_DIR, 'shops'));
 
 // ========== MULTI-TENANT RUNTIME MANAGER ==========
 

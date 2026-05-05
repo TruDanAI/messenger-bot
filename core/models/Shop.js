@@ -35,6 +35,7 @@ const shopSchema = new mongoose.Schema({
     customPrompt: { type: String, default: "" },
     
     // Trạng thái shop
+    image_url: { type: String, default: "" },
     isActive: { type: Boolean, default: true }
 }, {
     timestamps: true // Tự động có createdAt, updatedAt
