@@ -197,6 +197,11 @@ async function handleMessage(shopConfig, messageData) {
   }
 
   for (const file of [...new Set(imageFiles)]) {
+    // Bỏ qua nếu là tên file mặc định nhưng chưa có file thực tế (tránh lỗi Facebook 404)
+    if ((file === 'menu1.png' || file === 'menu2.png') && !config.menu_images?.length) {
+      console.log(`⚠️ Bỏ qua gửi ảnh mặc định ${file} do chưa được cấu hình.`);
+      continue;
+    }
     const url = getPublicImageUrl(shopId, file, baseUrlOverride);
     if (url) await sendImage(senderId, url, shopConfig);
   }

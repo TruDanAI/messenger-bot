@@ -864,15 +864,26 @@
                     <div class="section-title">Danh mục Sản phẩm</div>
                     <div class="section-sub">Quản lý mã hàng, tên, giá cho: <span id="productShopName" style="color:var(--accent2);font-weight:700"></span></div>
                 </div>
-                <div style="display:flex;gap:8px">
-                    <button class="btn btn-ghost btn-sm" onclick="fetchProducts()" title="Làm mới">
-                        <i class="fas fa-rotate-right"></i>
-                    </button>
-                    <button class="btn btn-primary btn-sm" onclick="addProductRow()">
-                        <i class="fas fa-plus"></i> Thêm Dòng Mới
-                    </button>
-                    <button class="btn btn-primary btn-sm" onclick="saveProducts()" style="background:var(--green);box-shadow:0 2px 12px rgba(16,185,129,0.3)">
-                        <i class="fas fa-floppy-disk"></i> Lưu Thay Đổi
+                </div>
+            </div>
+
+            <!-- QUICK MENU CONFIG -->
+            <div class="table-container" style="padding:20px; background:rgba(99,102,241,0.05); border-color:var(--accent); margin-bottom:20px">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px">
+                    <div style="font-weight:700; font-size:14px; color:var(--accent2)">
+                        <i class="fas fa-images"></i> Cấu hình Menu & Bảng giá Shop
+                    </div>
+                    <div id="menuStatusBadge">
+                        <!-- Badge status will go here -->
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px">
+                    <div style="flex:1">
+                        <input class="form-input" id="quickMenuImages" placeholder="URL ảnh menu (cách nhau bởi dấu phẩy)...">
+                        <div class="form-hint">Dùng để gửi cho khách khi nhắn "menu". Hệ thống sẽ tự lưu khi bạn nhấn "Lưu Thay Đổi" bên dưới.</div>
+                    </div>
+                    <button class="btn btn-ghost" onclick="triggerQuickMenuUpload()" style="height:42px">
+                        <i class="fas fa-upload"></i> Tải ảnh lên
                     </button>
                 </div>
             </div>
@@ -1408,13 +1419,32 @@
         tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;opacity:0.5"><i class="fas fa-spinner fa-spin"></i> Đang tải danh mục...</td></tr>`;
         
         try {
+            // 1. Tải cấu hình Shop để lấy Menu
+            const shopRes = await fetch(`/api/admin/shops?token=${API_TOKEN}`);
+            if (shopRes.ok) {
+                const shops = await shopRes.json();
+                const shop = shops.find(s => s._id === editingProductShopId);
+                if (shop) {
+                    const menuInput = document.getElementById('quickMenuImages');
+                    menuInput.value = (shop.menu_images || []).join(', ');
+                    
+                    const badge = document.getElementById('menuStatusBadge');
+                    if (!shop.menu_images || shop.menu_images.length === 0) {
+                        badge.innerHTML = '<span class="badge badge-inactive" style="background:rgba(239,68,68,0.2);color:#f87171"><i class="fas fa-triangle-exclamation"></i> Chưa có Menu (Bot sẽ không gửi được ảnh)</span>';
+                    } else {
+                        badge.innerHTML = `<span class="badge badge-active"><i class="fas fa-check"></i> Đã có ${shop.menu_images.length} ảnh Menu</span>`;
+                    }
+                }
+            }
+
+            // 2. Tải sản phẩm (CSV)
             const res = await fetch(`/api/admin/products/${editingProductShopId}?token=${API_TOKEN}`);
             if (res.ok) {
                 currentProducts = await res.json();
                 renderProducts();
             }
         } catch (err) {
-            showToast('Lỗi tải sản phẩm', 'error');
+            showToast('Lỗi tải dữ liệu', 'error');
         }
     }
 
@@ -1532,28 +1562,64 @@
             const inputs = tr.querySelectorAll('input, select');
             const p = {};
             inputs.forEach(i => p[i.name] = i.value.trim());
-            // Chỉ lưu những dòng có mã sản phẩm
             if (p.code) {
-                // Ensure weight logic if present in schema, but we hide it for simplicity. We can leave it blank.
                 p.weight = '';
                 newData.push(p);
             }
         });
 
+        const menuImages = document.getElementById('quickMenuImages').value.split(',').map(s => s.trim()).filter(Boolean);
+
         try {
+            // 1. Lưu Sản phẩm (CSV)
             const res = await fetch(`/api/admin/products/${editingProductShopId}?token=${API_TOKEN}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(newData)
             });
-            if (res.ok) {
-                showToast('Lưu danh mục thành công', 'success');
+
+            // 2. Lưu Menu (MongoDB)
+            const shopRes = await fetch(`/api/admin/shops/${editingProductShopId}?token=${API_TOKEN}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ menu_images: menuImages })
+            });
+
+            if (res.ok && shopRes.ok) {
+                showToast('Đã lưu danh mục và Menu thành công', 'success');
+                fetchProducts(); // Reload để cập nhật badge
             } else {
-                showToast('Không thể lưu', 'error');
+                showToast('Lỗi khi lưu dữ liệu', 'error');
             }
         } catch(e) {
             showToast('Lỗi mạng', 'error');
         }
+    }
+
+    function triggerQuickMenuUpload() {
+        isMenuUpload = true;
+        // Giả lập click vào input file ẩn, nhưng trỏ kết quả vào ô Quick Menu
+        const hiddenInput = document.getElementById('hiddenFileInput');
+        hiddenInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const res = await fetch(`/api/admin/upload/${editingProductShopId}?token=${API_TOKEN}&type=shop`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    const input = document.getElementById('quickMenuImages');
+                    input.value = input.value ? `${input.value}, ${data.url}` : data.url;
+                    showToast('Đã tải ảnh menu lên', 'success');
+                }
+            } catch (err) { showToast('Lỗi upload', 'error'); }
+            e.target.value = '';
+        };
+        hiddenInput.click();
     }
 
     // ─── ANALYTICS (CHART) ───────────────────────────────────

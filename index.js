@@ -62,6 +62,11 @@ function inferBaseUrlFromRequest(req) {
 const SHOPS_DIR = process.env.SHOPS_DIR || (fs.existsSync('/data') ? '/data/shops' : path.join(__dirname, 'shops'));
 app.use('/static', express.static('/data'));
 
+// Đảm bảo thư mục assets luôn tồn tại để tránh lỗi serve
+const ASSETS_DIR = path.join(__dirname, 'assets');
+if (!fs.existsSync(ASSETS_DIR)) fs.mkdirSync(ASSETS_DIR, { recursive: true });
+app.use('/assets', express.static(ASSETS_DIR));
+
 // ========== HEALTH CHECK ==========
 app.get('/', (_req, res) => res.send('🤖 ZenBot đang chạy!'));
 app.get('/healthz', (_req, res) => res.json({ ok: true, uptime: Math.round(process.uptime()) }));
