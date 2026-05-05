@@ -192,6 +192,8 @@ async function handleMessage(shopConfig, messageData) {
   // 2. Xử lý logic hội thoại & Lead
   const leadDetails = buildLeadDetails(userText, senderId, rules);
   if (leadDetails.phone || (leadDetails.name && leadDetails.address)) {
+    // 🆕 Quan trọng: Cập nhật vào Draft State để bot "nhớ" thông tin cho session
+    storage.mergeOrderDraft(senderId, leadDetails);
     storage.appendCustomer({ type: 'lead', senderId, ...leadDetails, at: new Date().toISOString() });
   }
 

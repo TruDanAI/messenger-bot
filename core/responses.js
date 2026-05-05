@@ -1,6 +1,8 @@
-// Tách hoàn toàn "Văn bản" khỏi "Logic" — toàn bộ chuỗi trả lời được tập trung tại đây.
-// Cú pháp template: dùng {{biến}} hoặc {{a.b.c}} cho object lồng nhau.
-// Shop cụ thể có thể override template qua config.templates trong shops/<id>/config.js.
+// responses.js — Tách hoàn toàn "Văn bản" khỏi "Logic".
+// Toàn bộ chuỗi trả lời tập trung tại đây.
+// Cú pháp template: {{biến}} hoặc {{a.b.c}} cho object lồng nhau.
+// Helper pipe: {{biến | upper}}, {{biến | vnd}}, v.v.
+// Shop override template qua config.templates trong shops/<id>/config.js.
 
 const TEMPLATES = {
   // ===== Chào / xác nhận / từ chối =====
@@ -16,6 +18,7 @@ const TEMPLATES = {
   apologyRepeatedReady: 'Dạ em xin lỗi vì đã hỏi lặp ạ. Em đã có đủ thông tin chốt {{productText}}: {{name}}, {{phone}}, {{address}}. Shop sẽ kiểm tra và xác nhận lại đơn với anh/chị trước khi gửi hàng nhé.',
   apologyRepeatedMissing: 'Dạ em xin lỗi vì đã hỏi lặp ạ. Em đang thiếu {{missing}} để shop xác nhận đơn giúp mình.',
   phoneWithLeadMissing: 'Dạ em đã nhận thông tin giao hàng rồi ạ. Anh/chị gửi thêm {{missing}} để shop xác nhận đơn nhé.',
+  // FIX: tách otherFields ra khỏi logic strip cứng — template nhận sẵn string đã xử lý.
   phoneOnlyMissing: 'Dạ em đã nhận SĐT của anh/chị rồi ạ. Anh/chị gửi thêm {{otherFields}} giúp em để {{shopName}} xác nhận đơn nhé.',
   infoMissingWithProduct: 'Dạ em nhận thông tin rồi ạ. Để chốt {{productCode}}, anh/chị gửi thêm {{missing}} để shop xác nhận đơn và giao hàng nhé.',
   infoMissingNoProduct: 'Dạ em nhận thông tin rồi ạ. Anh/chị chọn giúp em mã sản phẩm muốn lấy, hoặc nhắn "menu" để em gửi danh sách sản phẩm nhé.',
@@ -60,37 +63,39 @@ const TEMPLATES = {
   returnPolicy: 'Dạ shop cần nhân viên xác nhận kỳ tình trạng đơn trước khi đổi trả hoặc xử lý lỗi. Anh/chị giữ nguyên hình ảnh/video nhận hàng nếu có vấn đề để shop hỗ trợ nhanh ạ.',
 
   // ===== Tư vấn theo ngân sách / tính năng =====
-  budgetTightCustom: 'Dạ với mức ngân sách khoảng 200k, em gợi ý anh/chị xem các mẫu trong danh sách phù hợp phía trên ạ. Anh/chị ưu tiên nhỏ gọn hay size lớn hơn để em lọc tiếp nhé?',
+  // FIX: budgetTightCustom không còn hardcode "200k" — dùng {{maxBudget}} được inject từ engine.
+  budgetTightCustom: 'Dạ với mức ngân sách khoảng {{maxBudget}}k, em gợi ý anh/chị xem các mẫu trong danh sách phù hợp phía trên ạ. Anh/chị ưu tiên nhỏ gọn hay size lớn hơn để em lọc tiếp nhé?',
   budgetOptions: 'Dạ với khoảng {{budget}}k, bên em đang có sẵn các mẫu rất ưng này ạ:\n{{lines}}\nAnh/chị thích dáng nhỏ gọn hay kích thước to hơn một chút để em tư vấn kỹ hơn nhé?',
   budgetNoOptions: 'Dạ với khoảng {{budget}}k thì hiện tại bên em chưa có mẫu nào thật sự phù hợp ạ. Mình có thể nới ngân sách thêm chút xíu, hoặc nhắn chữ "menu" để xem các mẫu đang có sẵn bên shop nhé.',
   vibrationOptions: 'Dạ các mẫu có tính năng tương tự gồm {{options}}. Anh/chị muốn xem ảnh mẫu nào ạ?',
   largeOptions: 'Dạ nếu anh/chị thích mẫu kích thước lớn hơn thì có {{options}}. Anh/chị muốn tầm giá nào để em tư vấn sát hơn ạ?',
   featureAdviceDefault: 'Dạ anh/chị cứ cho em biết tầm ngân sách hoặc sở thích (thích loại nhỏ nhắn hay to hơn một chút), em sẽ lựa 1-2 mẫu ưng ý nhất đang sẵn hàng gửi mình xem ngay nhé.',
 
-  /** Khi rule không khớp (BASIC / fallback) — giữ khách trong khung menu, gợi mở tự nhiên. */
+  // ===== Fallback / scope guide =====
+  /** Khi rule không khớp — giữ khách trong khung menu, gợi mở tự nhiên. */
   catalogScopeGuide: 'Dạ {{shopName}} nghe ạ! Anh/chị đang quan tâm mẫu nào hoặc cần em tư vấn theo tầm giá bao nhiêu cứ nhắn nhé. Nếu muốn xem nhanh danh sách các mẫu đang sẵn hàng, anh/chị gõ "menu" để em gửi trọn bộ cho mình chọn ạ.',
 
   // ===== Handoff =====
+  // NOTE: captureOnlyAskPhone tồn tại để các shop có workflow "capture lead trước"
+  // dùng qua config.intents.prepend. Không có built-in intent router dùng nó.
   captureOnlyAskPhone: 'Dạ em đã nhận tin của anh/chị ạ. Nhân viên sẽ vào hỗ trợ ngay; nếu tiện anh/chị để lại SĐT giúp em để shop liên hệ nhanh hơn nhé.',
   humanHandoff: 'Dạ em chuyển anh/chị qua nhân viên tư vấn hỗ trợ kỹ hơn nhé. Anh/chị chờ một chút ạ 🙏',
   systemBusy: 'Xin lỗi anh/chị, hệ thống đang bận. Vui lòng thử lại sau nhé! 🙏'
 };
 
+// ===== Helpers =====
 const HELPERS = {
-  upper: value => String(value || '').toUpperCase(),
-  lower: value => String(value || '').toLowerCase(),
-  capitalize: value => {
-    const s = String(value || '');
-    return s ? s[0].toUpperCase() + s.slice(1) : '';
-  },
-  default: (value, fallback) => (value == null || value === '' ? (fallback || '') : value),
-  join: (value, sep = ', ') => Array.isArray(value) ? value.join(sep) : String(value || ''),
+  upper:      value => String(value || '').toUpperCase(),
+  lower:      value => String(value || '').toLowerCase(),
+  capitalize: value => { const s = String(value || ''); return s ? s[0].toUpperCase() + s.slice(1) : ''; },
+  default:    (value, fallback) => (value == null || value === '' ? (fallback || '') : value),
+  join:       (value, sep = ', ') => Array.isArray(value) ? value.join(sep) : String(value || ''),
   vnd: value => {
     const s = String(value || '').trim();
     const m = s.match(/^(\d+)(?:\.(\d{3}))?k$/i);
     if (m) {
-      const ng = m[2] ? Number(m[1]) * 1000 + Number(m[2]) : Number(m[1]);
-      return `${ng.toLocaleString('vi-VN')}.000đ`;
+      const n = m[2] ? Number(m[1]) * 1000 + Number(m[2]) : Number(m[1]);
+      return `${n.toLocaleString('vi-VN')}.000đ`;
     }
     const num = Number(s.replace(/[^\d]/g, ''));
     if (Number.isFinite(num) && num > 0) return `${num.toLocaleString('vi-VN')}đ`;
@@ -113,10 +118,8 @@ function renderTemplate(template, data = {}) {
   if (template == null) return '';
   return String(template).replace(/\{\{\s*([\w.]+)((?:\s*\|\s*[^|}]+)*)\s*\}\}/g, (_, key, helperChain) => {
     let value = key.split('.').reduce((acc, part) => (acc == null ? acc : acc[part]), data);
-
     if (helperChain) {
-      const parts = helperChain.split('|').map(s => s.trim()).filter(Boolean);
-      for (const helperExpr of parts) {
+      for (const helperExpr of helperChain.split('|').map(s => s.trim()).filter(Boolean)) {
         value = applyHelper(value, helperExpr);
       }
     }
@@ -133,9 +136,4 @@ function render(name, data = {}, templates = TEMPLATES) {
   return renderTemplate(tpl, data);
 }
 
-module.exports = {
-  TEMPLATES,
-  HELPERS,
-  renderTemplate,
-  render
-};
+module.exports = { TEMPLATES, HELPERS, renderTemplate, render };

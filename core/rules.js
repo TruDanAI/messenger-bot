@@ -1,4 +1,4 @@
-// Engine trả lời rule-based.
+// rules.js — Engine trả lời rule-based cho ZenBot SaaS.
 //
 // Kiến trúc:
 //   1. Văn bản trả lời tách hoàn toàn sang `responses.js` (template hóa).
@@ -7,13 +7,21 @@
 //      (Chain of Responsibility / Middleware).
 //   4. State machine: IDLE -> PRODUCT_SELECTED -> COLLECTING_INFO ->
 //      READY_TO_CONFIRM -> CONFIRMED.
-//   5. Config-driven:
-//      - `config.intents.disabled = ['AGE_POLICY', ...]` để tắt rule không cần.
+//   5. Config-driven (SaaS multi-tenant):
+//      - `config.intents.disabled = ['AGE_POLICY', ...]` tắt rule không cần.
 //      - `config.intents.prepend = [...]` chèn rule custom lên trên built-in.
 //      - `config.intents.append  = [...]` chèn rule custom xuống cuối.
 //      - `config.templates`        override từng template cụ thể.
-//      Nhờ vậy 1 shop mới chỉ cần thư mục trong `shops/<id>/` (config + products + custom-intents),
+//      - `config.formatProductLine`  override formatter dòng sản phẩm.
+//      - `config.formatComparisonLine` override formatter dòng so sánh.
+//      - `config.wantsLarge`       plugin detector thay thế built-in.
+//      - `config.wantsVibration`   plugin detector (đối xứng với wantsLarge).
+//      - `config.recommendations`  override danh sách gợi ý theo group.
+//      - `config.budgetTightThreshold` ngưỡng "ngân sách thấp" (mặc định: giá thấp nhất trong catalogue).
+//      Nhờ vậy 1 shop mới chỉ cần thư mục `shops/<id>/` (config + products + custom-intents),
 //      KHÔNG cần đụng vào core/.
+
+'use strict';
 
 const defaultConfig = {
   shopName: 'shop',
@@ -28,7 +36,13 @@ const defaultConfig = {
   keywordProducts: {},
   intents: {},
   templates: {},
-  recommendations: {}
+  recommendations: {},
+  // Plugin points — override tại shops/<id>/config.js nếu cần.
+  wantsLarge: null,       // function(normalizedText, rawText) => boolean
+  wantsVibration: null,   // function(normalizedText, rawText) => boolean
+  formatProductLine: null,    // function(product, config) => string
+  formatComparisonLine: null, // function(product, config) => string
+  budgetTightThreshold: null  // number (đơn vị: k). null = tự tính từ giá thấp nhất.
 };
 
 const { TEMPLATES: DEFAULT_TEMPLATES, renderTemplate } = require('./responses');
@@ -52,25 +66,21 @@ const STATES = {
   CONFIRMED: 'CONFIRMED'
 };
 
-// LRU cap cho in-memory cache `lastProductByUser` để tránh memory leak khi server chạy lâu.
+// LRU cap để tránh memory leak khi server chạy lâu.
 const LAST_PRODUCT_LRU_LIMIT = 5000;
 
-// ===== Helpers thuần (không phụ thuộc engine) =====
+// ===== Pure helpers (không phụ thuộc engine instance) =====
 function explainPrice(price) {
   const text = String(price || '').trim();
-  const millionMatch = text.match(/^(\d+)\.(\d{3})k$/);
-  if (millionMatch) {
-    const millions = Number(millionMatch[1]);
-    const thousands = Number(millionMatch[2]);
-    return `${text} là ${millions} triệu ${thousands} nghìn`;
-  }
+  const m = text.match(/^(\d+)\.(\d{3})k$/);
+  if (m) return `${text} là ${Number(m[1])} triệu ${Number(m[2])} nghìn`;
   return text;
 }
 
 function missingOrderFields(order) {
   const missing = [];
-  if (!order?.name) missing.push('tên người nhận');
-  if (!order?.phone) missing.push('SĐT');
+  if (!order?.name)    missing.push('tên người nhận');
+  if (!order?.phone)   missing.push('SĐT');
   if (!order?.address) missing.push('địa chỉ giao hàng');
   return missing;
 }
@@ -79,7 +89,7 @@ function compactProductName(product) {
   return product ? `${product.code} giá ${explainPrice(product.price)}` : 'mẫu anh/chị chọn';
 }
 
-// ===== Detector functions (đều preprocess hoá ở bên trong) =====
+// ===== Detector functions =====
 function asksWhyRepeatedInfo(text) {
   const t = preprocess(text);
   return /(gui|dua|nhan).*(ten|sdt|so\s*dien\s*thoai|dia\s*chi).*(roi|r|ma)/.test(t)
@@ -95,9 +105,7 @@ function rejectsOrderIntent(text) {
 
 function wantsAddressChange(text) {
   const t = preprocess(text);
-  // 1) "đổi địa chỉ", "sửa địa chỉ", "cập nhật nơi nhận"
   if (/(doi|sua|cap\s*nhat|chuyen).*(dia\s*chi|noi\s*nhan|cho\s*nhan)/.test(t)) return true;
-  // 2) "đổi/sửa giúp em sang phường/quận/..." - không yêu cầu "sang" liền sau "doi".
   if (/(doi|sua|cap\s*nhat|chuyen)\b.*\bsang\b.*(xa|phuong|huyen|quan|tinh|tp|thanh\s*pho|ha\s*noi|sai\s*gon|ho\s*chi\s*minh|bac\s*ninh|hai\s*phong|da\s*nang)/.test(t)) return true;
   return false;
 }
@@ -109,7 +117,6 @@ function isNonCommittalReaction(text) {
     || /^[\s:;)(.\-!?👍👌😊😅😂🤣]+$/u.test(raw);
 }
 
-// FIX: trước đây regex match cả "nhan vien" trong text gốc (có dấu) — không chuẩn nếu user gõ không dấu.
 function wantsHuman(text) {
   const t = preprocess(text);
   return /\b(?:nhan\s*vien|admin|nguoi\s*that|tu\s*van\s*vien|gap\s*ng\s*that|ctv|cong\s*tac\s*vien)\b/.test(t);
@@ -117,7 +124,7 @@ function wantsHuman(text) {
 
 function wantsMenuImages(text) {
   const t = preprocess(text);
-  return /(xem|gui|cho|coi|tham\s*khao).*(menu|bang gia|danh muc|danh sach|catalog|san pham|cac san pham|hang)/.test(t)
+  return /(xem|gui|cho|coi|tham\s*khao).*(menu|bang\s*gia|danh\s*muc|danh\s*sach|catalog|san\s*pham|cac\s*san\s*pham|hang)/.test(t)
     || /\bmenu\b/.test(t)
     || /\bcatalog\b/.test(t)
     || /\bdanh\s*sach\s*san\s*pham\b/.test(t)
@@ -133,10 +140,9 @@ function escapeRegExp(s) {
   return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Nhận diện keyword ảnh/menu: ưu tiên config.keywordTriggers[keyword], mặc định /\bkeyword\b/. */
 function wantsKeywordImage(text, keyword, config = {}) {
   const t = preprocess(text);
-  const triggers = config.keywordTriggers && config.keywordTriggers[keyword];
+  const triggers = config.keywordTriggers?.[keyword];
   if (typeof triggers === 'function') return triggers(t, text);
   if (triggers instanceof RegExp) return triggers.test(t);
   const kw = String(keyword || '').trim();
@@ -151,7 +157,6 @@ function isOrderIntent(text) {
   return /\b(?:chot|lay|dat|mua|giu|len\s*don)\b/.test(t);
 }
 
-/** Hỏi có mã nào dưới/trên mức giá — không phải hỏi giá 1 mã đang chọn (tránh ăn lastProduct). */
 function isBudgetPresenceQuestion(text) {
   const t = preprocess(text);
   if (/\b(?:khong|chua)\s+(?:co|con)\b.*\bma\b.*\bduoi\b/.test(t)) return true;
@@ -164,19 +169,14 @@ function isBudgetPresenceQuestion(text) {
 
 function isPriceClarification(text) {
   const t = preprocess(text);
-  const hasExplicitPriceQuestion = /(?:bao\s*nhieu|may\s*tien|gia\s*(?:nhieu|sao|the\s*nao|bao\s*nhieu)|bao\s*gia)/.test(t);
-  if (hasExplicitPriceQuestion) return true;
-
+  if (/(?:bao\s*nhieu|may\s*tien|gia\s*(?:nhieu|sao|the\s*nao|bao\s*nhieu)|bao\s*gia)/.test(t)) return true;
   const hasPriceKeyword = /\bgia\b/.test(t);
-  const hasPriceAmount = /(?:\d+\s*(?:trieu|tr|k)\b|\d+\.\d+k\b)/.test(t);
-  const hasLooseMarker = isQuestion(text)
+  const hasPriceAmount  = /(?:\d+\s*(?:trieu|tr|k)\b|\d+\.\d+k\b)/.test(t);
+  const hasLooseMarker  = isQuestion(text)
     || /\b(?:hay|la|phai|dung|ha|vay|nhi)\b/.test(t)
     || (hasPriceAmount && /\d+\s*(?:k|nghin|ngan|c)\s+a\s*$/i.test(t));
-  // Tránh: "không có mã nào dưới 100k" → token `khong` chỉ là phủ định, không phải hỏi xác nhận giá.
-  const hasStrongMarker = /\b(?:khong|ko)\b/.test(t)
-    && !/(?:khong|chua)\s+(?:co|con)\b/.test(t);
+  const hasStrongMarker = /\b(?:khong|ko)\b/.test(t) && !/(?:khong|chua)\s+(?:co|con)\b/.test(t);
   const hasClarificationMarker = hasLooseMarker || hasStrongMarker;
-
   if (hasPriceKeyword && !hasPriceAmount) return true;
   if ((hasPriceKeyword || hasPriceAmount) && hasClarificationMarker) {
     if (isBudgetPresenceQuestion(text)) return false;
@@ -255,23 +255,17 @@ function wantsCleaningInfo(text) {
   return /(?:ve\s*sinh|rua|lam\s*sach|giat|khu\s*mui|bao\s*quan|co\s*rua\s*duoc)/.test(t);
 }
 
-// FIX: phân biệt "user hỏi về order info" vs "user cung cấp order info".
-// Trước đây cả 2 đều match -> ưu tiên handler theo thứ tự, dễ nhầm.
 function asksForOrderInfo(text) {
   const t = preprocess(text);
-  if (!/(?:dia\s*chi|sdt|so\s*dien\s*thoai|ten\s*nguoi\s*nhan|thong\s*tin\s*giao\s*hang|hoi\s*dia\s*chi)/.test(t)) {
-    return false;
-  }
-  // Nếu đây là câu hỏi (có ?, "ở đâu", "thế nào" ...) thì là user hỏi.
-  // Còn nếu user đang cung cấp địa chỉ thì providesAddress sẽ chiếm trước trong intent loop.
+  if (!/(?:dia\s*chi|sdt|so\s*dien\s*thoai|ten\s*nguoi\s*nhan|thong\s*tin\s*giao\s*hang|hoi\s*dia\s*chi)/.test(t)) return false;
   return isQuestion(text);
 }
 
+// FIX: wantsFeatureAdvice không còn dùng `\bto\b` standalone — quá rộng, bắt nhầm
+// địa chỉ/tên người. Từ "to" lớn/nhỏ nên để wantsLarge/plugin xử lý.
 function wantsFeatureAdvice(text) {
   const t = preprocess(text);
-  // Tránh substring "to" trong "toi" (tôi) → FEATURE_OR_LARGE ăn trước ORDER_INTENT.
-  // Từ khóa đặc thù từng ngành (vd rung/gel) nên đặt ở shops/<id>/custom-intents.js.
-  return /(?:\bto\b|nho\s*gon|silicon)/.test(t);
+  return /(?:nho\s*gon|silicon|tu\s*van\s*them|tu\s*van\s*ky|muon\s*biet\s*them)/.test(t);
 }
 
 function wantsNewProducts(text) {
@@ -288,7 +282,6 @@ function wantsStockInfo(text) {
 
 function wantsBestSeller(text) {
   const t = preprocess(text);
-  // Tránh substring "hot" trong "chot" (chốt) → false positive BEST_SELLER.
   return /(?:ban\s*chay|\bhot\b|nhieu\s*nguoi\s*mua|mau\s*nao\s*duoc|mau\s*nao\s*ok|nen\s*lay\s*mau\s*nao)/.test(t);
 }
 
@@ -302,19 +295,12 @@ function wantsInspection(text) {
   return /(?:kiem\s*hang|xem\s*hang|mo\s*hang|dong\s*kiem|duoc\s*xem|cho\s*xem)/.test(t);
 }
 
-// FIX: trước đây "thoi khong sao dau" sẽ match vì suffix có dấu `?`.
-// Giờ tách 3 case rõ ràng và bắt buộc có verb chốt đơn / object đơn hàng.
 function wantsCancelOrder(text) {
   const t = preprocess(text);
-  // 1) "hủy" + (đơn|hàng)? hoặc đứng riêng đầu câu
   if (/\bhuy\b\s*(?:don|hang|mua|lay|chot|nhe)?/.test(t) && /\b(?:huy|don|hang)\b/.test(t)) return true;
-  // 2) "không/ko/k + (lấy|chốt|mua|đặt|lên đơn)" — bỏ qua "không sao", "không hiểu" v.v.
   if (/(?:khong|ko|k)\s+(?:lay|chot|mua|dat|len\s*don)\b/.test(t)) return true;
-  // 2b) "không/ko muốn + (mua|lấy|chốt|đặt)" — VD: "tôi ko muốn mua nữa"
   if (/(?:khong|ko|k)\s+muon\s+(?:mua|lay|chot|dat)\b/.test(t)) return true;
-  // 3) "thôi không/ko + (lấy|chốt|mua|đặt|lên đơn|đơn|hàng)" — yêu cầu HẬU TỐ rõ ràng.
   if (/thoi\s*(?:khong|ko)\s+(?:lay|chot|mua|dat|len\s*don|don|hang)\b/.test(t)) return true;
-  // 4) "không cần nữa", "không lấy nữa"
   if (/(?:khong|ko|k)\s+(?:can|lay|mua|chot)\s+nua\b/.test(t)) return true;
   return false;
 }
@@ -331,46 +317,47 @@ function wantsOfficePickup(text) {
 
 // ===== Engine factory =====
 function createRuleEngine({ products, config = defaultConfig, contextStore = {} } = {}) {
+  // Merge config với defaults
+  const cfg = { ...defaultConfig, ...config, policies: { ...defaultConfig.policies, ...(config.policies || {}) } };
+
   const productList = products || [];
   const productByCode = new Map(productList.map(p => [String(p.code || '').toUpperCase(), p]));
   const knownCodes = productList.map(p => p.code).filter(Boolean);
 
-  // LRU implementation cho lastProductByUser. Map giữ insertion order; khi vượt limit, evict oldest.
+  // LRU cho lastProductByUser.
   const lastProductByUser = new Map();
   function lruSetLastProduct(userId, product) {
     if (lastProductByUser.has(userId)) lastProductByUser.delete(userId);
     lastProductByUser.set(userId, product);
     if (lastProductByUser.size > LAST_PRODUCT_LRU_LIMIT) {
-      const firstKey = lastProductByUser.keys().next().value;
-      lastProductByUser.delete(firstKey);
+      lastProductByUser.delete(lastProductByUser.keys().next().value);
     }
   }
 
   // Merge templates: defaults + per-shop overrides.
-  const templates = { ...DEFAULT_TEMPLATES, ...(config.templates || {}) };
+  const templates = { ...DEFAULT_TEMPLATES, ...(cfg.templates || {}) };
+
   function render(name, data = {}) {
     const tpl = templates[name];
     if (tpl == null) {
       console.warn(`[rules] Template không tồn tại: ${name}`);
       return '';
     }
-    
-    // Inject dynamic examples from current shop products
+    // Auto-inject examples từ catalogue của shop hiện tại.
     const examples = {
       codeExample1: knownCodes[0] || 'MÃ1',
       codeExample2: knownCodes[1] || knownCodes[0] || 'MÃ2'
     };
-
-    return renderTemplate(tpl, { ...examples, ...data });
+    return renderTemplate(tpl, { shopName: cfg.shopName, ...examples, ...data });
   }
 
-  // ===== Helpers gắn với danh sách sản phẩm / context =====
+  // ===== Product helpers =====
   function extractRequestedProductCodes(text) {
     return extractCodesRaw(text, knownCodes);
   }
 
   function productsByCodes(codes) {
-    return codes.map(code => productByCode.get(String(code).toUpperCase())).filter(Boolean);
+    return codes.map(c => productByCode.get(String(c).toUpperCase())).filter(Boolean);
   }
 
   function getMentionedProducts(userText) {
@@ -378,11 +365,11 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
   }
 
   function getKeywordProduct(userText) {
-    const keywordMap = config.keywordProducts || {};
+    const keywordMap = cfg.keywordProducts || {};
     for (const [keyword, matcher] of Object.entries(keywordMap)) {
-      if (!wantsKeywordImage(userText, keyword, config)) continue;
-      const found = productList.find(product =>
-        matcher.test(String(product.code || product.description || ''))
+      if (!wantsKeywordImage(userText, keyword, cfg)) continue;
+      const found = productList.find(p =>
+        matcher.test(String(p.code || p.description || ''))
       );
       if (found) return found;
     }
@@ -396,41 +383,37 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
   }
 
   function getLastProduct(userId) {
-    const memoryProduct = lastProductByUser.get(userId);
-    if (memoryProduct) {
+    const mem = lastProductByUser.get(userId);
+    if (mem) {
       // Touch LRU.
       lastProductByUser.delete(userId);
-      lastProductByUser.set(userId, memoryProduct);
-      return memoryProduct;
+      lastProductByUser.set(userId, mem);
+      return mem;
     }
-    const code = contextStore.getLastProductCode ? contextStore.getLastProductCode(userId) : '';
+    const code = contextStore.getLastProductCode?.(userId) || '';
     if (!code) return null;
     return productByCode.get(String(code).toUpperCase()) || null;
   }
 
   function getOrderDraft(userId) {
-    return contextStore.getOrderDraft ? contextStore.getOrderDraft(userId) : {};
+    return contextStore.getOrderDraft?.(userId) ?? {};
   }
 
   function getStoredSessionState(userId) {
-    return contextStore.getSessionState ? contextStore.getSessionState(userId) : '';
+    return contextStore.getSessionState?.(userId) ?? '';
   }
 
   function setStoredSessionState(userId, state) {
-    if (contextStore.setSessionState) contextStore.setSessionState(userId, state);
+    contextStore.setSessionState?.(userId, state);
   }
 
   function deriveSessionState(userId, orderDraft) {
-    const explicit = getStoredSessionState(userId);
-    if (explicit === STATES.CONFIRMED) return STATES.CONFIRMED;
-
+    if (getStoredSessionState(userId) === STATES.CONFIRMED) return STATES.CONFIRMED;
     const draft = orderDraft || getOrderDraft(userId);
     const missing = missingOrderFields(draft);
     if (!missing.length) return STATES.READY_TO_CONFIRM;
     if (draft.name || draft.phone || draft.address) return STATES.COLLECTING_INFO;
-    if (draft.productCode || (contextStore.getLastProductCode && contextStore.getLastProductCode(userId))) {
-      return STATES.PRODUCT_SELECTED;
-    }
+    if (draft.productCode || contextStore.getLastProductCode?.(userId)) return STATES.PRODUCT_SELECTED;
     return STATES.IDLE;
   }
 
@@ -439,116 +422,126 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     const state = deriveSessionState(userId, orderDraft);
     if (state !== STATES.READY_TO_CONFIRM && state !== STATES.CONFIRMED) return false;
     if (!isSimpleConfirmation(userText) && !isNonCommittalReaction(userText)) return false;
-
     if (state === STATES.READY_TO_CONFIRM) setStoredSessionState(userId, STATES.CONFIRMED);
     return true;
   }
 
-  // ===== Render helpers (đa số trả thẳng template) =====
+  // ===== Render helpers =====
   function readyOrderReply(order, product) {
     return render('readyOrder', {
       productText: product?.code || order.productCode || 'mẫu anh/chị chọn',
-      name: order.name || '',
-      phone: order.phone || '',
+      name:    order.name    || '',
+      phone:   order.phone   || '',
       address: order.address || ''
     });
   }
 
-  // ===== Helpers liên quan tới products =====
+  // ===== Price / product helpers =====
   function priceToK(priceStr) {
-    const match = String(priceStr || '').match(/^(\d+)(?:\.(\d{3}))?k/i);
-    if (!match) return null;
-    return match[2] ? Number(match[1]) * 1000 + Number(match[2]) : Number(match[1]);
+    const m = String(priceStr || '').match(/^(\d+)(?:\.(\d{3}))?k/i);
+    if (!m) return null;
+    return m[2] ? Number(m[1]) * 1000 + Number(m[2]) : Number(m[1]);
   }
 
   function selectProductsByBudget(budget) {
     if (!budget) return [];
-    return productList.filter(product => {
-      const priceK = priceToK(product.price);
-      return priceK != null && priceK <= budget;
-    });
+    return productList.filter(p => { const k = priceToK(p.price); return k != null && k <= budget; });
   }
 
-  // Recommendations: ưu tiên config.recommendations.<group>; nếu không có,
-  // tự derive từ thuộc tính sản phẩm dựa vào quy ước:
-  //   - budget: 3 mã giá thấp nhất (không preorder)
-  //   - premium: 3 mã giá cao nhất
-  //   - large: tất cả mã có size chứa "lớn" hoặc weight > 2000g
-  //   - vibration: tất cả mã có description chứa "rung" hoặc "pin"
   function recommendationProducts(group) {
-    const explicit = config.recommendations?.[group];
+    const explicit = cfg.recommendations?.[group];
     if (Array.isArray(explicit) && explicit.length) {
-      return explicit
-        .map(code => productByCode.get(String(code).toUpperCase()))
-        .filter(Boolean);
+      return explicit.map(code => productByCode.get(String(code).toUpperCase())).filter(Boolean);
     }
     const sortedAsc = [...productList]
       .filter(p => priceToK(p.price) != null && !p.preorder)
       .sort((a, b) => priceToK(a.price) - priceToK(b.price));
 
-    if (group === 'budget') return sortedAsc.slice(0, 3);
-    if (group === 'premium') {
-      return [...productList]
-        .filter(p => priceToK(p.price) != null)
-        .sort((a, b) => priceToK(b.price) - priceToK(a.price))
-        .slice(0, 3);
-    }
-    if (group === 'large') {
-      return productList.filter(p =>
-        /lon|lớn|to/i.test(p.size || '') || (p.weight && parseInt(p.weight, 10) > 2000)
-      );
-    }
-    if (group === 'vibration') {
-      return productList.filter(p => /rung|pin|sac/i.test(p.description || ''));
-    }
+    if (group === 'budget')   return sortedAsc.slice(0, 3);
+    if (group === 'premium')  return [...productList]
+      .filter(p => priceToK(p.price) != null)
+      .sort((a, b) => priceToK(b.price) - priceToK(a.price))
+      .slice(0, 3);
+    // FIX: 'large' và 'vibration' đã chuyển sang plugin hook — override tại config.recommendations.
+    // Nếu chưa có override thì trả về mảng rỗng (tránh hardcode regex ngành hàng).
     return [];
   }
 
+  // FIX: formatProductLine và formatComparisonLine là plugin point — shop có thể override.
   function formatProductLine(product) {
+    if (typeof cfg.formatProductLine === 'function') return cfg.formatProductLine(product, cfg);
     const details = [
       product.description,
-      product.size ? `size ${product.size}` : '',
-      product.gift ? `tặng ${product.gift}` : '',
-      product.preorder ? `hàng đặt ${config.policies.preorderDays}` : ''
+      product.size        ? `size ${product.size}` : '',
+      product.gift        ? `tặng ${product.gift}`  : '',
+      product.preorder    ? `hàng đặt ${cfg.policies.preorderDays}` : ''
     ].filter(Boolean).join(', ');
     return `${product.code}: ${product.price}${details ? ` - ${details}` : ''}`;
   }
 
   function formatComparisonLine(product) {
+    if (typeof cfg.formatComparisonLine === 'function') return cfg.formatComparisonLine(product, cfg);
     const tags = [
-      product.size ? `size ${product.size}` : '',
-      product.weight ? `nặng ${product.weight}` : '',
+      product.size   ? `size ${product.size}`    : '',
+      product.weight ? `nặng ${product.weight}`  : '',
       product.preorder ? 'hàng đặt' : 'có thể chốt theo danh sách hiện tại'
     ].filter(Boolean).join(', ');
     return `- ${product.code}: ${explainPrice(product.price)}${tags ? `, ${tags}` : ''} - ${product.description}`;
   }
 
+  // FIX: tính budgetTightThreshold tự động từ giá thấp nhất trong catalogue.
+  function getBudgetTightThreshold() {
+    if (cfg.budgetTightThreshold != null) return cfg.budgetTightThreshold;
+    const prices = productList.map(p => priceToK(p.price)).filter(n => n != null);
+    return prices.length ? Math.min(...prices) : 200;
+  }
+
+  // FIX: wantsLarge / wantsVibration đối xứng nhau — đều là plugin point.
+  function resolveWantsLarge(normalizedText, rawText) {
+    if (typeof cfg.wantsLarge === 'function') return cfg.wantsLarge(normalizedText, rawText);
+    return /\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(normalizedText);
+  }
+
+  function resolveWantsVibration(normalizedText, rawText) {
+    if (typeof cfg.wantsVibration === 'function') return cfg.wantsVibration(normalizedText, rawText);
+    return false;
+  }
+
+  // FIX: tách otherFields thành helper riêng — không strip cứng "SĐT + ".
+  function deriveOtherOrderFields(orderInfoFields) {
+    // Loại bỏ "SĐT" và bất kỳ dấu " + " xung quanh nó (thứ tự bất kỳ).
+    return orderInfoFields
+      .split(/\s*\+\s*/)
+      .map(s => s.trim())
+      .filter(s => !/^s[đd]t$/i.test(s))
+      .join(' + ');
+  }
+
   // ===== Build context cho intent router =====
   function buildIntentContext(userText, userId) {
     const t = preprocess(userText);
-    const requestedCodes = extractRequestedProductCodes(userText);
-    const found = getMentionedProducts(userText);
-    const keywordProduct = getKeywordProduct(userText);
-    const orderDraft = getOrderDraft(userId);
-    const draftProduct = orderDraft.productCode
+    const requestedCodes  = extractRequestedProductCodes(userText);
+    const found           = getMentionedProducts(userText);
+    const keywordProduct  = getKeywordProduct(userText);
+    const orderDraft      = getOrderDraft(userId);
+    const draftProduct    = orderDraft.productCode
       ? productByCode.get(String(orderDraft.productCode).toUpperCase())
       : null;
+
+    // selectedProduct: ưu tiên mention tường minh → keyword → lastProduct → draft
     const selectedProduct = found[0] || keywordProduct || getLastProduct(userId) || draftProduct;
-    const orderProduct = found[0] || draftProduct || getLastProduct(userId);
+    const orderProduct    = found[0] || draftProduct   || getLastProduct(userId);
     const productAwareOrder = {
       ...orderDraft,
       productCode: orderProduct?.code || orderDraft.productCode || ''
     };
-    const missingFields = missingOrderFields(productAwareOrder);
-    const sessionState = deriveSessionState(userId, productAwareOrder);
-
-    const wantsVibration = typeof config.wantsVibration === 'function'
-      ? config.wantsVibration(t, userText)
-      : false;
-    const wantsLarge = /\bto\b|\blon\b|kich\s*thuoc\s*lon|size\s*lon/.test(t);
-    const wantsPhoto = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
-    const budgetMatch = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})(?:\s*(k|nghin|ngan|cu|c))\b/);
-    const budget = budgetMatch ? Number(budgetMatch[1]) : null;
+    const missingFields  = missingOrderFields(productAwareOrder);
+    const sessionState   = deriveSessionState(userId, productAwareOrder);
+    const wantsVibration = resolveWantsVibration(t, userText);
+    const wantsLarge     = resolveWantsLarge(t, userText);
+    const wantsPhoto     = /\banh\b|\bhinh\b|\bxem\b|\bcoi\b|\bgui\b|\bmenu\b|\bdanh\s*sach\b/.test(t);
+    const budgetMatch    = t.match(/(?:ngan\s*sach\s*)?(\d{2,4})(?:\s*(k|nghin|ngan|cu|c))\b/);
+    const budget         = budgetMatch ? Number(budgetMatch[1]) : null;
 
     return {
       text: userText,
@@ -568,12 +561,11 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       wantsPhoto,
       budget,
       mentionsKeyword(keyword) {
-        const map = config.keywordProducts || {};
+        const map = cfg.keywordProducts || {};
         if (!Object.prototype.hasOwnProperty.call(map, keyword)) return false;
-        return wantsKeywordImage(userText, keyword, config);
+        return wantsKeywordImage(userText, keyword, cfg);
       },
-      // Helpers cho custom intent handlers (config-driven extension).
-      config,
+      config: cfg,
       products: productList,
       render,
       recommendationProducts
@@ -581,7 +573,6 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
   }
 
   // ===== Built-in INTENT ROUTERS (Chain of Responsibility) =====
-  // Mỗi rule có `name` để toggle qua config.intents.disabled.
   const builtInIntents = [
     {
       name: 'CANCEL_ORDER',
@@ -615,8 +606,8 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
         ? render('apologyRepeatedMissing', { missing: ctx.missingFields.join(' + ') })
         : render('apologyRepeatedReady', {
             productText: ctx.selectedProduct?.code || ctx.productAwareOrder.productCode || 'mẫu anh/chị chọn',
-            name: ctx.productAwareOrder.name || '',
-            phone: ctx.productAwareOrder.phone || '',
+            name:    ctx.productAwareOrder.name    || '',
+            phone:   ctx.productAwareOrder.phone   || '',
             address: ctx.productAwareOrder.address || ''
           })
     },
@@ -628,24 +619,30 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
         : readyOrderReply(ctx.productAwareOrder, ctx.selectedProduct)
     },
     {
+      // FIX: otherFields dùng helper chuyên dụng thay vì strip cứng.
       name: 'PHONE_ONLY',
       match: ctx => looksLikePhone(ctx.text),
       handle: ctx => ctx.missingFields.length
         ? render('phoneOnlyMissing', {
-            otherFields: config.policies.orderInfoFields.replace('SĐT + ', ''),
-            shopName: config.shopName
+            otherFields: deriveOtherOrderFields(cfg.policies.orderInfoFields),
+            shopName:    cfg.shopName
           })
         : readyOrderReply(ctx.productAwareOrder, ctx.selectedProduct)
     },
     {
       name: 'GREETING',
       match: ctx => isSimpleGreeting(ctx.text),
-      handle: () => render('greeting', { shopName: config.shopName })
+      handle: () => render('greeting', { shopName: cfg.shopName })
     },
     {
       name: 'CHANGE_PRODUCT',
       match: ctx => wantsChangeProduct(ctx.text),
-      handle: () => render('changeProduct')
+      // FIX: truyền tường minh codeExample để rõ ràng; render() auto-inject nhưng
+      // explicit tốt hơn cho readability và testability.
+      handle: () => render('changeProduct', {
+        codeExample1: knownCodes[0] || 'MÃ1',
+        codeExample2: knownCodes[1] || knownCodes[0] || 'MÃ2'
+      })
     },
     {
       name: 'PROVIDES_NAME_OR_ADDRESS',
@@ -655,7 +652,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
         if (ctx.selectedProduct) {
           return render('infoMissingWithProduct', {
             productCode: ctx.selectedProduct.code,
-            missing: ctx.missingFields.join(' + ')
+            missing:     ctx.missingFields.join(' + ')
           });
         }
         return render('infoMissingNoProduct');
@@ -669,7 +666,8 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     {
       name: 'MENU_NO_PRODUCT',
       match: ctx => wantsMenuImages(ctx.text) && !ctx.found.length,
-      handle: () => render('menuSent')
+      // FIX: truyền tường minh codeExample1 để template menuSent hoạt động đúng.
+      handle: () => render('menuSent', { codeExample1: knownCodes[0] || 'MÃ1' })
     },
     {
       name: 'NEW_PRODUCTS',
@@ -682,12 +680,9 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       handle: ctx => {
         if (ctx.selectedProduct) {
           const stockText = ctx.selectedProduct.preorder
-            ? `là hàng đặt, thời gian khoảng ${config.policies.preorderDays}`
+            ? `là hàng đặt, thời gian khoảng ${cfg.policies.preorderDays}`
             : 'shop đang tư vấn/chốt theo danh sách hiện tại';
-          return render('stockInfoSelected', {
-            productCode: ctx.selectedProduct.code,
-            stockText
-          });
+          return render('stockInfoSelected', { productCode: ctx.selectedProduct.code, stockText });
         }
         return render('stockInfoUnknown');
       }
@@ -709,8 +704,8 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       name: 'ASKS_FOR_ORDER_INFO',
       match: ctx => asksForOrderInfo(ctx.text),
       handle: ctx => render('orderInfoRequest', {
-        productSuffix: ctx.selectedProduct ? ` ${ctx.selectedProduct.code}` : '',
-        orderInfoFields: config.policies.orderInfoFields
+        productSuffix:  ctx.selectedProduct ? ` ${ctx.selectedProduct.code}` : '',
+        orderInfoFields: cfg.policies.orderInfoFields
       })
     },
     {
@@ -718,15 +713,13 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       match: ctx => isOrderIntent(ctx.text),
       handle: ctx => {
         if (!ctx.selectedProduct) {
-          return render('orderIntentNoProduct', {
-            orderInfoFields: config.policies.orderInfoFields || 'thông tin giao hàng'
-          });
+          return render('orderIntentNoProduct', { orderInfoFields: cfg.policies.orderInfoFields || 'thông tin giao hàng' });
         }
         return render('orderIntentWithProduct', {
-          productCode: ctx.selectedProduct.code,
-          price: explainPrice(ctx.selectedProduct.price),
-          orderInfoFields: config.policies.orderInfoFields,
-          privacy: config.policies.privacy
+          productCode:    ctx.selectedProduct.code,
+          price:          explainPrice(ctx.selectedProduct.price),
+          orderInfoFields: cfg.policies.orderInfoFields,
+          privacy:        cfg.policies.privacy
         });
       }
     },
@@ -736,36 +729,23 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
         if (isBudgetPresenceQuestion(ctx.text)) return false;
         if (!isPriceClarification(ctx.text) || !ctx.selectedProduct) return false;
         const t = ctx.normalized;
-        // "loại 150k thế nào" — hỏi mẫu theo mức giá; không báo giá mã lastProduct.
-        if (
-          ctx.budget
-          && !ctx.found.length
-          && (
-            /\b(?:loai|mau|hang)\b/.test(t)
-            || /(?:the\s*nao|nhu\s*the\s*nao)/.test(t)
-          )
-        ) {
-          return false;
-        }
+        if (ctx.budget && !ctx.found.length && (/\b(?:loai|mau|hang)\b/.test(t) || /(?:the\s*nao|nhu\s*the\s*nao)/.test(t))) return false;
         return true;
       },
       handle: ctx => {
         const p = ctx.selectedProduct;
         const stockText = p.preorder
-          ? `là hàng đặt ${config.policies.preorderDays}`
+          ? `là hàng đặt ${cfg.policies.preorderDays}`
           : 'shop đang tư vấn/chốt theo chính sách hiện tại';
         const giftText = p.gift ? `, tặng ${p.gift}` : '';
-        return render('priceClarification', {
-          productCode: p.code,
-          price: explainPrice(p.price),
-          stockText,
-          giftText
-        });
+        return render('priceClarification', { productCode: p.code, price: explainPrice(p.price), stockText, giftText });
       }
     },
     {
+      // FIX: đã bỏ vế `|| ctx.found.length >= 2` thừa — khiến mọi message có ≥2 mã
+      // đều kích hoạt COMPARISON dù user không có ý so sánh.
       name: 'COMPARISON',
-      match: ctx => (wantsComparison(ctx.text) && ctx.found.length >= 2) || ctx.found.length >= 2,
+      match: ctx => wantsComparison(ctx.text) && ctx.found.length >= 2,
       handle: ctx => render('comparison', {
         lines: ctx.found.slice(0, 3).map(formatComparisonLine).join('\n')
       })
@@ -773,10 +753,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     {
       name: 'SHIPPING_PRIVACY',
       match: ctx => wantsShippingPrivacy(ctx.text),
-      handle: () => render('shippingPrivacy', {
-        shopName: config.shopName,
-        privacy: config.policies.privacy
-      })
+      handle: () => render('shippingPrivacy', { shopName: cfg.shopName, privacy: cfg.policies.privacy })
     },
     {
       name: 'INSPECTION',
@@ -787,16 +764,16 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       name: 'SHIPPING_FEE',
       match: ctx => wantsShippingFee(ctx.text),
       handle: () => render('shippingFee', {
-        shopName: config.shopName,
-        fee: config.policies.freeShipping ? 'miễn ship tất cả sản phẩm' : 'sẽ báo phí ship theo địa chỉ',
-        orderInfoFields: config.policies.orderInfoFields
+        shopName:       cfg.shopName,
+        fee:            cfg.policies.freeShipping ? 'miễn ship tất cả sản phẩm' : 'sẽ báo phí ship theo địa chỉ',
+        orderInfoFields: cfg.policies.orderInfoFields
       })
     },
     {
       name: 'DISCOUNT',
       match: ctx => wantsDiscount(ctx.text),
       handle: () => render('discount', {
-        shipText: config.policies.freeShipping ? 'đã miễn ship' : 'sẽ báo ship theo địa chỉ'
+        shipText: cfg.policies.freeShipping ? 'đã miễn ship' : 'sẽ báo ship theo địa chỉ'
       })
     },
     {
@@ -809,15 +786,15 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       match: ctx => wantsPaymentInfo(ctx.text),
       handle: ctx => ctx.selectedProduct?.preorder
         ? render('paymentPreorder', { productCode: ctx.selectedProduct.code })
-        : render('paymentDefault', { shopName: config.shopName, payment: config.policies.payment })
+        : render('paymentDefault', { shopName: cfg.shopName, payment: cfg.policies.payment })
     },
     {
       name: 'DELIVERY_TIME',
       match: ctx => wantsDeliveryTime(ctx.text),
       handle: ctx => ctx.selectedProduct?.preorder
         ? render('deliveryPreorder', {
-            productCode: ctx.selectedProduct.code,
-            preorderDays: config.policies.preorderDays
+            productCode:  ctx.selectedProduct.code,
+            preorderDays: cfg.policies.preorderDays
           })
         : render('deliveryDefault')
     },
@@ -827,15 +804,20 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       handle: () => render('returnPolicy')
     },
     {
+      name: 'AGE_POLICY',
+      match: ctx => wantsAgePolicy(ctx.text),
+      handle: () => render('agePolicy', { shopName: cfg.shopName, minAge: cfg.minAge })
+    },
+    {
       name: 'SIZE_INFO',
       match: ctx => wantsSizeInfo(ctx.text) && Boolean(ctx.selectedProduct),
       handle: ctx => {
         const p = ctx.selectedProduct;
         return render('sizeInfo', {
           productCode: p.code,
-          size: p.size || 'shop sẽ xác nhận thêm',
-          weightText: p.weight ? `, nặng khoảng ${p.weight}` : '',
-          descSuffix: p.description ? ` ${String(p.description).trim()}` : ''
+          size:        p.size || 'shop sẽ xác nhận thêm',
+          weightText:  p.weight ? `, nặng khoảng ${p.weight}` : '',
+          descSuffix:  p.description ? ` ${String(p.description).trim()}` : ''
         });
       }
     },
@@ -843,9 +825,9 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       name: 'PRODUCT_IMAGE',
       match: ctx => wantsProductImage(ctx.text) && Boolean(ctx.selectedProduct),
       handle: ctx => render('productImage', {
-        productCode: ctx.selectedProduct.code,
+        productCode:        ctx.selectedProduct.code,
         compactProductName: compactProductName(ctx.selectedProduct),
-        orderInfoFields: config.policies.orderInfoFields
+        orderInfoFields:    cfg.policies.orderInfoFields
       })
     },
     {
@@ -854,10 +836,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       handle: ctx => {
         const p = ctx.selectedProduct;
         const giftText = p.gift ? ` được tặng ${p.gift}` : ' hiện chưa có quà tặng ghi riêng trong danh sách';
-        return render('giftInfo', {
-          compactProductName: compactProductName(p),
-          giftText
-        });
+        return render('giftInfo', { compactProductName: compactProductName(p), giftText });
       }
     },
     {
@@ -874,27 +853,25 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       name: 'PRODUCT_LIST',
       match: ctx => ctx.found.length > 0,
       handle: ctx => {
-        const lines = ctx.found.slice(0, 3).map(formatProductLine).join('\n');
-        const photoNote = ctx.wantsPhoto
-          ? render('productListPhotoSent')
-          : render('productListAskPhoto');
+        const lines    = ctx.found.slice(0, 3).map(formatProductLine).join('\n');
+        const photoNote = ctx.wantsPhoto ? render('productListPhotoSent') : render('productListAskPhoto');
         return render('productList', { lines, photoNote });
       }
     },
-    // FIX: trước đây có MENU_IMAGES nữa nhưng đã unreachable do MENU_NO_PRODUCT + PRODUCT_LIST
-    // chiếm hết. Đã loại bỏ.
     {
+      // FIX: budgetTightThreshold không còn hardcode 200k — tính động từ catalogue.
       name: 'BUDGET',
       match: ctx => Boolean(ctx.budget) && !wantsRecommendation(ctx.text),
       handle: ctx => {
-        if (ctx.budget <= 200 && (ctx.wantsVibration || ctx.wantsLarge)) {
-          return render('budgetTightCustom');
+        const threshold = getBudgetTightThreshold();
+        if (ctx.budget <= threshold && (ctx.wantsVibration || ctx.wantsLarge)) {
+          return render('budgetTightCustom', { maxBudget: threshold });
         }
         const options = selectProductsByBudget(ctx.budget).slice(0, 3);
         if (options.length) {
           return render('budgetOptions', {
             budget: ctx.budget,
-            lines: options.map(formatProductLine).join('\n')
+            lines:  options.map(formatProductLine).join('\n')
           });
         }
         return render('budgetNoOptions', { budget: ctx.budget });
@@ -902,10 +879,7 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     },
     {
       name: 'FEATURE_OR_LARGE_OR_RECOMMEND',
-      match: ctx =>
-        wantsFeatureAdvice(ctx.text)
-        || ctx.wantsLarge
-        || (wantsRecommendation(ctx.text) && !ctx.budget),
+      match: ctx => wantsFeatureAdvice(ctx.text) || ctx.wantsLarge || (wantsRecommendation(ctx.text) && !ctx.budget),
       handle: ctx => {
         if (ctx.wantsLarge) {
           const options = recommendationProducts('large')
@@ -919,34 +893,30 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
   ];
 
   // ===== Áp dụng config-driven (disabled / prepend / append) =====
-  const intentsConfig = config.intents || {};
-  const disabledSet = new Set(intentsConfig.disabled || []);
+  const intentsConfig = cfg.intents || {};
+  const disabledSet   = new Set(intentsConfig.disabled || []);
   const intentRouters = [
     ...(intentsConfig.prepend || []),
     ...builtInIntents.filter(intent => !disabledSet.has(intent.name)),
-    ...(intentsConfig.append || [])
+    ...(intentsConfig.append  || [])
   ];
 
-  // ===== Loop chính: duyệt qua các intent routers =====
+  // ===== Loop chính =====
   function buildDeterministicReply(userText, userId) {
     const ctx = buildIntentContext(userText, userId);
 
-    // Side effect ổn định: nhớ mã sản phẩm khách vừa nói tới.
     if (ctx.found.length) rememberLastProduct(userId, ctx.found[0]);
 
-    // State transition: khách quay lại "thay đổi" sau khi đã CONFIRMED -> demote.
-    const hasMutatingIntent = wantsAddressChange(userText)
-      || wantsChangeProduct(userText)
-      || wantsCancelOrder(userText);
+    // State demote khi khách muốn thay đổi sau CONFIRMED.
+    const hasMutatingIntent = wantsAddressChange(userText) || wantsChangeProduct(userText) || wantsCancelOrder(userText);
     if (hasMutatingIntent && ctx.sessionState === STATES.CONFIRMED) {
       setStoredSessionState(userId, '');
     }
 
     for (const router of intentRouters) {
       let matched;
-      try {
-        matched = router.match(ctx);
-      } catch (err) {
+      try { matched = router.match(ctx); }
+      catch (err) {
         console.warn(`[rules] match() lỗi ở rule ${router.name || '<no-name>'}: ${err.message}`);
         continue;
       }
@@ -965,12 +935,10 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
   function buildFallbackReply(userText, userId = '') {
     const deterministic = buildDeterministicReply(userText, userId);
     if (deterministic) return deterministic;
-    const customFb = config.fallbackReply != null ? String(config.fallbackReply).trim() : '';
-    if (customFb) return config.fallbackReply;
-    return (
-      render('catalogScopeGuide', { shopName: config.shopName || 'shop' })
-      || render('systemBusy')
-    );
+    const customFb = cfg.fallbackReply != null ? String(cfg.fallbackReply).trim() : '';
+    // FIX: return customFb (đã trim) thay vì cfg.fallbackReply gốc.
+    if (customFb) return customFb;
+    return render('catalogScopeGuide', { shopName: cfg.shopName }) || render('systemBusy');
   }
 
   return {
@@ -982,10 +950,10 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
     normalizeText,
     shouldSilenceAfterCompleteOrder,
     wantsHuman,
-    wantsKeywordImage: (text, kw) => wantsKeywordImage(text, kw, config),
+    wantsKeywordImage: (text, kw) => wantsKeywordImage(text, kw, cfg),
     wantsMenuImages,
     wantsProductImage,
-    // Cho test/debug nếu cần
+    // Debug / test
     intentRouters,
     STATES,
     deriveSessionState,
@@ -998,12 +966,10 @@ module.exports = {
   createRuleEngine,
   explainPrice,
   extractPhone,
-  // Bản module-level: regex-only (không có fuzzy theo danh sách sản phẩm).
   extractRequestedProductCodes: text => extractCodesRaw(text),
   looksLikePhone,
   normalizeText,
   STATES,
-  // Export detectors để custom intents bên ngoài (config.intents.prepend) có thể dùng nếu muốn.
   detectors: {
     isOrderIntent,
     isPriceClarification,
