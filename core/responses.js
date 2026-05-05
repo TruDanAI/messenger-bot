@@ -68,6 +68,7 @@ const TEMPLATES = {
   featureAdviceDefault: 'Dạ anh/chị cho em biết ngân sách hoặc mẫu đang xem, em gợi ý 1–2 lựa chọn phù hợp trong menu nhé.',
 
   // ===== Handoff =====
+  captureOnlyAskPhone: 'Dạ em đã nhận tin của anh/chị ạ. Nhân viên sẽ vào hỗ trợ ngay; nếu tiện anh/chị để lại SĐT giúp em để shop liên hệ nhanh hơn nhé.',
   humanHandoff: 'Dạ em chuyển anh/chị qua nhân viên tư vấn hỗ trợ kỹ hơn nhé. Anh/chị chờ một chút ạ 🙏',
   systemBusy: 'Xin lỗi anh/chị, hệ thống đang bận. Vui lòng thử lại sau nhé! 🙏'
 };

@@ -267,6 +267,26 @@ function sanitizeGeminiReply(text) {
   return s.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?])/g, '$1').trim();
 }
 
+function buildCaptureOnlyReply(userText, senderId) {
+  const text = normalizeText(userText);
+  const requestedCodes = extractRequestedProductCodes(userText, senderId);
+  const matched = requestedCodes
+    .map(code => products.find(p => p.code === code))
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (matched.length) {
+    const lines = matched.map(p => `- ${p.code}: ${p.price}`);
+    return `Dạ em gửi nhanh các mã anh/chị đang quan tâm:\n${lines.join('\n')}\nNhân viên sẽ vào tư vấn chi tiết và hỗ trợ chốt đơn cho mình ngay ạ.`;
+  }
+
+  if (/(\bmenu\b|danh\s*sach|san\s*pham|bang\s*gia|gia\b|ma\s*\d+)/i.test(text)) {
+    return 'Dạ em gửi menu/mã sản phẩm để anh/chị tham khảo trước ạ. Nhân viên sẽ vào tư vấn chi tiết theo nhu cầu của mình ngay nhé.';
+  }
+
+  return 'Dạ em chào anh/chị ạ. Anh/chị đang quan tâm dòng nào hoặc tầm ngân sách nào để em gửi menu/mã phù hợp trước, rồi nhân viên sẽ vào hỗ trợ ngay ạ.';
+}
+
 async function callGemini(userId, userMessage, shopConfig) {
   const history = storage.getHistory(userId);
   history.push({ role: 'user', parts: [{ text: userMessage }] });
@@ -805,6 +825,33 @@ async function handleMessage(shopConfig, messageData) {
     try {
       await sendMessage(senderId, render('humanHandoff'), shopConfig);
     } catch {}
+    return;
+  }
+
+  if (shopConfig?.features?.captureLeadOnly) {
+    try {
+      showTyping(senderId, shopConfig);
+      const images = buildRequestedImageUrls(userText, senderId, baseUrlOverride);
+      for (const { file, url } of images) {
+        try {
+          await sendImage(senderId, url, shopConfig);
+          console.log(`🖼️  [capture-only] Gửi ảnh: ${file}`);
+        } catch (e) {
+          const msg = e.response?.data?.error?.message || e.message;
+          console.error(`❌ [capture-only] Gửi ảnh ${file} fail: ${msg}`);
+        }
+      }
+
+      const reply = buildCaptureOnlyReply(userText, senderId);
+      await sendMessage(senderId, reply, shopConfig);
+    } catch (err) {
+      console.error('❌ Lỗi capture-only:', err.response?.data || err.message);
+      try {
+        await sendMessage(senderId, render('systemBusy'), shopConfig);
+      } catch {}
+    }
+    storage.setHandoff(senderId, Date.now() + HANDOFF_MS);
+    console.log(`🛎️  Capture-only: đã giữ khách và chuyển handoff cho ${senderId}`);
     return;
   }
 

@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
+const { getPlanFeatures } = require('../plan-features');
 
 const shopSchema = new mongoose.Schema({
     _id: { type: String, required: true }, // Shop ID (VD: adult-shop, nem-bui-xa)
     name: { type: String, required: true },
     plan: { 
         type: String, 
-        enum: ['BASIC', 'PRO', 'ENTERPRISE'], 
+        enum: ['LITE', 'BASIC', 'PRO', 'ENTERPRISE'],
         default: 'BASIC' 
     },
     aiQuota: { type: Number, default: 0 }, // Giới hạn số lượt gọi AI trong tháng
@@ -25,7 +26,8 @@ const shopSchema = new mongoose.Schema({
     features: {
         enableAI: { type: Boolean, default: false },
         enableTelegram: { type: Boolean, default: false },
-        enableSentiment: { type: Boolean, default: false }
+        enableSentiment: { type: Boolean, default: false },
+        captureLeadOnly: { type: Boolean, default: false }
     },
 
     // Tuỳ chỉnh cấu hình AI
@@ -35,6 +37,13 @@ const shopSchema = new mongoose.Schema({
     isActive: { type: Boolean, default: true }
 }, {
     timestamps: true // Tự động có createdAt, updatedAt
+});
+
+shopSchema.pre('validate', function applyFeaturesByPlan(next) {
+    if (this.isNew || this.isModified('plan')) {
+        this.features = { ...getPlanFeatures(this.plan) };
+    }
+    next();
 });
 
 const Shop = mongoose.model('Shop', shopSchema);

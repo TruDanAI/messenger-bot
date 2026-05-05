@@ -17,8 +17,9 @@ describe('Database: MongoDB kết nối & truy vấn Shop', () => {
     expect(!!process.env.MONGODB_URI).toBeTrue();
   });
 
-  it('Shop Schema có đủ 3 plan BASIC / PRO / ENTERPRISE', () => {
+  it('Shop Schema có đủ 4 plan LITE / BASIC / PRO / ENTERPRISE', () => {
     const planEnum = Shop.schema.path('plan').enumValues;
+    expect(planEnum).toContain('LITE');
     expect(planEnum).toContain('BASIC');
     expect(planEnum).toContain('PRO');
     expect(planEnum).toContain('ENTERPRISE');
@@ -111,10 +112,20 @@ describe('Queue: BullMQ tạo Job đúng cấu trúc', () => {
 // TEST 4: Processor — shopConfig điều hướng đúng Tier
 // ======================================================
 describe('Processor: Feature Flag theo Gói cước (Tier)', () => {
+  it('Gói LITE: chỉ giữ bot lễ tân, không dùng AI', () => {
+    const shopConfigLite = {
+      plan: 'LITE',
+      features: { enableAI: false, enableTelegram: true, enableSentiment: false, captureLeadOnly: true }
+    };
+    expect(shopConfigLite.features.enableAI).toBeFalse();
+    expect(shopConfigLite.features.enableTelegram).toBeTrue();
+    expect(shopConfigLite.features.captureLeadOnly).toBeTrue();
+  });
+
   it('Gói BASIC: enableAI = false -> dùng fallback rule-based', () => {
     const shopConfigBasic = {
       plan: 'BASIC',
-      features: { enableAI: false, enableTelegram: false }
+      features: { enableAI: false, enableTelegram: true, captureLeadOnly: false }
     };
     expect(shopConfigBasic.features.enableAI).toBeFalse();
   });
@@ -122,7 +133,7 @@ describe('Processor: Feature Flag theo Gói cước (Tier)', () => {
   it('Gói PRO: enableAI = true -> được gọi Gemini', () => {
     const shopConfigPro = {
       plan: 'PRO',
-      features: { enableAI: true, enableTelegram: true }
+      features: { enableAI: true, enableTelegram: true, captureLeadOnly: false }
     };
     expect(shopConfigPro.features.enableAI).toBeTrue();
   });
