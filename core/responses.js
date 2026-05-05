@@ -7,7 +7,7 @@ const TEMPLATES = {
   greeting: 'Dạ {{shopName}} chào anh/chị ạ! Mình đang tìm sản phẩm tầm giá bao nhiêu hoặc có yêu cầu gì cứ nhắn để em gửi mẫu phù hợp nhất bên em nhé.',
   rejectOrder: 'Dạ em hiểu ạ, mình cứ tham khảo thoải mái nhé. Khi nào muốn chốt mẫu nào thì nhắn em mã sản phẩm hoặc tên món là được ạ.',
   cancelOrder: 'Dạ không sao ạ. Nếu mình chưa xác nhận với nhân viên thì shop chưa lên đơn đâu ạ. Khi nào muốn tham khảo hoặc chốt lại mẫu nào, anh/chị nhắn em mã sản phẩm là được nhé.',
-  changeProduct: 'Dạ đổi mẫu được ạ. Anh/chị nhắn giúp em mã sản phẩm muốn đổi sang, ví dụ MÃ8 hoặc MÃ13, em kiểm tra và báo lại giá/thông tin cho mình nhé.',
+  changeProduct: 'Dạ đổi mẫu được ạ. Anh/chị nhắn giúp em mã sản phẩm muốn đổi sang, ví dụ {{codeExample1}} hoặc {{codeExample2}}, em kiểm tra và báo lại giá/thông tin cho mình nhé.',
 
   // ===== Đơn hàng =====
   readyOrder: 'Dạ em đã có đủ thông tin chốt {{productText}}: {{name}}, {{phone}}, {{address}}. Shop sẽ kiểm tra và xác nhận lại đơn với anh/chị trước khi gửi hàng nhé.',
@@ -20,7 +20,7 @@ const TEMPLATES = {
   infoMissingWithProduct: 'Dạ em nhận thông tin rồi ạ. Để chốt {{productCode}}, anh/chị gửi thêm {{missing}} để shop xác nhận đơn và giao hàng nhé.',
   infoMissingNoProduct: 'Dạ em nhận thông tin rồi ạ. Anh/chị chọn giúp em mã sản phẩm muốn lấy, hoặc nhắn "menu" để em gửi danh sách sản phẩm nhé.',
   orderInfoRequest: 'Dạ có ạ, để chốt đơn{{productSuffix}} anh/chị gửi giúp em {{orderInfoFields}} nhé. Shop sẽ xác nhận lại đơn trước khi giao.',
-  orderIntentNoProduct: 'Dạ để em hỗ trợ lên đơn, anh/chị nhắn giúp em mã sản phẩm mình ưng ý (ví dụ: MÃ8) nhé. Sau đó em sẽ báo lại giá và xin {{orderInfoFields}} để gửi hàng cho mình ạ.',
+  orderIntentNoProduct: 'Dạ để em hỗ trợ lên đơn, anh/chị nhắn giúp em mã sản phẩm mình ưng ý (ví dụ: {{codeExample1}}) nhé. Sau đó em sẽ báo lại giá và xin {{orderInfoFields}} để gửi hàng cho mình ạ.',
   orderIntentWithProduct: 'Dạ em chốt {{productCode}} giá {{price}} cho anh/chị nhé. Anh/chị gửi giúp em {{orderInfoFields}} ạ. Hàng được {{privacy}}.',
 
   // ===== Sản phẩm / giá / so sánh =====
@@ -32,14 +32,14 @@ const TEMPLATES = {
   productListAskPhoto: 'Anh/chị muốn xem ảnh hoặc chốt mẫu nào thì nhắn em mã đó nhé.',
 
   // ===== Hình ảnh / menu =====
-  menuSent: 'Dạ em gửi bảng ảnh các mẫu bên shop để anh/chị tiện tham khảo nhé. Mình ưng mẫu nào cứ nhắn mã (ví dụ MÃ8), em sẽ tư vấn chi tiết và báo giá luôn ạ.',
+  menuSent: 'Dạ em gửi bảng ảnh các mẫu bên shop để anh/chị tiện tham khảo nhé. Mình ưng mẫu nào cứ nhắn mã (ví dụ {{codeExample1}}), em sẽ tư vấn chi tiết và báo giá luôn ạ.',
   productImage: 'Dạ em gửi ảnh {{productCode}} cho anh/chị tham khảo nhé. {{compactProductName}}, anh/chị muốn chốt thì gửi giúp em {{orderInfoFields}} ạ.',
   gelInfo: 'Dạ shop có sản phẩm gel trong menu ạ. Anh/chị xem ảnh kèm tin nhắn hoặc nhắn em mã để em báo giá chi tiết nhé.',
   newProducts: 'Dạ hiện shop tư vấn theo danh sách menu đang có ạ. Nếu có mẫu mới shop sẽ cập nhật thêm vào menu; anh/chị muốn xem lại danh sách hiện tại thì em gửi ảnh menu cho mình tham khảo nhé.',
 
   // ===== Thông tin hàng / size / quà / fit / vệ sinh =====
   stockInfoSelected: 'Dạ {{productCode}} {{stockText}} ạ. Trước khi gửi hàng shop sẽ xác nhận lại đơn cho mình nhé.',
-  stockInfoUnknown: 'Dạ anh/chị nhắn giúp em mã sản phẩm muốn hỏi còn hàng, ví dụ MÃ8 hoặc MÃ13, em kiểm tra và báo đúng mẫu cho mình ạ.',
+  stockInfoUnknown: 'Dạ anh/chị nhắn giúp em mã sản phẩm muốn hỏi còn hàng, ví dụ {{codeExample1}} hoặc {{codeExample2}}, em kiểm tra và báo đúng mẫu cho mình ạ.',
   bestSeller: 'Dạ các mẫu dễ tư vấn/bán chạy bên shop thường là {{lines}} ạ. Nếu anh/chị cho em ngân sách hoặc ưu tiên size/tính năng, em lọc đúng mẫu hơn nhé.',
   sizeInfo: 'Dạ {{productCode}} có size {{size}}{{weightText}}.{{descSuffix}}',
   giftInfo: 'Dạ {{compactProductName}}{{giftText}} ạ. Shop vẫn miễn ship và gói kín cho mình nhé.',

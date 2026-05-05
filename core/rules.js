@@ -354,7 +354,14 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
       console.warn(`[rules] Template không tồn tại: ${name}`);
       return '';
     }
-    return renderTemplate(tpl, data);
+    
+    // Inject dynamic examples from current shop products
+    const examples = {
+      codeExample1: knownCodes[0] || 'MÃ1',
+      codeExample2: knownCodes[1] || knownCodes[0] || 'MÃ2'
+    };
+
+    return renderTemplate(tpl, { ...examples, ...data });
   }
 
   // ===== Helpers gắn với danh sách sản phẩm / context =====
