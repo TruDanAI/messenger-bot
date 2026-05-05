@@ -36,6 +36,7 @@ const shopSchema = new mongoose.Schema({
     
     // Trạng thái shop
     image_url: { type: String, default: "" },
+    menu_images: { type: [String], default: [] },
     isActive: { type: Boolean, default: true }
 }, {
     timestamps: true // Tự động có createdAt, updatedAt

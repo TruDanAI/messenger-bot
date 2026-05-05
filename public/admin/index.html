@@ -1068,6 +1068,17 @@
                         <textarea class="form-input" id="customPrompt" rows="3" placeholder="Ví dụ: Bạn là nhân viên tư vấn bán hàng dễ thương, luôn dùng emoji ^^ và gọi khách là anh/chị..."></textarea>
                         <div class="form-hint">Định hình tính cách và giọng văn cho AI Gemini khi tư vấn (Kịch bản & Flow).</div>
                     </div>
+                    
+                    <!-- MENU IMAGES -->
+                    <div class="form-section-label" style="margin-bottom:16px; margin-top:10px">Hình ảnh Menu & Catalog</div>
+                    <div class="form-group form-full">
+                        <label>Danh sách ảnh Menu (Ngăn cách bởi dấu phẩy)</label>
+                        <div style="display:flex;gap:8px">
+                            <input class="form-input" id="menuImages" placeholder="vd: /static/shops/adult-shop/images/menu1.png, /static/shops/adult-shop/images/menu2.png">
+                            <button type="button" class="btn btn-ghost" onclick="triggerMenuUpload()" title="Tải ảnh menu lên"><i class="fas fa-upload"></i></button>
+                        </div>
+                        <div class="form-hint">Bot sẽ gửi các ảnh này khi khách nhắn "menu" hoặc "xem sản phẩm".</div>
+                    </div>
                 </div>
 
                 <!-- TOGGLES -->
@@ -1676,6 +1687,7 @@
         document.getElementById('modalSub').textContent   = 'Điền thông tin để kết nối chatbot với Facebook Page';
         document.getElementById('submitBtn').innerHTML    = '<i class="fas fa-floppy-disk"></i> Tạo Shop';
         document.getElementById('shopForm').reset();
+        document.getElementById('menuImages').value = ''; // Reset menu
         document.getElementById('shopId').disabled = false;
         selectPlan('BASIC');
         document.getElementById('isActive').checked = true;
@@ -1695,6 +1707,7 @@
         document.getElementById('shopId').disabled = true;
         document.getElementById('shopName').value  = shop.name;
         document.getElementById('customPrompt').value = shop.customPrompt || '';
+        document.getElementById('menuImages').value = (shop.menu_images || []).join(', '); // Load menu
         selectPlan(shop.plan || 'BASIC');
         document.getElementById('fbPageToken').value  = ''; // keep empty = don't change
         document.getElementById('fbPageId').value     = shop.credentials?.fbPageId || '';
@@ -1716,6 +1729,7 @@
         document.getElementById('fbPageId').value = '';
         document.getElementById('geminiApiKey').placeholder = 'Bỏ trống để dùng key hệ thống';
         document.getElementById('customPrompt').value = '';
+        document.getElementById('menuImages').value = '';
     }
 
     // ─── SUBMIT ──────────────────────────────────────────────

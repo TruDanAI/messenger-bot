@@ -238,7 +238,7 @@ app.get('/api/admin/leads', adminAuth, (req, res) => {
 // ========== PRODUCT MANAGEMENT ==========
 app.get('/api/admin/products/:shopId', adminAuth, (req, res) => {
   try {
-    const file = path.join(__dirname, 'shops', req.params.shopId, 'products.csv');
+    const file = path.join(SHOPS_DIR, req.params.shopId, 'products.csv');
     if (!fs.existsSync(file)) return res.json([]);
     const csv = fs.readFileSync(file, 'utf8');
     const records = parse(csv, { columns: true, skip_empty_lines: true, relax_column_count: true });

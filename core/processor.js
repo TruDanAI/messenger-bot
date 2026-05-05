@@ -110,6 +110,12 @@ function getPublicImageUrl(shopId, filename, baseUrlOverride = '') {
   const baseRaw = baseUrlOverride || PUBLIC_BASE_URL;
   if (!baseRaw || !filename) return null;
   const base = baseRaw.replace(/\/+$/, '');
+
+  // Nếu filename đã là URL (bắt đầu bằng http hoặc /static)
+  if (filename.startsWith('http') || filename.startsWith('/static')) {
+    return filename.startsWith('/') ? `${base}${filename}` : filename;
+  }
+
   return `${base}/media/${shopId}/${encodeURIComponent(filename)}`;
 }
 
@@ -175,7 +181,13 @@ async function handleMessage(shopConfig, messageData) {
 
   // 1. Gửi ảnh (nếu có yêu cầu)
   const imageFiles = [];
-  if (rules.wantsMenuImages(userText)) imageFiles.push(...(config.menuImages || ['menu1.png', 'menu2.png']));
+  if (rules.wantsMenuImages(userText)) {
+    // Ưu tiên menu_images từ Database, nếu rỗng mới dùng mặc định
+    const menus = (config.menu_images && config.menu_images.length) 
+                  ? config.menu_images 
+                  : (config.menuImages || ['menu1.png', 'menu2.png']);
+    imageFiles.push(...menus);
+  }
   const kwImg = rules.wantsKeywordImage(userText);
   if (kwImg) imageFiles.push(kwImg);
   const prodImgCode = rules.wantsProductImage(userText);
