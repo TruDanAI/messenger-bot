@@ -257,6 +257,45 @@ function jsonToCsv(items) {
   return [header.join(','), ...rows].join('\n');
 }
 
+// ========== UPLOAD ẢNH SẢN PHẨM ==========
+const multer = require('multer');
+const storageMulter = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const shopId = req.params.shopId || 'default';
+    const dir = path.join(__dirname, 'shops', shopId, 'images');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    // Giữ nguyên tên gốc hoặc slugify nếu cần, ở đây giữ nguyên để dễ map với CSV
+    const safeName = file.originalname.replace(/\s+/g, '-').toLowerCase();
+    cb(null, Date.now() + '-' + safeName);
+  }
+});
+
+const upload = multer({ 
+  storage: storageMulter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Giới hạn 5MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp/;
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.test(ext)) cb(null, true);
+    else cb(new Error('Chỉ hỗ trợ ảnh (jpg, png, webp)'));
+  }
+});
+
+app.post('/api/admin/upload/:shopId', adminAuth, upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Vui lòng chọn file' });
+    res.json({ 
+      filename: req.file.filename,
+      url: `/media/${req.params.shopId}/${req.file.filename}`
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.post('/api/admin/products/:shopId', adminAuth, (req, res) => {
   try {
     const file = path.join(__dirname, 'shops', req.params.shopId, 'products.csv');

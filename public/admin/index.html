@@ -1425,7 +1425,14 @@
                     <option value="yes" ${p.preorder ? 'selected' : ''}>Order</option>
                 </select>
             </td>
-            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="image" value="${escHtml(p.image||'')}" placeholder="sp1.jpg"></td>
+            <td>
+                <div style="display:flex;gap:4px">
+                    <input class="form-input" style="padding:6px;font-size:12.5px;flex:1" type="text" name="image" value="${escHtml(p.image||'')}" placeholder="sp1.jpg">
+                    <button class="btn btn-ghost btn-sm" onclick="triggerUpload(this)" title="Tải ảnh lên" style="padding:0 8px;border-color:rgba(255,255,255,0.1)">
+                        <i class="fas fa-upload" style="font-size:10px"></i>
+                    </button>
+                </div>
+            </td>
             <td style="text-align:center">
                 <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent" onclick="removeProductRow(this)"><i class="fas fa-trash"></i></button>
             </td>
@@ -1446,7 +1453,14 @@
                     <option value="yes">Order</option>
                 </select>
             </td>
-            <td><input class="form-input" style="padding:6px;font-size:12.5px" type="text" name="image" placeholder="anh1.jpg"></td>
+            <td>
+                <div style="display:flex;gap:4px">
+                    <input class="form-input" style="padding:6px;font-size:12.5px;flex:1" type="text" name="image" placeholder="anh1.jpg">
+                    <button class="btn btn-ghost btn-sm" onclick="triggerUpload(this)" title="Tải ảnh lên" style="padding:0 8px;border-color:rgba(255,255,255,0.1)">
+                        <i class="fas fa-upload" style="font-size:10px"></i>
+                    </button>
+                </div>
+            </td>
             <td style="text-align:center">
                 <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent" onclick="removeProductRow(this)"><i class="fas fa-trash"></i></button>
             </td>`;
@@ -1455,6 +1469,46 @@
 
     function removeProductRow(btn) {
         btn.closest('tr').remove();
+    }
+
+    let currentUploadInput = null;
+    function triggerUpload(btn) {
+        currentUploadInput = btn.parentElement.querySelector('input[name="image"]');
+        document.getElementById('hiddenFileInput').click();
+    }
+
+    async function handleFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file || !currentUploadInput) return;
+        
+        const btn = currentUploadInput.parentElement.querySelector('button');
+        const oldIcon = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:10px"></i>';
+        btn.disabled = true;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            const res = await fetch(`/api/admin/upload/${editingProductShopId}?token=${API_TOKEN}`, {
+                method: 'POST',
+                body: formData
+            });
+            if (res.ok) {
+                const data = await res.json();
+                currentUploadInput.value = data.filename;
+                showToast('Đã tải ảnh lên thành công', 'success');
+            } else {
+                const err = await res.json();
+                showToast(err.message || 'Lỗi upload', 'error');
+            }
+        } catch (err) {
+            showToast('Lỗi kết nối upload', 'error');
+        } finally {
+            btn.innerHTML = oldIcon;
+            btn.disabled = false;
+            e.target.value = ''; 
+        }
     }
 
     async function saveProducts() {
@@ -1786,5 +1840,7 @@
         if (e.key === 'Escape') { closeModal(); closeConfirm(); }
     });
 </script>
+    <div id="toast-container"></div>
+    <input type="file" id="hiddenFileInput" style="display:none" accept="image/*" onchange="handleFileUpload(event)">
 </body>
 </html>
