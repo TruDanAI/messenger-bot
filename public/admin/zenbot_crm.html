@@ -8,43 +8,44 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg: #f7f6f3;
+  --bg: #0f172a;
   --white: #ffffff;
-  --surface: #f0efe9;
-  --border: #e4e2d9;
-  --border2: #d0cec3;
-  --text: #1a1916;
-  --muted: #6b6860;
-  --subtle: #9a9890;
-  --accent: #1a6b4a;
-  --accent-light: #e8f5ee;
-  --accent-mid: #2d9467;
-  --blue: #1d4ed8;
-  --blue-light: #eff6ff;
-  --amber: #b45309;
-  --amber-light: #fffbeb;
-  --red: #dc2626;
-  --red-light: #fef2f2;
+  --surface: #1e293b;
+  --surface-hover: #334155;
+  --border: #334155;
+  --border2: #475569;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --subtle: #64748b;
+  --accent: #8b5cf6;
+  --accent-light: rgba(139, 92, 246, 0.1);
+  --accent-mid: #7c3aed;
+  --blue: #3b82f6;
+  --blue-light: rgba(59, 130, 246, 0.1);
+  --amber: #f59e0b;
+  --amber-light: rgba(245, 158, 11, 0.1);
+  --red: #ef4444;
+  --red-light: rgba(239, 68, 68, 0.1);
   --purple: #7c3aed;
-  --purple-light: #f5f3ff;
+  --purple-light: rgba(124, 58, 237, 0.1);
   --pink: #db2777;
-  --pink-light: #fdf2f8;
+  --pink-light: rgba(219, 39, 119, 0.1);
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; overflow:hidden; }
 
 /* SIDEBAR */
-.sidebar { width:248px; background:var(--white); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar { width:248px; background:#0f172a; border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
 .sidebar-top { padding:18px 16px 12px; border-bottom:1px solid var(--border); }
 .logo { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
-.logo-mark { width:28px; height:28px; background:var(--text); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+.logo-mark { width:28px; height:28px; background:var(--text); color:var(--bg); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
 .logo-text { font-family:'Instrument Serif',serif; font-size:18px; letter-spacing:-0.3px; }
 .logo-badge { margin-left:auto; font-size:10px; font-weight:600; background:var(--accent-light); color:var(--accent); padding:2px 7px; border-radius:20px; }
 .nav-item { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:7px; font-size:13.5px; cursor:pointer; color:var(--muted); transition:all 0.15s; margin-bottom:1px; }
-.nav-item:hover { background:var(--surface); color:var(--text); }
+.nav-item:hover { background:var(--surface-hover); color:var(--text); }
 .nav-item.active { background:var(--surface); color:var(--text); font-weight:600; }
 .nav-icon { font-size:15px; width:20px; text-align:center; }
-.nav-count { margin-left:auto; font-size:11px; font-weight:600; color:var(--subtle); background:var(--surface); padding:1px 7px; border-radius:20px; }
+.nav-count { margin-left:auto; font-size:11px; font-weight:600; color:var(--subtle); background:var(--surface-hover); padding:1px 7px; border-radius:20px; }
 .nav-count.hot { background:var(--red-light); color:var(--red); }
 .sidebar-section { padding:14px 16px 8px; }
 .sidebar-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--subtle); margin-bottom:8px; }
@@ -83,14 +84,14 @@ body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); 
 /* FUNNEL */
 .funnel-overview { display:grid; grid-template-columns:repeat(5,1fr); gap:0; margin-bottom:28px; position:relative; }
 .funnel-step {
-  background:var(--white); border:1px solid var(--border);
+  background:var(--surface); border:1px solid var(--border);
   padding:16px 14px; text-align:center; position:relative;
   transition:all 0.2s; cursor:pointer;
 }
 .funnel-step:first-child { border-radius:12px 0 0 12px; }
 .funnel-step:last-child { border-radius:0 12px 12px 0; }
 .funnel-step:not(:last-child) { border-right:none; }
-.funnel-step:hover { background:var(--surface); z-index:1; }
+.funnel-step:hover { background:var(--surface-hover); z-index:1; }
 .funnel-step.active { background:var(--accent-light); border-color:var(--accent); z-index:2; }
 .funnel-arrow { position:absolute; right:-10px; top:50%; transform:translateY(-50%); z-index:3; font-size:14px; color:var(--muted); }
 .funnel-icon { font-size:20px; margin-bottom:6px; }
@@ -101,17 +102,17 @@ body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); 
 
 /* CUSTOMER TABLE */
 .customer-controls { display:flex; gap:8px; margin-bottom:16px; align-items:center; }
-.search-input { flex:1; max-width:280px; padding:8px 12px; background:var(--white); border:1px solid var(--border); border-radius:8px; font-family:'Geist',sans-serif; font-size:13px; outline:none; color:var(--text); }
-.search-input:focus { border-color:var(--border2); }
-.filter-select { padding:8px 12px; background:var(--white); border:1px solid var(--border); border-radius:8px; font-family:'Geist',sans-serif; font-size:13px; cursor:pointer; color:var(--text); }
+.search-input { flex:1; max-width:280px; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; font-family:'Geist',sans-serif; font-size:13px; outline:none; color:var(--text); }
+.search-input:focus { border-color:var(--accent); background:var(--surface-hover); }
+.filter-select { padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; font-family:'Geist',sans-serif; font-size:13px; cursor:pointer; color:var(--text); }
 
 .customer-table { width:100%; border-collapse:collapse; }
 .customer-table th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--muted); padding:10px 14px; text-align:left; border-bottom:2px solid var(--border); background:var(--surface); }
 .customer-table th:first-child { border-radius:8px 0 0 0; }
 .customer-table th:last-child { border-radius:0 8px 0 0; }
-.customer-table td { padding:12px 14px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.customer-table td { padding:12px 14px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:middle; background:var(--surface); }
 .customer-table tr:last-child td { border-bottom:none; }
-.customer-table tr:hover td { background:var(--surface); cursor:pointer; }
+.customer-table tr:hover td { background:var(--surface-hover); cursor:pointer; }
 
 .av-sm { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
 .customer-name-cell { display:flex; align-items:center; gap:10px; }
@@ -129,16 +130,16 @@ body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); 
 
 /* CAMPAIGN */
 .campaign-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
-.campaign-card { background:var(--white); border:1px solid var(--border); border-radius:12px; overflow:hidden; transition:all 0.2s; }
-.campaign-card:hover { border-color:var(--border2); box-shadow:0 4px 12px rgba(0,0,0,0.07); }
+.campaign-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; transition:all 0.2s; }
+.campaign-card:hover { border-color:var(--accent); box-shadow:0 4px 12px rgba(0,0,0,0.3); transform:translateY(-2px); }
 .campaign-header { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; }
 .campaign-title { font-size:14px; font-weight:700; margin-bottom:3px; }
 .campaign-sub { font-size:12px; color:var(--muted); }
 .campaign-status { font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; flex-shrink:0; }
 .cs-live { background:var(--accent-light); color:var(--accent); }
 .cs-scheduled { background:var(--blue-light); color:var(--blue); }
-.cs-draft { background:var(--surface); color:var(--muted); }
-.cs-done { background:var(--surface); color:var(--muted); }
+.cs-draft { background:var(--surface-hover); color:var(--muted); }
+.cs-done { background:var(--surface-hover); color:var(--muted); }
 .campaign-body { padding:14px 16px; }
 .campaign-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px; }
 .cstat { text-align:center; }
@@ -148,7 +149,7 @@ body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); 
 .campaign-meta span { display:flex; align-items:center; gap:4px; }
 
 /* COMPOSER */
-.composer-card { background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:20px; }
+.composer-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:20px; }
 .composer-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
 .composer-header h3 { font-size:14px; font-weight:700; }
 .composer-body { padding:20px; display:grid; grid-template-columns:1fr 340px; gap:24px; }
@@ -330,9 +331,7 @@ body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); 
         </select>
         <select class="filter-select">
           <option>Tất cả kênh</option>
-          <option>🟦 Zalo</option>
-          <option>📘 Facebook</option>
-          <option>🌐 Website</option>
+          <option>📘 Facebook Messenger</option>
         </select>
         <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="selectAll()">Chọn tất cả</button>
         <button class="btn btn-accent btn-sm" id="sendSelected" style="display:none" onclick="switchTab('broadcast',null)">📣 Gửi tin (<span id="selectedCount">0</span>)</button>
@@ -404,7 +403,7 @@ body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); 
           <span style="font-size:22px">📣</span>
           <div>
             <h3>Soạn chiến dịch tin nhắn hàng loạt</h3>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">Gửi đến phân khúc đã chọn · Hỗ trợ Zalo, Facebook, SMS</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Gửi đến phân khúc đã chọn qua Facebook Messenger</div>
           </div>
         </div>
         <div class="composer-body">
@@ -426,9 +425,7 @@ body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); 
             <div class="field-group">
               <label class="field-label">Kênh gửi</label>
               <div style="display:flex;gap:8px">
-                <div class="seg-chip active" onclick="toggleSeg(this)">🟦 Zalo OA</div>
-                <div class="seg-chip" onclick="toggleSeg(this)">📘 Facebook</div>
-                <div class="seg-chip" onclick="toggleSeg(this)">💬 SMS</div>
+                <div class="seg-chip active">📘 Facebook Messenger</div>
               </div>
             </div>
             <div class="field-group">

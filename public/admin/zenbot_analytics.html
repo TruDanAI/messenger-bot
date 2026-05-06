@@ -8,30 +8,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 
 :root {
-  --bg: #f7f6f3;
+  --bg: #0f172a;
   --white: #ffffff;
-  --surface: #f0efe9;
-  --border: #e4e2d9;
-  --border2: #d0cec3;
-  --text: #1a1916;
-  --muted: #6b6860;
-  --subtle: #9a9890;
-  --accent: #1a6b4a;
-  --accent-light: #e8f5ee;
-  --accent-mid: #2d9467;
-  --blue: #1d4ed8;
-  --blue-light: #eff6ff;
-  --amber: #b45309;
-  --amber-light: #fffbeb;
-  --red: #dc2626;
-  --red-light: #fef2f2;
+  --surface: #1e293b;
+  --surface-hover: #334155;
+  --border: #334155;
+  --border2: #475569;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --subtle: #64748b;
+  --accent: #8b5cf6;
+  --accent-light: rgba(139, 92, 246, 0.1);
+  --accent-mid: #7c3aed;
+  --blue: #3b82f6;
+  --blue-light: rgba(59, 130, 246, 0.1);
+  --amber: #f59e0b;
+  --amber-light: rgba(245, 158, 11, 0.1);
+  --red: #ef4444;
+  --red-light: rgba(239, 68, 68, 0.1);
   --purple: #7c3aed;
-  --purple-light: #f5f3ff;
-  --chart1: #1a6b4a;
-  --chart2: #3b82f6;
-  --chart3: #f59e0b;
-  --chart4: #ec4899;
-  --chart5: #8b5cf6;
+  --purple-light: rgba(124, 58, 237, 0.1);
+  --chart1: #8b5cf6; /* Purple Neon */
+  --chart2: #3b82f6; /* Blue Neon */
+  --chart3: #10b981; /* Green Neon */
+  --chart4: #f59e0b; /* Amber Neon */
+  --chart5: #ec4899; /* Pink Neon */
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
@@ -44,28 +45,21 @@ body {
 }
 
 /* SIDEBAR */
-.sidebar {
-  width: 248px;
-  background: var(--white);
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-}
-.sidebar-top { padding: 18px 16px 12px; border-bottom: 1px solid var(--border); }
+.sidebar { width:248px; background:#0f172a; border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-top { padding:18px 16px 12px; border-bottom:1px solid var(--border); }
 .logo { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
-.logo-mark { width:28px; height:28px; background:var(--text); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+.logo-mark { width:28px; height:28px; background:var(--text); color:var(--bg); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
 .logo-text { font-family:'Instrument Serif',serif; font-size:18px; letter-spacing:-0.3px; }
 .logo-badge { margin-left:auto; font-size:10px; font-weight:600; background:var(--accent-light); color:var(--accent); padding:2px 7px; border-radius:20px; }
 .nav-item { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:7px; font-size:13.5px; cursor:pointer; color:var(--muted); transition:all 0.15s; margin-bottom:1px; }
-.nav-item:hover { background:var(--surface); color:var(--text); }
+.nav-item:hover { background:var(--surface-hover); color:var(--text); }
 .nav-item.active { background:var(--surface); color:var(--text); font-weight:600; }
 .nav-icon { font-size:15px; width:20px; text-align:center; }
-.nav-count { margin-left:auto; font-size:11px; font-weight:600; color:var(--subtle); background:var(--surface); padding:1px 7px; border-radius:20px; }
+.nav-count { margin-left:auto; font-size:11px; font-weight:600; color:var(--subtle); background:var(--surface-hover); padding:1px 7px; border-radius:20px; }
 .sidebar-section { padding:14px 16px 8px; }
 .sidebar-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--subtle); margin-bottom:8px; }
 .sidebar-footer { margin-top:auto; padding:14px 16px; border-top:1px solid var(--border); }
-.insight-card { background:linear-gradient(135deg,var(--accent-light),#d1fae5); border:1px solid rgba(26,107,74,0.2); border-radius:10px; padding:12px; }
+.insight-card { background:linear-gradient(135deg,var(--accent-light),rgba(139,92,246,0.2)); border:1px solid rgba(139,92,246,0.3); border-radius:10px; padding:12px; }
 .insight-card-title { font-size:11px; font-weight:700; color:var(--accent); margin-bottom:6px; }
 .insight-card-text { font-size:12px; color:var(--text); line-height:1.5; }
 
@@ -100,7 +94,7 @@ body {
 /* KPI CARDS */
 .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
 .kpi-card {
-  background:var(--white); border:1px solid var(--border); border-radius:12px;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
   padding:18px; transition:all 0.2s; cursor:default; position:relative; overflow:hidden;
   animation: fadeUp 0.4s ease both;
 }
@@ -120,7 +114,7 @@ body {
 
 /* CHARTS */
 .chart-grid { display:grid; grid-template-columns:2fr 1fr; gap:16px; margin-bottom:20px; }
-.chart-card { background:var(--white); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+.chart-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
 .chart-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
 .chart-title { font-size:13.5px; font-weight:700; }
 .chart-sub { font-size:12px; color:var(--muted); margin-top:2px; }
@@ -156,7 +150,7 @@ body {
 .product-table th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--muted); padding:10px 14px; text-align:left; border-bottom:1px solid var(--border); }
 .product-table td { padding:12px 14px; font-size:13px; border-bottom:1px solid var(--border); }
 .product-table tr:last-child td { border-bottom:none; }
-.product-table tr:hover td { background:var(--surface); }
+.product-table tr:hover td { background:var(--surface-hover); }
 .rank-badge { width:24px; height:24px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; font-family:'Geist Mono',monospace; }
 .trend-bar { height:4px; border-radius:4px; display:inline-block; }
 
@@ -170,7 +164,7 @@ body {
 
 /* AI PERF */
 .perf-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.perf-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; }
+.perf-card { background:var(--surface-hover); border:1px solid var(--border); border-radius:10px; padding:14px; }
 .perf-val { font-size:26px; font-weight:800; font-family:'Geist Mono',monospace; line-height:1; margin:6px 0 4px; }
 .perf-label { font-size:11px; color:var(--muted); font-weight:600; }
 .perf-bar { height:5px; background:var(--border); border-radius:4px; margin-top:8px; overflow:hidden; }
@@ -302,12 +296,10 @@ body {
           <div class="chart-header">
             <div>
               <div class="chart-title">Hội thoại theo ngày</div>
-              <div class="chart-sub">Zalo · Facebook · Website</div>
+              <div class="chart-sub">Dữ liệu từ Facebook Messenger</div>
             </div>
             <div class="chart-legend">
-              <div class="legend-item"><div class="legend-dot" style="background:var(--chart1)"></div>Zalo</div>
-              <div class="legend-item"><div class="legend-dot" style="background:var(--chart2)"></div>Facebook</div>
-              <div class="legend-item"><div class="legend-dot" style="background:var(--chart3)"></div>Website</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--chart2)"></div>Facebook Messenger</div>
             </div>
           </div>
           <div class="chart-body">
@@ -346,22 +338,14 @@ body {
             <div class="donut-wrap">
               <svg width="130" height="130" viewBox="0 0 130 130">
                 <circle cx="65" cy="65" r="50" fill="none" stroke="var(--border)" stroke-width="20"/>
-                <!-- Zalo 52% -->
-                <circle cx="65" cy="65" r="50" fill="none" stroke="var(--chart1)" stroke-width="20"
-                  stroke-dasharray="163.4 314.2" stroke-dashoffset="0" transform="rotate(-90 65 65)"/>
-                <!-- FB 31% -->
+                <!-- Facebook Messenger 100% -->
                 <circle cx="65" cy="65" r="50" fill="none" stroke="var(--chart2)" stroke-width="20"
-                  stroke-dasharray="97.4 314.2" stroke-dashoffset="-163.4" transform="rotate(-90 65 65)"/>
-                <!-- Web 17% -->
-                <circle cx="65" cy="65" r="50" fill="none" stroke="var(--chart3)" stroke-width="20"
-                  stroke-dasharray="53.4 314.2" stroke-dashoffset="-260.8" transform="rotate(-90 65 65)"/>
+                  stroke-dasharray="314.2 314.2" stroke-dashoffset="0" transform="rotate(-90 65 65)"/>
                 <text x="65" y="60" text-anchor="middle" font-size="16" font-weight="800" fill="var(--text)" font-family="Instrument Serif">4,821</text>
                 <text x="65" y="76" text-anchor="middle" font-size="9" fill="var(--muted)" font-family="Geist">hội thoại</text>
               </svg>
               <div class="donut-legend">
-                <div class="donut-leg-item"><div class="donut-leg-color" style="background:var(--chart1)"></div>Zalo<span class="donut-leg-val" style="color:var(--chart1)">52%</span></div>
-                <div class="donut-leg-item"><div class="donut-leg-color" style="background:var(--chart2)"></div>Facebook<span class="donut-leg-val" style="color:var(--chart2)">31%</span></div>
-                <div class="donut-leg-item"><div class="donut-leg-color" style="background:var(--chart3)"></div>Website<span class="donut-leg-val" style="color:var(--chart3)">17%</span></div>
+                <div class="donut-leg-item"><div class="donut-leg-color" style="background:var(--chart2)"></div>Facebook Messenger<span class="donut-leg-val" style="color:var(--chart2)">100%</span></div>
               </div>
             </div>
           </div>

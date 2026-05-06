@@ -8,27 +8,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg: #f7f6f3;
+  --bg: #0f172a;
   --white: #ffffff;
-  --surface: #f0efe9;
-  --border: #e4e2d9;
-  --border2: #d0cec3;
-  --text: #1a1916;
-  --muted: #6b6860;
-  --subtle: #9a9890;
-  --accent: #1a6b4a;
-  --accent-light: #e8f5ee;
-  --accent-mid: #2d9467;
-  --blue: #1d4ed8;
-  --blue-light: #eff6ff;
-  --amber: #b45309;
-  --amber-light: #fffbeb;
-  --red: #dc2626;
-  --red-light: #fef2f2;
-  --radius: 10px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.05);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+  --surface: #1e293b;
+  --surface-hover: #334155;
+  --border: #334155;
+  --border2: #475569;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --subtle: #64748b;
+  --accent: #8b5cf6;
+  --accent-light: rgba(139, 92, 246, 0.1);
+  --accent-mid: #7c3aed;
+  --blue: #3b82f6;
+  --blue-light: rgba(59, 130, 246, 0.1);
+  --amber: #f59e0b;
+  --amber-light: rgba(245, 158, 11, 0.1);
+  --red: #ef4444;
+  --red-light: rgba(239, 68, 68, 0.1);
+  --radius: 12px;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
 }
 
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -45,7 +46,7 @@ body {
 /* ────────── SIDEBAR ────────── */
 .sidebar {
   width: 248px;
-  background: var(--white);
+  background: #0f172a;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -199,8 +200,8 @@ body {
 
 /* Upload Zone */
 .upload-zone {
-  background: var(--white);
-  border: 2px dashed var(--border2);
+  background: var(--surface);
+  border: 2px dashed var(--border);
   border-radius: 14px;
   padding: 28px;
   text-align: center;
@@ -259,7 +260,7 @@ body {
 .source-grid { display: flex; flex-direction: column; gap: 8px; }
 
 .source-card {
-  background: var(--white);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 16px;
@@ -268,7 +269,7 @@ body {
   cursor: pointer;
   position: relative;
 }
-.source-card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
+.source-card:hover { border-color: var(--accent); background: var(--surface-hover); box-shadow: var(--shadow-md); }
 .source-card.selected { border-color: var(--accent); background: var(--accent-light); }
 
 .source-icon-wrap {
@@ -477,7 +478,8 @@ body {
 }
 .modal-overlay.show { display: flex; }
 .modal {
-  background: var(--white);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 16px;
   width: 520px;
   box-shadow: var(--shadow-lg);
@@ -614,15 +616,13 @@ body {
           <span class="type-pill">📄 PDF</span>
           <span class="type-pill">📝 Word</span>
           <span class="type-pill">📃 TXT</span>
-          <span class="type-pill">🌐 Website</span>
           <span class="type-pill">📊 Excel</span>
-          <span class="type-pill">🎥 YouTube</span>
         </div>
       </div>
 
       <!-- URL input -->
       <div class="url-row">
-        <input class="url-input" placeholder="🔗 Dán link website, Google Drive, hoặc YouTube..." id="urlInput">
+        <input class="url-input" placeholder="🔗 Dán link Google Drive hoặc OneDrive để AI đọc file..." id="urlInput">
         <button class="btn btn-ghost" onclick="addUrl()">
           <span>⚡</span> Phân tích ngay
         </button>
@@ -660,26 +660,6 @@ body {
           </div>
         </div>
 
-        <div class="source-card">
-          <div class="source-icon-wrap" style="background:#f0fdf4">🌐</div>
-          <div class="source-info">
-            <div class="source-name">https://shopthoimoiabc.vn/chinh-sach</div>
-            <div class="source-meta">
-              <span>📦 89 chunks</span>
-              <span>📄 12 trang</span>
-              <span>🕐 Hôm nay 09:30</span>
-            </div>
-          </div>
-          <div class="source-status status-ready">
-            <div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div>
-            Sẵn sàng
-          </div>
-          <div class="source-actions">
-            <button class="icon-btn">🔍</button>
-            <button class="icon-btn">🔄</button>
-            <button class="icon-btn" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
-          </div>
-        </div>
 
         <div class="source-card">
           <div class="source-icon-wrap" style="background:#fef9c3">📊</div>
@@ -769,26 +749,6 @@ body {
           </div>
         </div>
 
-        <div class="source-card">
-          <div class="source-icon-wrap" style="background:#f0fdf4">🎥</div>
-          <div class="source-info">
-            <div class="source-name">youtube.com/watch?v=abc123 — Hướng dẫn mặc đồ</div>
-            <div class="source-meta">
-              <span>📦 54 chunks</span>
-              <span>⏱️ 12 phút</span>
-              <span>🕐 5 ngày trước</span>
-            </div>
-          </div>
-          <div class="source-status status-ready">
-            <div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div>
-            Sẵn sàng
-          </div>
-          <div class="source-actions">
-            <button class="icon-btn">🔍</button>
-            <button class="icon-btn">🔄</button>
-            <button class="icon-btn" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
-          </div>
-        </div>
 
       </div>
     </div>
