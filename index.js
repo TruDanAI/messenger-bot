@@ -8,9 +8,9 @@ const sharp = require('sharp');
 const { parse } = require('csv-parse/sync');
 const { connectDB } = require('./core/db');
 const { messageQueue, connection: redisConnection } = require('./core/queue');
-const { startSheetOutboxWorker } = require('./core/sheets-webhook');
+const { startSheetOutboxWorker, stopSheetOutboxWorker } = require('./core/sheets-webhook');
 const Shop = require('./core/models/Shop');
-require('./core/worker'); // Khởi động BullMQ Worker chạy ngầm cùng server
+const chatWorker = require('./core/worker'); // Khởi động BullMQ Worker chạy ngầm cùng server
 
 // Lazy-load processor để lấy IMAGE_INDEX (tránh circular load)
 const processor = require('./core/processor');
@@ -290,17 +290,21 @@ app.post('/webhook', webhookRateLimit, async (req, res) => {
     return res.sendStatus(403);
   }
 
-  // TRẢ VỀ 200 NGAY LẬP TỨC để Meta không retry
-  res.status(200).send('EVENT_RECEIVED');
+  const correlationId = req.get('x-request-id') || req.get('x-correlation-id') || crypto.randomUUID();
+  res.set('x-correlation-id', correlationId);
 
   const body = req.body;
-  if (body.object !== 'page') return;
+  if (body.object !== 'page') {
+    return res.status(200).send('EVENT_RECEIVED');
+  }
 
   const baseUrlOverride = inferBaseUrlFromRequest(req);
 
   // Cache mapping pageId -> shopId
   const shopCache = app.get('shopCache') || new Map();
   if (!app.get('shopCache')) app.set('shopCache', shopCache);
+
+  let enqueueFailed = false;
 
   for (const entry of body.entry || []) {
     const pageId = entry.id;
@@ -312,7 +316,13 @@ app.post('/webhook', webhookRateLimit, async (req, res) => {
         shopId = shop._id;
         shopCache.set(pageId, shopId);
       } else {
-        shopId = process.env.SHOP_ID || 'adult-shop';
+        console.error(JSON.stringify({
+          level: 'error',
+          event: 'webhook.drop.unknown_page',
+          correlationId,
+          pageId
+        }));
+        continue;
       }
     }
 
@@ -326,17 +336,48 @@ app.post('/webhook', webhookRateLimit, async (req, res) => {
           pageId,
           senderId,
           event,
-          baseUrlOverride
+          baseUrlOverride,
+          correlationId
         }, {
           attempts: 3,
-          backoff: { type: 'fixed', delay: 5000 },
+          backoff: { type: 'exponential', delay: 1000 },
+          removeOnComplete: { age: 3600, count: 2000 },
+          removeOnFail: { age: 24 * 3600, count: 5000 },
           jobId: event.message?.mid || undefined
         });
+        console.log(JSON.stringify({
+          level: 'info',
+          event: 'webhook.job.enqueued',
+          correlationId,
+          jobId: event.message?.mid || null,
+          shopId,
+          senderId,
+          pageId
+        }));
       } catch (err) {
-        console.error('❌ Lỗi thêm vào Queue:', err.message);
+        console.error(JSON.stringify({
+          level: 'error',
+          event: 'webhook.job.enqueue_failed',
+          correlationId,
+          shopId,
+          senderId,
+          pageId,
+          message: err.message
+        }));
+        enqueueFailed = true;
       }
     }
   }
+
+  if (enqueueFailed) {
+    return res.status(503).json({
+      ok: false,
+      correlationId,
+      message: 'Failed to enqueue one or more webhook events'
+    });
+  }
+
+  return res.status(200).send('EVENT_RECEIVED');
 });
 
 // ========== ZENBOT CENTRAL (SHOP MANAGEMENT API) ==========
@@ -359,6 +400,20 @@ function sanitizeShop(shop) {
       telegramChatId: raw.credentials?.telegramChatId || ''
     }
   };
+}
+
+function clearRuntimeCache(shopId) {
+  try {
+    const { RUNTIME_CACHE } = require('./core/processor');
+    RUNTIME_CACHE?.delete(shopId);
+  } catch (err) {
+    console.error('❌ Không thể clear runtime cache:', err.message);
+  }
+}
+
+function clearShopRouteCache() {
+  const shopCache = app.get('shopCache');
+  if (shopCache?.clear) shopCache.clear();
 }
 
 function isValidShopId(id) {
@@ -402,6 +457,8 @@ app.post('/api/admin/shops', adminAuth, async (req, res) => {
     }
     const shop = new Shop(req.body);
     await shop.save();
+    clearRuntimeCache(shop._id);
+    clearShopRouteCache();
     res.status(201).json(sanitizeShop(shop));
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -426,6 +483,8 @@ app.patch('/api/admin/shops/:id', adminAuth, requireValidShopId, async (req, res
     
     const shop = await Shop.findByIdAndUpdate(id, updateData, { new: true });
     if (!shop) return res.status(404).json({ message: 'Shop không tồn tại' });
+    clearRuntimeCache(id);
+    clearShopRouteCache();
     res.json(sanitizeShop(shop));
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -435,6 +494,8 @@ app.patch('/api/admin/shops/:id', adminAuth, requireValidShopId, async (req, res
 app.delete('/api/admin/shops/:id', adminAuth, requireValidShopId, async (req, res) => {
   try {
     await Shop.findByIdAndDelete(req.params.id);
+    clearRuntimeCache(req.params.id);
+    clearShopRouteCache();
     res.json({ message: 'Shop deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -590,13 +651,38 @@ app.get('/admin/state/:userId', (req, res) => {
 });
 
 // ========== GRACEFUL SHUTDOWN ==========
-function shutdown(signal) {
-  console.log(`🛑 Nhận ${signal}, đang dừng server...`);
-  process.exit(0);
-}
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT',  () => shutdown('SIGINT'));
-
-app.listen(PORT, () => {
+let isShuttingDown = false;
+const server = app.listen(PORT, () => {
   console.log(`🚀 Webhook Server (ZenBot) đang chạy trên port ${PORT}`);
 });
+
+async function shutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`🛑 Nhận ${signal}, đang dừng server...`);
+
+  const closeWithTimeout = async (label, task) => {
+    try {
+      await Promise.race([
+        task(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timeout`)), 10000))
+      ]);
+    } catch (err) {
+      console.error(`❌ Lỗi khi đóng ${label}:`, err.message);
+    }
+  };
+
+  await closeWithTimeout('http server', () => new Promise((resolve, reject) => {
+    server.close(err => err ? reject(err) : resolve());
+  }));
+  stopSheetOutboxWorker();
+  await closeWithTimeout('bullmq worker', () => chatWorker.close());
+  await closeWithTimeout('bullmq queue', () => messageQueue.close());
+  await closeWithTimeout('redis', () => redisConnection.quit());
+  await closeWithTimeout('mongodb', () => mongoose.connection.close(false));
+
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT',  () => { void shutdown('SIGINT'); });

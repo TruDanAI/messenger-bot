@@ -366,8 +366,21 @@ function createRuleEngine({ products, config = defaultConfig, contextStore = {} 
 
   function getKeywordProduct(userText) {
     const keywordMap = cfg.keywordProducts || {};
-    for (const [keyword, matcher] of Object.entries(keywordMap)) {
+    for (const [keyword, matcherRaw] of Object.entries(keywordMap)) {
       if (!wantsKeywordImage(userText, keyword, cfg)) continue;
+      
+      let matcher = matcherRaw;
+      if (typeof matcher === 'string') {
+        try {
+          matcher = new RegExp(matcher, 'i');
+        } catch (e) {
+          console.warn(`[rules] Invalid regex for keyword ${keyword}: ${matcherRaw}`);
+          continue;
+        }
+      }
+      
+      if (!(matcher instanceof RegExp)) continue;
+
       const found = productList.find(p =>
         matcher.test(String(p.code || p.description || ''))
       );

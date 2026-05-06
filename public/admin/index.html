@@ -1202,6 +1202,46 @@
                         <textarea class="form-input" id="customPrompt" rows="3" placeholder="Ví dụ: Bạn là nhân viên tư vấn bán hàng dễ thương, luôn dùng emoji ^^ và gọi khách là anh/chị..."></textarea>
                         <div class="form-hint">Định hình tính cách và giọng văn cho AI Gemini khi tư vấn (Kịch bản & Flow).</div>
                     </div>
+                    <!-- SAAS OPERATIONAL CONFIG -->
+                    <div class="form-section-label" style="margin-bottom:16px; margin-top:10px">Cấu hình vận hành (SaaS)</div>
+                    <div class="form-group">
+                        <label>Độ tuổi tối thiểu</label>
+                        <input class="form-input" type="number" id="minAge" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Chính sách Miễn ship</label>
+                        <select class="form-select" id="policyFreeShipping">
+                            <option value="true">Bật (Miễn phí toàn quốc)</option>
+                            <option value="false">Tắt (Tính theo địa chỉ)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Bảo mật & Đóng gói</label>
+                        <input class="form-input" id="policyPrivacy" placeholder="vd: gói kín đáo, không ghi tên sản phẩm">
+                    </div>
+                    <div class="form-group">
+                        <label>Thanh toán</label>
+                        <input class="form-input" id="policyPayment" placeholder="vd: COD hoặc chuyển khoản">
+                    </div>
+                    <div class="form-group">
+                        <label>Thời gian giao (Pre-order)</label>
+                        <input class="form-input" id="policyPreorderDays" placeholder="vd: 15-20 ngày">
+                    </div>
+                    <div class="form-group">
+                        <label>Các trường thông tin đơn</label>
+                        <input class="form-input" id="policyOrderInfoFields" placeholder="tên + SĐT + địa chỉ">
+                    </div>
+
+                    <div class="form-group form-full">
+                        <label>Dữ liệu kịch bản & Triggers (JSON)</label>
+                        <textarea class="form-input" id="saasData" rows="10" placeholder='{
+  "recommendations": { "budget": ["MÃ10"], "premium": ["MÃ8"] },
+  "keywordProducts": { "gel": "gel|boi tron" },
+  "templates": { "greeting": "Chào bạn ghé shop!" },
+  "intents": { "disabled": [] }
+}'></textarea>
+                        <div class="form-hint">Cấu hình Recommendations, KeywordProducts, Templates và Intent logic dưới dạng JSON. Dữ liệu này sẽ ghi đè file config.js cũ.</div>
+                    </div>
                     
                     <!-- MENU IMAGES -->
                     <div class="form-section-label" style="margin-bottom:16px; margin-top:10px">Hình ảnh Menu & Catalog</div>
@@ -1993,6 +2033,7 @@
         document.getElementById('submitBtn').innerHTML    = '<i class="fas fa-floppy-disk"></i> Tạo Shop';
         document.getElementById('shopForm').reset();
         document.getElementById('menuImages').value = ''; // Reset menu
+        document.getElementById('configOverrides').value = '';
         document.getElementById('shopId').disabled = false;
         selectPlan('BASIC');
         document.getElementById('isActive').checked = true;
@@ -2013,6 +2054,22 @@
         document.getElementById('shopName').value  = shop.name;
         document.getElementById('customPrompt').value = shop.customPrompt || '';
         document.getElementById('menuImages').value = (shop.menu_images || []).join(', '); // Load menu
+        document.getElementById('minAge').value = shop.minAge || 0;
+        document.getElementById('policyFreeShipping').value = String(shop.policies?.freeShipping ?? true);
+        document.getElementById('policyPrivacy').value = shop.policies?.privacy || '';
+        document.getElementById('policyPayment').value = shop.policies?.payment || '';
+        document.getElementById('policyPreorderDays').value = shop.policies?.preorderDays || '';
+        document.getElementById('policyOrderInfoFields').value = shop.policies?.orderInfoFields || '';
+        
+        const saas = {
+            recommendations: shop.recommendations || {},
+            keywordProducts: shop.keywordProducts || {},
+            templates: shop.templates || {},
+            intents: shop.intents || { disabled: [], prepend: [], append: [] }
+        };
+        document.getElementById('saasData').value = JSON.stringify(saas, null, 2);
+        
+        document.getElementById('configOverrides').value = shop.configOverrides ? JSON.stringify(shop.configOverrides, null, 2) : '';
         selectPlan(shop.plan || 'BASIC');
         document.getElementById('fbPageToken').value  = ''; // keep empty = don't change
         document.getElementById('fbPageId').value     = shop.credentials?.fbPageId || '';
@@ -2035,6 +2092,7 @@
         document.getElementById('geminiApiKey').placeholder = 'Bỏ trống để dùng key hệ thống';
         document.getElementById('customPrompt').value = '';
         document.getElementById('menuImages').value = '';
+        document.getElementById('configOverrides').value = '';
     }
 
     // ─── SUBMIT ──────────────────────────────────────────────
@@ -2049,12 +2107,54 @@
         const fbToken  = document.getElementById('fbPageToken').value;
         const fbId     = document.getElementById('fbPageId').value.trim();
         const gemKey   = document.getElementById('geminiApiKey').value;
+        const configOverridesRaw = document.getElementById('configOverrides').value.trim();
+        let configOverrides = {};
+
+        if (configOverridesRaw) {
+            try {
+                configOverrides = JSON.parse(configOverridesRaw);
+                if (!configOverrides || typeof configOverrides !== 'object' || Array.isArray(configOverrides)) {
+                    throw new Error('JSON phải là object');
+                }
+            } catch (err) {
+                showToast('Cấu hình nâng cao JSON không hợp lệ', 'error');
+                btn.innerHTML = '<i class="fas fa-floppy-disk"></i> Lưu cấu hình';
+                btn.disabled = false;
+                return;
+            }
+        }
+
+        const saasDataRaw = document.getElementById('saasData').value.trim();
+        let saasData = {};
+        if (saasDataRaw) {
+            try {
+                saasData = JSON.parse(saasDataRaw);
+            } catch (err) {
+                showToast('JSON Dữ liệu kịch bản không hợp lệ', 'error');
+                btn.innerHTML = '<i class="fas fa-floppy-disk"></i> Lưu cấu hình';
+                btn.disabled = false;
+                return;
+            }
+        }
 
         const payload = {
             _id:      id,
             name:     document.getElementById('shopName').value.trim(),
             plan:     selectedPlan,
             customPrompt: document.getElementById('customPrompt').value.trim(),
+            minAge:   parseInt(document.getElementById('minAge').value) || 0,
+            policies: {
+                freeShipping: document.getElementById('policyFreeShipping').value === 'true',
+                privacy: document.getElementById('policyPrivacy').value.trim(),
+                payment: document.getElementById('policyPayment').value.trim(),
+                preorderDays: document.getElementById('policyPreorderDays').value.trim(),
+                orderInfoFields: document.getElementById('policyOrderInfoFields').value.trim()
+            },
+            recommendations: saasData.recommendations || {},
+            keywordProducts: saasData.keywordProducts || {},
+            templates: saasData.templates || {},
+            intents: saasData.intents || { disabled: [], prepend: [], append: [] },
+            configOverrides,
             isActive: document.getElementById('isActive').checked,
             features: { enableAI: document.getElementById('enableAI').checked },
             credentials: {

@@ -21,7 +21,43 @@ function normalizeShopId(raw) {
   return id;
 }
 
-function loadShopRuntime(shopId) {
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function deepMergeConfig(base, override) {
+  if (!isPlainObject(base) || !isPlainObject(override)) return override;
+  const merged = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    if (Array.isArray(value)) {
+      merged[key] = [...value];
+    } else if (isPlainObject(value) && isPlainObject(base[key])) {
+      merged[key] = deepMergeConfig(base[key], value);
+    } else {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
+function buildDbRuntimeConfig(shopDoc) {
+  if (!shopDoc) return {};
+  const doc = typeof shopDoc.toObject === 'function' ? shopDoc.toObject() : shopDoc;
+  return {
+    shopName: doc.name || undefined,
+    minAge: doc.minAge,
+    policies: doc.policies,
+    recommendations: doc.recommendations,
+    keywordProducts: doc.keywordProducts,
+    templates: doc.templates,
+    intents: doc.intents,
+    customPrompt: doc.customPrompt || '',
+    menu_images: Array.isArray(doc.menu_images) ? [...doc.menu_images] : [],
+    ...(isPlainObject(doc.configOverrides) ? doc.configOverrides : {})
+  };
+}
+
+function loadShopRuntime(shopId, shopDoc = null) {
   const safeShopId = normalizeShopId(shopId);
   // Nếu dùng /data trực tiếp làm volume thì shops sẽ nằm ngay trong đó
   const shopDir = (SHOPS_DIR === '/data') ? path.join(SHOPS_DIR, safeShopId) : path.join(SHOPS_DIR, safeShopId);
@@ -66,7 +102,8 @@ function loadShopRuntime(shopId) {
     if (Array.isArray(custom.append)) append.push(...custom.append);
   }
 
-  const mergedConfig = {
+  const dbConfig = buildDbRuntimeConfig(shopDoc);
+  const mergedConfig = deepMergeConfig({
     ...shopConfig,
     intents: {
       ...(shopConfig.intents || {}),
@@ -74,7 +111,14 @@ function loadShopRuntime(shopId) {
       prepend: [...prepend, ...(shopConfig.intents?.prepend || [])],
       append: [...(shopConfig.intents?.append || []), ...append]
     }
-  };
+  }, dbConfig);
+
+  // If DB has intents, they should override or merge. For SaaS, DB is truth.
+  if (dbConfig.intents) {
+    if (dbConfig.intents.disabled) mergedConfig.intents.disabled = dbConfig.intents.disabled;
+    if (dbConfig.intents.prepend) mergedConfig.intents.prepend = [...dbConfig.intents.prepend, ...mergedConfig.intents.prepend];
+    if (dbConfig.intents.append) mergedConfig.intents.append = [...mergedConfig.intents.append, ...dbConfig.intents.append];
+  }
 
   const rules = createRuleEngine({
     products,
@@ -93,10 +137,10 @@ function loadShopRuntime(shopId) {
 }
 
 const RUNTIME_CACHE = new Map();
-function getShopRuntime(shopId) {
+function getShopRuntime(shopId, shopDoc = null) {
   const id = normalizeShopId(shopId);
   if (!RUNTIME_CACHE.has(id)) {
-    RUNTIME_CACHE.set(id, loadShopRuntime(id));
+    RUNTIME_CACHE.set(id, loadShopRuntime(id, shopDoc));
   }
   return RUNTIME_CACHE.get(id);
 }
@@ -105,6 +149,47 @@ function getShopRuntime(shopId) {
 
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '');
 const HANDOFF_MS = 30 * 60 * 1000;
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 12000;
+const AI_RETRY_ATTEMPTS = Number(process.env.AI_RETRY_ATTEMPTS) || 3;
+const AI_RETRY_BASE_DELAY_MS = Number(process.env.AI_RETRY_BASE_DELAY_MS) || 500;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRetryableAiError(err) {
+  const status = err?.response?.status;
+  if (status === 408 || status === 429) return true;
+  if (status && status >= 500) return true;
+  const code = String(err?.code || '').toUpperCase();
+  return [
+    'ECONNABORTED',
+    'ECONNRESET',
+    'ENOTFOUND',
+    'ETIMEDOUT',
+    'EAI_AGAIN',
+    'ERR_NETWORK'
+  ].includes(code) || !err?.response;
+}
+
+async function callGeminiWithRetry(apiKey, payload) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= AI_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await axios.post(url, payload, { timeout: AI_TIMEOUT_MS });
+    } catch (err) {
+      lastError = err;
+      if (!isRetryableAiError(err) || attempt >= AI_RETRY_ATTEMPTS) break;
+      const jitter = Math.floor(Math.random() * 200);
+      const delay = AI_RETRY_BASE_DELAY_MS * (2 ** (attempt - 1)) + jitter;
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
 
 function getPublicImageUrl(shopId, filename, baseUrlOverride = '') {
   const baseRaw = baseUrlOverride || PUBLIC_BASE_URL;
@@ -144,9 +229,24 @@ function buildLeadDetails(userText, senderId, rules) {
   return { productCode, phone, name: parsed.name, address: parsed.address };
 }
 
+function shopImageExists(shopId, filename) {
+  if (!filename) return false;
+  return fs.existsSync(path.join(SHOPS_DIR, shopId, 'images', filename));
+}
+
 function buildSystemPrompt(shopConfig, products) {
-  const lines = products.map(p => `- ${p.code} | ${p.price} | ${p.description}`).join('\n');
-  return `Bạn là nhân viên tư vấn của ${shopConfig.shopName || 'shop'}.\nDANH SÁCH SẢN PHẨM:\n${lines}\nHãy trả lời ngắn gọn, tự nhiên.`;
+  let prompt = '';
+  if (typeof shopConfig.buildSystemPrompt === 'function') {
+    prompt = shopConfig.buildSystemPrompt(products);
+  } else {
+    const lines = products.map(p => `- ${p.code} | ${p.price} | ${p.description}`).join('\n');
+    prompt = `Bạn là nhân viên tư vấn của ${shopConfig.shopName || 'shop'}.\nDANH SÁCH SẢN PHẨM:\n${lines}\nHãy trả lời ngắn gọn, tự nhiên.`;
+  }
+
+  if (shopConfig.customPrompt) {
+    prompt = `${prompt}\n\nTU CHINH THEM:\n${shopConfig.customPrompt}`;
+  }
+  return prompt;
 }
 
 // ========== MESSAGE HANDLING CORE ==========
@@ -156,7 +256,7 @@ async function handleMessage(shopConfig, messageData) {
   const senderId = event.sender?.id;
   const shopId = shopConfig._id;
   const stateUserId = `${shopId}:${senderId}`;
-  const runtime = getShopRuntime(shopId);
+  const runtime = getShopRuntime(shopId, shopConfig);
   const { rules, products, config } = runtime;
 
   if (event.message?.is_echo) return;
@@ -183,25 +283,30 @@ async function handleMessage(shopConfig, messageData) {
   // 1. Gửi ảnh (nếu có yêu cầu)
   const imageFiles = [];
   if (rules.wantsMenuImages(userText)) {
-    // Ưu tiên menu_images từ Database, nếu rỗng mới dùng mặc định
+    // Ưu tiên menu_images từ Database, fallback về cấu hình/file mặc định nếu tồn tại thật.
     const menus = (shopConfig.menu_images && shopConfig.menu_images.length)
-                  ? shopConfig.menu_images
-                  : (config.menu_images && config.menu_images.length)
-                    ? config.menu_images
-                    : (config.menuImages || ['menu1.png', 'menu2.png']);
+      ? shopConfig.menu_images
+      : (config.menu_images && config.menu_images.length)
+        ? config.menu_images
+        : (config.menuImages && config.menuImages.length)
+          ? config.menuImages
+          : ['menu1.png', 'menu2.png'];
     imageFiles.push(...menus);
   }
   const kwImg = rules.wantsKeywordImage(userText);
   if (kwImg) imageFiles.push(kwImg);
-  const prodImgCode = rules.wantsProductImage(userText);
+  const prodImgRequested = rules.wantsProductImage(userText);
+  const prodImgCode = prodImgRequested
+    ? (rules.extractRequestedProductCodes(userText)[0] || storage.getLastProductCode(stateUserId) || '')
+    : '';
   if (prodImgCode) {
     const p = products.find(i => String(i.code).toUpperCase() === String(prodImgCode).toUpperCase());
     if (p?.image) imageFiles.push(p.image);
   }
 
   for (const file of [...new Set(imageFiles)]) {
-    // Bỏ qua nếu là tên file mặc định nhưng chưa có file thực tế (tránh lỗi Facebook 404)
-    if ((file === 'menu1.png' || file === 'menu2.png') && !config.menu_images?.length) {
+    // Với fallback cũ, chỉ skip nếu file mặc định thực sự không tồn tại.
+    if ((file === 'menu1.png' || file === 'menu2.png') && !shopImageExists(shopId, file)) {
       console.log(`⚠️ Bỏ qua gửi ảnh mặc định ${file} do chưa được cấu hình.`);
       continue;
     }
@@ -232,12 +337,23 @@ async function handleMessage(shopConfig, messageData) {
     history.push({ role: 'user', parts: [{ text: userText }] });
     
     const apiKey = shopConfig.credentials?.geminiApiKey || process.env.GEMINI_API_KEY;
-    const res = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: history
-    });
-    const aiReply = res.data.candidates[0].content.parts[0].text;
-    await sendMessage(senderId, aiReply, shopConfig, stateUserId);
+    if (!apiKey) {
+      console.warn(`⚠️ [AI_DISABLED] shop=${shopId} missing Gemini API key`);
+      await sendMessage(senderId, rules.buildFallbackReply(userText, stateUserId), shopConfig, stateUserId);
+      return;
+    }
+    try {
+      const res = await callGeminiWithRetry(apiKey, {
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: history
+      });
+      const aiReply = res.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!aiReply) throw new Error('Gemini trả về rỗng');
+      await sendMessage(senderId, aiReply, shopConfig, stateUserId);
+    } catch (err) {
+      console.error(`❌ [AI_FAIL] shop=${shopId} sender=${senderId}:`, err.response?.status || err.code || err.message);
+      await sendMessage(senderId, rules.buildFallbackReply(userText, stateUserId), shopConfig, stateUserId);
+    }
   } else {
     await sendMessage(senderId, rules.buildFallbackReply(userText, stateUserId), shopConfig, stateUserId);
   }

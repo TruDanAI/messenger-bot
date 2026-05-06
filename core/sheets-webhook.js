@@ -151,6 +151,12 @@ function startSheetOutboxWorker(opts = {}) {
   return outboxTimer;
 }
 
+function stopSheetOutboxWorker() {
+  if (!outboxTimer) return;
+  clearInterval(outboxTimer);
+  outboxTimer = null;
+}
+
 /**
  * Đẩy lead lên Google Sheets qua Apps Script / endpoint tuỳ chỉnh.
  * Nếu lỗi tạm thời sẽ retry; fail sau retry sẽ đẩy vào outbox để worker nền replay.
@@ -179,4 +185,4 @@ async function pushLeadToSheet(leadData) {
   return false;
 }
 
-module.exports = { pushLeadToSheet, startSheetOutboxWorker };
+module.exports = { pushLeadToSheet, startSheetOutboxWorker, stopSheetOutboxWorker };

@@ -30,14 +30,28 @@ const chatWorker = new Worker('webhook-messages', async job => {
 });
 
 async function processChatJob(job, stateKey) {
-    const { shopId, senderId } = job.data;
-    console.log(`[Worker] Xử lý Job ${job.id} từ khách ${senderId} cho shop ${shopId}`);
+    const { shopId, senderId, correlationId } = job.data;
+    console.log(JSON.stringify({
+        level: 'info',
+        event: 'worker.job.processing',
+        correlationId: correlationId || null,
+        jobId: job.id,
+        shopId,
+        senderId
+    }));
 
     // 1. Truy vấn MongoDB lấy cấu hình Shop
     const shopConfig = await Shop.findById(shopId);
     
     if (!shopConfig || !shopConfig.isActive) {
-        console.warn(`⚠️ Bỏ qua Job vì Shop ${shopId} không tồn tại hoặc bị khóa`);
+        console.warn(JSON.stringify({
+            level: 'warn',
+            event: 'worker.job.skipped.inactive_shop',
+            correlationId: correlationId || null,
+            jobId: job.id,
+            shopId,
+            senderId
+        }));
         return;
     }
 
@@ -48,7 +62,15 @@ async function processChatJob(job, stateKey) {
     try {
         await processor.handleMessage(shopConfig, job.data);
     } catch (error) {
-        console.error(`❌ Lỗi xử lý cho shop ${shopId}:`, error.message);
+        console.error(JSON.stringify({
+            level: 'error',
+            event: 'worker.job.processing_failed',
+            correlationId: correlationId || null,
+            jobId: job.id,
+            shopId,
+            senderId,
+            message: error.message
+        }));
         throw error; // Bắn ra để BullMQ Retry
     } finally {
         // 4. Lưu lại State mới vào Redis sau khi xử lý xong (dù lỗi hay không)
@@ -57,11 +79,26 @@ async function processChatJob(job, stateKey) {
 }
 
 chatWorker.on('completed', job => {
-    console.log(`✅ Job ${job.id} hoàn thành!`);
+    console.log(JSON.stringify({
+        level: 'info',
+        event: 'worker.job.completed',
+        correlationId: job.data?.correlationId || null,
+        jobId: job.id,
+        shopId: job.data?.shopId || null,
+        senderId: job.data?.senderId || null
+    }));
 });
 
 chatWorker.on('failed', (job, err) => {
-    console.error(`❌ Job ${job.id} thất bại sau nhiều lần thử:`, err.message);
+    console.error(JSON.stringify({
+        level: 'error',
+        event: 'worker.job.failed',
+        correlationId: job?.data?.correlationId || null,
+        jobId: job?.id || null,
+        shopId: job?.data?.shopId || null,
+        senderId: job?.data?.senderId || null,
+        message: err.message
+    }));
 });
 
 module.exports = chatWorker;
