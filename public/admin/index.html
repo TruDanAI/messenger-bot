@@ -395,10 +395,10 @@
             background: var(--bg-panel);
             border: 1px solid var(--border);
             border-radius: 24px;
-            width: 100%; max-width: 760px;
+            width: 100%; max-width: 900px;
             display: flex;
             flex-direction: column;
-            max-height: 92vh;
+            max-height: 90vh;
             overflow: hidden;
             position: relative;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
@@ -430,12 +430,12 @@
         .modal-body {
             padding: 32px 36px;
             flex: 1;
-            overflow-y: auto;
-            scrollbar-width: thin;
-            scrollbar-color: var(--text-dim) transparent;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
         }
-        .modal-body::-webkit-scrollbar { width: 4px; }
-        .modal-body::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 4px; }
+        .modal-body::-webkit-scrollbar { width: 6px; }
+        .modal-body::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 10px; }
+        .modal-body::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
 
         .modal-footer {
             padding: 20px 36px;
@@ -1245,6 +1245,18 @@
     // --- RENDERERS ---
     function renderShops() {
         const grid = document.getElementById('shopGrid');
+        if (currentShops.length === 0) {
+            grid.innerHTML = `
+                <div style="grid-column: 1/-1; padding: 60px; text-align: center; background: var(--bg-card); border: 1px dashed var(--border); border-radius: 16px;">
+                    <i class="fas fa-store-slash" style="font-size: 48px; color: var(--text-dim); margin-bottom: 20px;"></i>
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">Chưa có Shop nào</div>
+                    <div style="color: var(--text-muted); margin-bottom: 24px;">Hãy tạo shop đầu tiên để bắt đầu triển khai AI Chatbot.</div>
+                    <button class="btn btn-primary" onclick="openCreateModal()"><i class="fas fa-plus"></i> Tạo Shop Ngay</button>
+                </div>
+            `;
+            return;
+        }
+
         grid.innerHTML = currentShops.map(s => {
             const hue = s.name.length * 42 % 360;
             return `
@@ -1259,7 +1271,7 @@
                     ${s.features?.enableAI ? '<span class="badge badge-ai"><i class="fas fa-brain"></i> AI</span>' : ''}
                 </div>
                 <div class="shop-stats-row">
-                    <div class="shop-stat-box"><div class="label">SĐT</div><div class="value">${s.stats?.leads || 0}</div></div>
+                    <div class="shop-stat-box"><div class="label">Leads</div><div class="value">${s.stats?.leads || 0}</div></div>
                     <div class="shop-stat-box"><div class="label">Hội thoại</div><div class="value">${s.stats?.chats || 0}</div></div>
                 </div>
                 <div class="card-actions">

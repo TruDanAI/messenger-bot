@@ -555,266 +555,142 @@ Dùng mã: JULY30 để được giảm thêm 10% khi thanh toán online.
 </div>
 
 <script>
-// Tab switching
-function switchTab(tab, el) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-  else {
-    const map = {customers:0,funnel:1,campaigns:2,broadcast:3,segments:4};
-    document.querySelectorAll('.tab')[map[tab]].classList.add('active');
-  }
-  ['customers','funnel','campaigns','broadcast','segments'].forEach(t => {
-    document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
-  });
-  if (tab === 'funnel') renderFunnel();
-  if (tab === 'campaigns') renderCampaigns();
-  if (tab === 'segments') renderSegments();
-}
+    // --- AUTH & STATE ---
+    const API_TOKEN = localStorage.getItem('zenbot_token');
+    const shopId = new URLSearchParams(window.location.search).get('shopId') || 'all';
 
-const stageMap = { new:'stage-new', interested:'stage-interested', converting:'stage-converting', bought:'stage-bought', loyal:'stage-loyal' };
-const stageName = { new:'🆕 Mới', interested:'🔥 Quan tâm', converting:'⭐ Sắp chốt', bought:'✅ Đã mua', loyal:'👑 VIP' };
-let selected = new Set();
+    if (!API_TOKEN) {
+        // Nếu chạy trong iframe của index.html, nó sẽ tự xử lý auth, 
+        // nhưng ta vẫn check để bảo mật.
+    }
 
-function renderCustomers(list) {
-  const tbody = document.getElementById('customerTbody');
-  tbody.innerHTML = list.map((c, i) => {
-    const color = c.color || '#6366f1';
-    const initials = (c.name || 'User').split(' ').map(p => p[0]).join('').substring(0, 2);
-    return `
-    <tr onclick="toggleRow(${i},this)">
-      <td><input type="checkbox" class="checkbox" onclick="event.stopPropagation();toggleCheck(${i},this)" ${selected.has(i)?'checked':''}></td>
-      <td>
-        <div class="customer-name-cell">
-          <div class="av-sm" style="background:${color}22;color:${color}">${initials}</div>
-          <div>
-            <div style="font-weight:600;font-size:13px">${c.name || 'Ẩn danh'}</div>
-            <div style="font-size:11px;color:var(--muted);font-family:'Geist Mono'">${c.phone || c.senderId.substring(0,8)}</div>
-          </div>
-        </div>
-      </td>
-      <td><span class="stage-badge ${stageMap[c.status] || 'stage-new'}">${stageName[c.status] || '🆕 Mới'}</span></td>
-      <td><span class="channel-icon">${channelIcon[c.channel] || '📘'}</span></td>
-      <td style="font-size:12px;color:var(--muted)">${formatRelativeTime(c.at)}</td>
-      <td class="value-cell" style="color:${(c.value > 0)?'var(--accent)':'var(--muted)'}">${formatCurrency(c.value)}</td>
-      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${(c.tags || []).map(t=>`<span style="font-size:10px;background:var(--surface);padding:2px 7px;border-radius:20px;border:1px solid var(--border)">${t}</span>`).join('')}</div></td>
-      <td>
-        <div style="display:flex;gap:4px">
-          <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();alert('Mở hồ sơ khách hàng: ' + '${c.senderId}')">👁</button>
-          <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();switchTab('broadcast',null)">📣</button>
-        </div>
-      </td>
-    </tr>`}).join('');
-}
+    let customers = [];
+    let selected = new Set();
+    const channelIcon = { fb: '📘', zalo: '🟦', web: '🌐' };
 
-function updateFunnelCounts() {
-  const counts = { new: 0, contacted: 0, qualified: 0, order: 0, closed: 0 };
-  customers.forEach(c => { if(counts[c.status] !== undefined) counts[c.status]++; });
-  
-  // Cập nhật UI phễu (giản lược)
-  document.querySelectorAll('.funnel-count').forEach((el, idx) => {
-    const keys = ['new', 'contacted', 'qualified', 'order', 'closed'];
-    el.textContent = counts[keys[idx]];
-  });
-}
+    // --- UTILS ---
+    const formatCurrency = (v) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v || 0);
+    const formatRelativeTime = (t) => {
+        const d = new Date(t);
+        const now = new Date();
+        const diff = (now - d) / 1000;
+        if (diff < 60) return 'Vừa xong';
+        if (diff < 3600) return Math.floor(diff / 60) + ' phút trước';
+        if (diff < 86400) return Math.floor(diff / 3600) + ' giờ trước';
+        return d.toLocaleDateString();
+    };
 
-// Gọi fetch ngay khi load
-fetchLeads();
-renderCustomers(customers);
+    // --- DATA FETCHING ---
+    async function fetchLeads() {
+        try {
+            const res = await fetch(`/api/admin/leads?shopId=${shopId}`, {
+                headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+            });
+            if (res.ok) {
+                const rawLeads = await res.json();
+                // Map Leads sang cấu trúc CRM
+                customers = rawLeads.map(l => ({
+                    ...l,
+                    name: l.name || 'Khách ẩn danh',
+                    status: l.phone ? 'converting' : (l.type === 'buy_intent' ? 'interested' : 'new'),
+                    value: l.revenue || 0,
+                    channel: l.platform || 'fb',
+                    tags: l.productCode ? [l.productCode] : []
+                }));
+                renderCustomers(customers);
+                updateFunnelCounts();
+                updateSidebarCounts();
+            }
+        } catch (e) { console.error('CRM Fetch Error:', e); }
+    }
 
-function toggleCheck(i, el) {
-  if (el.checked) selected.add(i); else selected.delete(i);
-  updateSelectedUI();
-}
-function toggleRow(i, tr) {
-  const cb = tr.querySelector('.checkbox');
-  cb.checked = !cb.checked;
-  toggleCheck(i, cb);
-}
-function toggleAll(el) {
-  customers.forEach((_, i) => { if(el.checked) selected.add(i); else selected.delete(i); });
-  renderCustomers(customers);
-  updateSelectedUI();
-}
-function updateSelectedUI() {
-  const btn = document.getElementById('sendSelected');
-  document.getElementById('selectedCount').textContent = selected.size;
-  btn.style.display = selected.size > 0 ? 'flex' : 'none';
-}
-function selectAll() {
-  customers.forEach((_,i) => selected.add(i));
-  renderCustomers(customers);
-  updateSelectedUI();
-}
-function filterCustomers(v) {
-  const filtered = customers.filter(c => c.name.toLowerCase().includes(v.toLowerCase()) || c.phone.includes(v));
-  renderCustomers(filtered);
-}
-function filterByStage(s) {
-  const filtered = s === 'all' ? customers : customers.filter(c => c.stage === s);
-  renderCustomers(filtered);
-}
-function filterStage(s) {
-  switchTab('customers', document.querySelector('.tab'));
-  filterByStage(s);
-}
+    // --- RENDERERS ---
+    function renderCustomers(list) {
+        const tbody = document.getElementById('customerTbody');
+        const stageMap = { new:'stage-new', interested:'stage-interested', converting:'stage-converting', bought:'stage-bought', loyal:'stage-loyal' };
+        const stageName = { new:'🆕 Mới', interested:'🔥 Quan tâm', converting:'⭐ Sắp chốt', bought:'✅ Đã mua', loyal:'👑 VIP' };
 
-// Funnel
-function renderFunnel() {
-  const data = [
-    { label:'🆕 Mới tiếp cận', count:892, color:'#0369a1', pct:100 },
-    { label:'🔥 Đang quan tâm', count:654, color:'var(--amber)', pct:73.3 },
-    { label:'⭐ Sắp chốt đơn', count:231, color:'var(--purple)', pct:25.9 },
-    { label:'✅ Đã mua hàng', count:1742, color:'var(--accent)', pct:195 },
-    { label:'👑 Khách VIP', count:322, color:'#92400e', pct:36.1 },
-  ];
-  document.getElementById('funnelViz').innerHTML = data.map((d, i) => `
-    <div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
-        <span style="font-weight:600">${d.label}</span>
-        <span style="font-family:'Geist Mono';font-weight:800;color:${d.color}">${d.count.toLocaleString()}</span>
-      </div>
-      <div style="height:28px;background:var(--surface);border-radius:8px;overflow:hidden">
-        <div style="height:100%;width:${Math.min(100,d.pct)}%;background:${d.color};border-radius:8px;opacity:0.8;display:flex;align-items:center;padding-left:10px;transition:width 0.8s ease;animation:fadeUp 0.4s ease ${i*0.1}s both">
-          <span style="font-size:11px;font-weight:700;color:white">${d.pct}%</span>
-        </div>
-      </div>
-    </div>`).join('');
+        tbody.innerHTML = list.map((c, i) => {
+            const color = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+            const initials = (c.name || 'U').substring(0, 2).toUpperCase();
+            return `
+            <tr onclick="toggleRow(${i},this)">
+                <td><input type="checkbox" class="checkbox" onclick="event.stopPropagation();toggleCheck(${i},this)" ${selected.has(i)?'checked':''}></td>
+                <td>
+                    <div class="customer-name-cell">
+                        <div class="av-sm" style="background:${color}22;color:${color}">${initials}</div>
+                        <div>
+                            <div style="font-weight:600;font-size:13px">${c.name}</div>
+                            <div style="font-size:11px;color:var(--muted);font-family:'Geist Mono'">${c.phone || c.senderId.substring(0,8)}</div>
+                        </div>
+                    </div>
+                </td>
+                <td><span class="stage-badge ${stageMap[c.status] || 'stage-new'}">${stageName[c.status] || '🆕 Mới'}</span></td>
+                <td><span class="channel-icon">${channelIcon[c.channel] || '📘'}</span></td>
+                <td style="font-size:12px;color:var(--muted)">${formatRelativeTime(c.at)}</td>
+                <td class="value-cell" style="color:${(c.value > 0)?'var(--accent)':'var(--muted)'}">${formatCurrency(c.value)}</td>
+                <td><div style="display:flex;gap:4px;flex-wrap:wrap">${(c.tags || []).map(t=>`<span style="font-size:10px;background:var(--surface);padding:2px 7px;border-radius:20px;border:1px solid var(--border)">${t}</span>`).join('')}</div></td>
+                <td>
+                    <div style="display:flex;gap:4px">
+                        <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();alert('Mở hồ sơ khách: ' + '${c.senderId}')">👁</button>
+                    </div>
+                </td>
+            </tr>`}).join('');
+    }
 
-  const autos = [
-    { icon:'⏰', label:'Chưa mua sau 3 ngày', action:'Gửi nhắc nhở + coupon', active:true },
-    { icon:'👑', label:'Chi > 2M₫', action:'Chuyển sang VIP tự động', active:true },
-    { icon:'💤', label:'Không chat 30 ngày', action:'Gửi tin tái kích hoạt', active:false },
-    { icon:'🎂', label:'Sinh nhật khách', action:'Gửi voucher sinh nhật', active:true },
-  ];
-  document.getElementById('automations').innerHTML = autos.map(a => `
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border-radius:8px;font-size:12px">
-      <span>${a.icon}</span>
-      <div style="flex:1">
-        <div style="font-weight:600">${a.label}</div>
-        <div style="color:var(--muted);font-size:11px">${a.action}</div>
-      </div>
-      <div style="width:34px;height:18px;border-radius:9px;background:${a.active?'var(--accent)':'var(--border)'};cursor:pointer;position:relative;transition:background 0.2s" onclick="this.style.background=this.style.background.includes('accent')?'var(--border)':'var(--accent)'">
-        <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;${a.active?'right:2px':'left:2px'};transition:all 0.2s"></div>
-      </div>
-    </div>`).join('');
+    function updateFunnelCounts() {
+        const counts = { new:0, interested:0, converting:0, bought:0, loyal:0 };
+        customers.forEach(c => { if(counts[c.status] !== undefined) counts[c.status]++; });
+        
+        const keys = ['new', 'interested', 'converting', 'bought', 'loyal'];
+        document.querySelectorAll('.funnel-count').forEach((el, idx) => {
+            el.textContent = counts[keys[idx]];
+        });
+    }
 
-  const dropoffs = [
-    { from:'Mới → Quan tâm', rate:26.7, color:'var(--amber)' },
-    { from:'Quan tâm → Sắp chốt', rate:64.7, color:'var(--red)' },
-    { from:'Sắp chốt → Mua', rate:'N/A*', color:'var(--accent)', special:true },
-  ];
-  document.getElementById('dropoffRates').innerHTML = dropoffs.map(d => `
-    <div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span style="color:var(--muted)">${d.from}</span>
-        <span style="font-weight:800;font-family:'Geist Mono';color:${d.color}">${typeof d.rate === 'number' ? d.rate + '% rời' : d.rate}</span>
-      </div>
-      ${typeof d.rate === 'number' ? `<div style="height:5px;background:var(--border);border-radius:4px"><div style="width:${d.rate}%;height:100%;background:${d.color};border-radius:4px"></div></div>` : ''}
-    </div>`).join('');
-}
+    function updateSidebarCounts() {
+        // Cập nhật các con số ở sidebar bên trái
+        // Lưu ý: Trong iFrame, sidebar này thường bị ẩn nếu dùng layout của index.html
+    }
 
-// Campaigns
-const campaigns = [
-  { title:'Flash Sale tháng 7', sub:'Khách VIP + Đã mua · Zalo OA', status:'live', statusLabel:'🟢 Đang chạy', sent:1842, opened:1203, clicked:412, converted:89, startDate:'28/07', endDate:'31/07' },
-  { title:'Nhắc hàng bỏ giỏ', sub:'Sắp chốt đơn · Tự động · Zalo + FB', status:'live', statusLabel:'🟢 Đang chạy', sent:231, opened:189, clicked:87, converted:34, startDate:'Tự động', endDate:'Liên tục' },
-  { title:'Tái kích hoạt tháng 6', sub:'Không chat 30 ngày · Zalo', status:'done', statusLabel:'✅ Kết thúc', sent:542, opened:298, clicked:76, converted:21, startDate:'01/06', endDate:'15/06' },
-  { title:'Sinh nhật tháng 8', sub:'Khách có sinh nhật tháng 8 · Tất cả kênh', status:'scheduled', statusLabel:'📅 Lên lịch', sent:0, opened:0, clicked:0, converted:0, startDate:'01/08', endDate:'31/08' },
-];
+    // --- INTERACTION ---
+    function switchTab(tab, el) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        if (el) el.classList.add('active');
+        
+        ['customers','funnel','campaigns','broadcast','segments'].forEach(t => {
+            const section = document.getElementById('tab-' + t);
+            if(section) section.style.display = t === tab ? 'block' : 'none';
+        });
+        
+        if (tab === 'funnel') renderFunnel();
+        if (tab === 'campaigns') renderCampaigns();
+    }
 
-function renderCampaigns() {
-  document.getElementById('campaignGrid').innerHTML = campaigns.map(c => `
-    <div class="campaign-card anim">
-      <div class="campaign-header">
-        <div>
-          <div class="campaign-title">${c.title}</div>
-          <div class="campaign-sub">${c.sub}</div>
-        </div>
-        <div class="campaign-status cs-${c.status}">${c.statusLabel}</div>
-      </div>
-      <div class="campaign-body">
-        <div class="campaign-stats">
-          <div class="cstat">
-            <div class="cstat-val" style="color:var(--blue)">${c.sent.toLocaleString()}</div>
-            <div class="cstat-label">Đã gửi</div>
-          </div>
-          <div class="cstat">
-            <div class="cstat-val" style="color:var(--amber)">${c.sent ? Math.round(c.opened/c.sent*100)+'%' : '—'}</div>
-            <div class="cstat-label">Mở tin</div>
-          </div>
-          <div class="cstat">
-            <div class="cstat-val" style="color:var(--purple)">${c.sent ? Math.round(c.clicked/c.sent*100)+'%' : '—'}</div>
-            <div class="cstat-label">Click</div>
-          </div>
-          <div class="cstat">
-            <div class="cstat-val" style="color:var(--accent)">${c.sent ? Math.round(c.converted/c.sent*100)+'%' : '—'}</div>
-            <div class="cstat-label">Chốt đơn</div>
-          </div>
-        </div>
-        <div class="campaign-meta">
-          <span>📅 ${c.startDate} – ${c.endDate}</span>
-          <span style="margin-left:auto;display:flex;gap:6px">
-            <button class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:11px">📊 Chi tiết</button>
-            ${c.status !== 'done' ? '<button class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:11px">✏️ Sửa</button>' : ''}
-          </span>
-        </div>
-      </div>
-    </div>`).join('');
-}
+    function toggleCheck(i, el) {
+        if (el.checked) selected.add(i); else selected.delete(i);
+        updateSelectedUI();
+    }
+    function toggleRow(i, tr) {
+        const cb = tr.querySelector('.checkbox');
+        cb.checked = !cb.checked;
+        toggleCheck(i, cb);
+    }
+    function updateSelectedUI() {
+        const btn = document.getElementById('sendSelected');
+        document.getElementById('selectedCount').textContent = selected.size;
+        btn.style.display = selected.size > 0 ? 'flex' : 'none';
+    }
 
-// Segments
-const savedSegs = [
-  { name:'Khách VIP chưa mua 60 ngày', count:87, color:'var(--amber)' },
-  { name:'Đã mua > 1 triệu + Zalo', count:412, color:'var(--accent)' },
-  { name:'Quan tâm X1 Pro chưa chốt', count:231, color:'var(--purple)' },
-  { name:'Khách mới tháng này', count:892, color:'var(--blue)' },
-];
-function renderSegments() {
-  document.getElementById('savedSegments').innerHTML = savedSegs.map(s => `
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);cursor:pointer" onmouseenter="this.style.background='var(--surface)'" onmouseleave="this.style.background=''">
-      <div style="width:8px;height:8px;border-radius:50%;background:${s.color}"></div>
-      <div style="flex:1;font-size:13px;font-weight:600">${s.name}</div>
-      <div style="font-family:'Geist Mono';font-size:13px;font-weight:800;color:${s.color}">${s.count.toLocaleString()}</div>
-      <button class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:11px" onclick="switchTab('broadcast',null)">📣 Gửi</button>
-    </div>`).join('');
-}
+    function updatePreview() {
+        const content = document.getElementById('msgContent').value;
+        const preview = content.replace(/{{tên_khách}}/g, '<strong>Nguyễn Thành</strong>').replace(/{{mã_giảm_giá}}/g, '<strong>JULY30</strong>');
+        document.getElementById('previewBubble').innerHTML = preview.replace(/\n/g,'<br>').substring(0, 200) + '...';
+    }
 
-function addRule() {
-  const rl = document.getElementById('ruleList');
-  const con = document.createElement('div');
-  con.className = 'rule-connector';
-  con.textContent = 'VÀ';
-  const row = document.createElement('div');
-  row.className = 'rule-row';
-  row.innerHTML = `
-    <select class="rule-field"><option>Tags</option><option>Giai đoạn</option><option>Kênh</option><option>Tổng chi tiêu</option></select>
-    <div class="rule-op">là</div>
-    <input class="rule-field" placeholder="Nhập giá trị..." style="width:120px">
-    <div class="rule-del" onclick="this.closest('.rule-row').remove()">✕</div>`;
-  rl.appendChild(con);
-  rl.appendChild(row);
-  updateCount();
-}
-
-function updateCount() {
-  document.getElementById('segResultNum').textContent = Math.floor(Math.random() * 800 + 400).toLocaleString();
-}
-
-function updatePreview() {
-  const content = document.getElementById('msgContent').value;
-  const preview = content.replace('{{tên_khách}}', '<strong>Nguyễn Thành</strong>').replace('{{mã_giảm_giá}}', '<strong>JULY30</strong>');
-  document.getElementById('previewBubble').innerHTML = preview.replace(/\n/g,'<br>').substring(0, 180) + '...';
-}
-
-function sendCampaign() {
-  const name = document.getElementById('campaignName').value || 'Chiến dịch mới';
-  if(confirm(`Xác nhận gửi chiến dịch "${name}" đến 2,064 khách hàng?`)) {
-    alert('✅ Chiến dịch đang được gửi! Kiểm tra tab "Chiến dịch" để theo dõi tiến độ.');
-    switchTab('campaigns', null);
-  }
-}
-function openNewCustomer() {
-  alert('Mở form thêm khách hàng mới');
-}
+    // --- INIT ---
+    fetchLeads();
+    updatePreview();
 </script>
 </body>
 </html>

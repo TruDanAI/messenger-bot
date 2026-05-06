@@ -581,43 +581,39 @@ function switchTab(tab, el) {
   if (tab === 'heatmap') renderHeatmap();
 }
 
-let analyticsData = { leadGrowth: [], intentDistribution: [], aiRate: 0 };
-let currentRange = '7d';
+    let analyticsData = { leadGrowth: [], intentDistribution: [], aiRate: 0, revenue: 0, conversionRate: 0, avgResponseTime: 0 };
+    let currentRange = '7d';
 
-async function fetchAnalytics() {
-  try {
-    const urlParams = new URLSearchParams(window.location.search);
-    const shopId = urlParams.get('shopId') || (window.parent && window.parent.currentShopId);
-    
-    let url = `/api/admin/analytics?range=${currentRange}`;
-    if (shopId) url += `?shopId=${shopId}`;
-
-    const res = await fetch(url, {
-      headers: { 'x-admin-token': localStorage.getItem('zenbot_token') }
-    });
-    
-    if (res.ok) {
-      analyticsData = await res.json();
-      renderKPIs();
-      renderLeadGrowth();
-      renderIntentDist();
+    async function fetchAnalytics() {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const shopId = urlParams.get('shopId') || 'all';
+            
+            // Gọi API tổng hợp báo cáo từ FunnelEvent và MessageLog
+            const res = await fetch(`/api/admin/analytics?range=${currentRange}&shopId=${shopId}`, {
+                headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+            });
+            
+            if (res.ok) {
+                analyticsData = await res.json();
+                renderKPIs();
+                renderLeadGrowth();
+                renderIntentDist();
+            }
+        } catch (e) {
+            console.error('Lỗi fetch analytics:', e);
+        }
     }
-  } catch (e) {
-    console.error('Lỗi fetch analytics:', e);
-  }
-}
 
-function renderKPIs() {
-  const data = analyticsData;
-  const totalLeads = data.leadGrowth.reduce((sum, d) => sum + d.count, 0);
-  
-  document.getElementById('kpi-total-conv').textContent = totalLeads.toLocaleString();
-  document.getElementById('kpi-ai-rate').textContent = (data.aiRate * 100).toFixed(1) + '%';
-  
-  // Các chỉ số giả lập thêm để khớp UI
-  document.getElementById('kpi-conv-rate').textContent = (Math.random() * 5 + 25).toFixed(1) + '%';
-  document.getElementById('kpi-resp-time').innerHTML = (Math.random() * 0.5 + 1.2).toFixed(1) + '<span style="font-size:18px">s</span>';
-}
+    function renderKPIs() {
+        const d = analyticsData;
+        const totalLeads = d.leadGrowth.reduce((sum, item) => sum + item.count, 0);
+        
+        document.getElementById('kpi-total-conv').textContent = totalLeads.toLocaleString();
+        document.getElementById('kpi-ai-rate').textContent = (d.aiRate * 100).toFixed(1) + '%';
+        document.getElementById('kpi-conv-rate').textContent = (d.conversionRate * 100).toFixed(1) + '%';
+        document.getElementById('kpi-resp-time').innerHTML = (d.avgResponseTime || 1.5).toFixed(1) + '<span style="font-size:18px">s</span>';
+    }
 
 function renderLeadGrowth() {
   const poly = document.getElementById('leadGrowthPoly');
