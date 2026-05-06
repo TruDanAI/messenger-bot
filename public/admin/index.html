@@ -11,20 +11,23 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-base:    #080c14;
-            --bg-panel:   #0d1421;
-            --bg-card:    #111827;
-            --border:     rgba(255,255,255,0.07);
-            --border-hi:  rgba(99,102,241,0.45);
+            --bg-base:    #05080f;
+            --bg-panel:   #0a0f1a;
+            --bg-card:    #0e1526;
+            --border:     rgba(255,255,255,0.06);
+            --border-hi:  rgba(99,102,241,0.4);
+            --primary:    #4f46e5;
+            --primary-hi: #6366f1;
             --accent:     #6366f1;
             --accent2:    #22d3ee;
             --accent3:    #f472b6;
-            --text-main:  #f0f4ff;
-            --text-muted: #64748b;
-            --text-dim:   #334155;
+            --text-main:  #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim:   #475569;
             --green:      #10b981;
             --red:        #ef4444;
             --amber:      #f59e0b;
+            --focus-ring: rgba(79, 70, 229, 0.25);
         }
 
         * { box-sizing: border-box; }
@@ -527,7 +530,47 @@
         }
         .modal-close:hover { color: var(--text-main); }
 
-        .modal-body { padding: 28px 32px; }
+        .modal-body { 
+            padding: 28px 32px; 
+            max-height: 70vh; 
+            overflow-y: auto; 
+            scrollbar-width: thin;
+            scrollbar-color: var(--text-dim) transparent;
+        }
+        .modal-body::-webkit-scrollbar { width: 6px; }
+        .modal-body::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 10px; }
+
+        /* -----------------------------------------------------------
+           Enterprise SaaS Component: Config Groups & Grid
+           ----------------------------------------------------------- */
+        .config-group {
+            background: rgba(255,255,255,0.015);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .config-group-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .config-group-title i { color: var(--accent2); font-size: 14px; }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px 20px;
+        }
+
+        .col-span-2 { grid-column: span 2; }
         .modal-footer {
             padding: 20px 32px;
             border-top: 1px solid var(--border);
@@ -1145,133 +1188,116 @@
         <form id="shopForm" onsubmit="handleSubmit(event)">
             <div class="modal-body">
                 <!-- THÔNG TIN CƠ BẢN -->
-                <div class="form-section-label" style="margin-bottom:16px">Thông tin cơ bản</div>
-                <div class="form-grid" style="margin-bottom:20px">
-                    <div class="form-group">
-                        <label>Shop ID *</label>
-                        <input class="form-input" id="shopId" placeholder="vd: nem-bui-xa" required>
-                        <div class="form-hint">Viết liền, không dấu, dùng dấu gạch ngang</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Tên thương hiệu *</label>
-                        <input class="form-input" id="shopName" placeholder="vd: Nem Bùi Xá" required>
-                    </div>
-                </div>
-
-                <!-- GÓI DỊCH VỤ -->
-                <div class="form-section-label" style="margin-bottom:12px">Gói dịch vụ</div>
-                <div class="plan-selector" style="margin-bottom:20px" id="planSelector">
-                    <div class="plan-option" data-plan="LITE" onclick="selectPlan('LITE')">
-                        <div class="plan-name" style="color:#94a3b8">LITE</div>
-                        <div class="plan-desc">Regex only</div>
-                    </div>
-                    <div class="plan-option selected" data-plan="BASIC" onclick="selectPlan('BASIC')">
-                        <div class="plan-name" style="color:var(--accent2)">BASIC</div>
-                        <div class="plan-desc">+ Fallback</div>
-                    </div>
-                    <div class="plan-option" data-plan="PRO" onclick="selectPlan('PRO')">
-                        <div class="plan-name" style="color:#a5b4fc">PRO</div>
-                        <div class="plan-desc">Full AI</div>
-                    </div>
-                    <div class="plan-option" data-plan="ENTERPRISE" onclick="selectPlan('ENTERPRISE')">
-                        <div class="plan-name" style="color:#fcd34d">ENTERPRISE</div>
-                        <div class="plan-desc">Premium</div>
-                    </div>
-                </div>
-
-                <!-- CREDENTIALS & PROMPT -->
-                <div class="form-section-label" style="margin-bottom:16px">Xác thực & AI Persona</div>
-                <div class="form-grid" style="margin-bottom:20px">
-                    <div class="form-group">
-                        <label>Facebook Page Token *</label>
-                        <input class="form-input" type="password" id="fbPageToken" placeholder="EAAG..." required autocomplete="new-password">
-                        <div class="form-hint">Page Access Token từ Meta Developer</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Facebook Page ID *</label>
-                        <input class="form-input" type="text" id="fbPageId" placeholder="1023456789..." required>
-                        <div class="form-hint">Dùng để định danh webhook</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Gemini API Key <span style="font-weight:400;text-transform:none;font-size:11px">(Tùy chọn)</span></label>
-                        <input class="form-input" type="password" id="geminiApiKey" placeholder="Bỏ trống để dùng key hệ thống" autocomplete="new-password">
-                        <div class="form-hint">Chỉ cần khi muốn dùng key riêng</div>
-                    </div>
-                    <div class="form-group form-full">
-                        <label>AI Persona (System Prompt)</label>
-                        <textarea class="form-input" id="customPrompt" rows="3" placeholder="Ví dụ: Bạn là nhân viên tư vấn bán hàng dễ thương, luôn dùng emoji ^^ và gọi khách là anh/chị..."></textarea>
-                        <div class="form-hint">Định hình tính cách và giọng văn cho AI Gemini khi tư vấn (Kịch bản & Flow).</div>
-                    </div>
-                    <!-- SAAS OPERATIONAL CONFIG -->
-                    <div class="form-section-label" style="margin-bottom:16px; margin-top:10px">Cấu hình vận hành (SaaS)</div>
-                    <div class="form-group">
-                        <label>Độ tuổi tối thiểu</label>
-                        <input class="form-input" type="number" id="minAge" placeholder="0">
-                    </div>
-                    <div class="form-group">
-                        <label>Chính sách Miễn ship</label>
-                        <select class="form-select" id="policyFreeShipping">
-                            <option value="true">Bật (Miễn phí toàn quốc)</option>
-                            <option value="false">Tắt (Tính theo địa chỉ)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Bảo mật & Đóng gói</label>
-                        <input class="form-input" id="policyPrivacy" placeholder="vd: gói kín đáo, không ghi tên sản phẩm">
-                    </div>
-                    <div class="form-group">
-                        <label>Thanh toán</label>
-                        <input class="form-input" id="policyPayment" placeholder="vd: COD hoặc chuyển khoản">
-                    </div>
-                    <div class="form-group">
-                        <label>Thời gian giao (Pre-order)</label>
-                        <input class="form-input" id="policyPreorderDays" placeholder="vd: 15-20 ngày">
-                    </div>
-                    <div class="form-group">
-                        <label>Các trường thông tin đơn</label>
-                        <input class="form-input" id="policyOrderInfoFields" placeholder="tên + SĐT + địa chỉ">
-                    </div>
-
-                    <div class="form-group form-full">
-                        <label>Dữ liệu kịch bản & Triggers (JSON)</label>
-                        <textarea class="form-input" id="saasData" rows="10" placeholder='{
-  "recommendations": { "budget": ["MÃ10"], "premium": ["MÃ8"] },
-  "keywordProducts": { "gel": "gel|boi tron" },
-  "templates": { "greeting": "Chào bạn ghé shop!" },
-  "intents": { "disabled": [] }
-}'></textarea>
-                        <div class="form-hint">Cấu hình Recommendations, KeywordProducts, Templates và Intent logic dưới dạng JSON. Dữ liệu này sẽ ghi đè file config.js cũ.</div>
-                    </div>
-                    
-                    <!-- MENU IMAGES -->
-                    <div class="form-section-label" style="margin-bottom:16px; margin-top:10px">Hình ảnh Menu & Catalog</div>
-                    <div class="form-group form-full">
-                        <label>Danh sách ảnh Menu (Ngăn cách bởi dấu phẩy)</label>
-                        <div style="display:flex;gap:8px">
-                            <input class="form-input" id="menuImages" placeholder="vd: /static/shops/adult-shop/images/menu1.png, /static/shops/adult-shop/images/menu2.png">
-                            <button type="button" class="btn btn-ghost" onclick="triggerMenuUpload()" title="Tải ảnh menu lên"><i class="fas fa-upload"></i></button>
+                <fieldset class="config-group">
+                    <legend class="config-group-title"><i class="fas fa-info-circle"></i> Thông tin cơ bản</legend>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Shop ID *</label>
+                            <input class="form-input" id="shopId" name="_id" placeholder="vd: nem-bui-xa" required>
+                            <div class="form-hint">Viết liền, không dấu, dùng dấu gạch ngang</div>
                         </div>
-                        <div class="form-hint">Bot sẽ gửi các ảnh này khi khách nhắn "menu" hoặc "xem sản phẩm".</div>
+                        <div class="form-group">
+                            <label>Tên thương hiệu *</label>
+                            <input class="form-input" id="shopName" name="name" placeholder="vd: Nem Bùi Xá" required>
+                        </div>
+                        <div class="form-group col-span-2">
+                            <label>Kế hoạch (Plan)</label>
+                            <div class="plan-selector" id="planSelector">
+                                <div class="plan-option" data-plan="LITE" onclick="selectPlan('LITE')">LITE</div>
+                                <div class="plan-option selected" data-plan="BASIC" onclick="selectPlan('BASIC')">BASIC</div>
+                                <div class="plan-option" data-plan="PRO" onclick="selectPlan('PRO')">PRO</div>
+                                <div class="plan-option" data-plan="ENTERPRISE" onclick="selectPlan('ENTERPRISE')">ENTERPRISE</div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </fieldset>
 
-                <!-- TOGGLES -->
-                <div class="form-section-label" style="margin-bottom:12px">Cài đặt tính năng</div>
+                <!-- XÁC THỰC & AI PERSONA -->
+                <fieldset class="config-group">
+                    <legend class="config-group-title"><i class="fas fa-robot"></i> Xác thực & AI Persona</legend>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Facebook Page ID *</label>
+                            <input class="form-input" id="fbPageId" name="credentials.fbPageId" placeholder="1023456789..." required>
+                        </div>
+                        <div class="form-group">
+                            <label>Facebook Page Token *</label>
+                            <input class="form-input" type="password" id="fbPageToken" name="credentials.fbPageToken" placeholder="EAAG..." autocomplete="new-password">
+                        </div>
+                        <div class="form-group">
+                            <label>Gemini API Key</label>
+                            <input class="form-input" type="password" id="geminiApiKey" name="credentials.geminiApiKey" placeholder="Để trống nếu dùng key hệ thống">
+                        </div>
+                        <div class="form-group">
+                            <label>Độ tuổi tối thiểu</label>
+                            <input class="form-input" type="number" id="minAge" name="minAge" placeholder="0">
+                        </div>
+                        <div class="form-group col-span-2">
+                            <label>AI Persona (System Prompt)</label>
+                            <textarea class="form-input" id="customPrompt" name="customPrompt" rows="3" placeholder="Định hình tính cách bot..."></textarea>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- VẬN HÀNH & CHÍNH SÁCH -->
+                <fieldset class="config-group">
+                    <legend class="config-group-title"><i class="fas fa-truck-fast"></i> Vận hành & Chính sách</legend>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Miễn phí vận chuyển</label>
+                            <select class="form-select" id="policyFreeShipping" name="policies.freeShipping">
+                                <option value="true">Bật (Miễn phí)</option>
+                                <option value="false">Tắt (Tính phí)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Đóng gói & Bảo mật</label>
+                            <input class="form-input" id="policyPrivacy" name="policies.privacy" placeholder="vd: gói kín đáo">
+                        </div>
+                        <div class="form-group">
+                            <label>Thanh toán</label>
+                            <input class="form-input" id="policyPayment" name="policies.payment" placeholder="vd: COD / Chuyển khoản">
+                        </div>
+                        <div class="form-group">
+                            <label>Thời gian giao hàng</label>
+                            <input class="form-input" id="policyPreorderDays" name="policies.preorderDays" placeholder="vd: 1-2 ngày">
+                        </div>
+                        <div class="form-group col-span-2">
+                            <label>Thông tin đơn hàng cần lấy</label>
+                            <input class="form-input" id="policyOrderInfoFields" name="policies.orderInfoFields" placeholder="tên + SĐT + địa chỉ">
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- DATA NÂNG CAO (JSON) -->
+                <fieldset class="config-group">
+                    <legend class="config-group-title"><i class="fas fa-code"></i> Cấu hình nâng cao (JSON)</legend>
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label>Recommendations & Keywords</label>
+                            <textarea class="form-input" id="saasData" rows="6" placeholder='{"recommendations": {}, "keywordProducts": {}}'></textarea>
+                            <div class="form-hint">Dùng để cấu hình nhóm gợi ý hoặc từ khóa đặc thù.</div>
+                        </div>
+                        <div class="form-group col-span-2">
+                            <label>Danh sách ảnh Menu (Phân tách bằng dấu phẩy)</label>
+                            <div style="display:flex;gap:8px">
+                                <input class="form-input" id="menuImages" name="menu_images" placeholder="URL1, URL2...">
+                                <button type="button" class="btn btn-ghost" onclick="triggerMenuUpload()"><i class="fas fa-upload"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- SETTINGS -->
                 <div class="toggle-group">
                     <label class="toggle-item">
-                        <input type="checkbox" id="enableAI">
-                        <div>
-                            <span style="font-weight:600;font-size:13px">Bật AI Gemini</span>
-                            <div style="font-size:11px;color:var(--text-muted);margin-top:1px">Cho phép bot trả lời bằng AI khi không khớp kịch bản</div>
-                        </div>
+                        <input type="checkbox" id="enableAI" name="features.enableAI">
+                        <span>Bật AI Gemini</span>
                     </label>
-                    <div style="width:1px;height:36px;background:var(--border)"></div>
+                    <div style="width:1px;height:24px;background:var(--border)"></div>
                     <label class="toggle-item">
-                        <input type="checkbox" id="isActive" checked>
-                        <div>
-                            <span style="font-weight:600;font-size:13px">Kích hoạt Shop</span>
-                            <div style="font-size:11px;color:var(--text-muted);margin-top:1px">Bot bắt đầu phản hồi ngay sau khi lưu</div>
-                        </div>
+                        <input type="checkbox" id="isActive" name="isActive" checked>
+                        <span>Kích hoạt Shop</span>
                     </label>
                 </div>
             </div>
@@ -2026,17 +2052,60 @@
     }
 
     // ─── MODAL ───────────────────────────────────────────────
+    function populateForm(form, obj, prefix = '') {
+        for (let key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                const value = obj[key];
+                const inputName = prefix ? `${prefix}.${key}` : key;
+                if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                    populateForm(form, value, inputName);
+                } else {
+                    const input = form.querySelector(`[name="${inputName}"]`);
+                    if (input) {
+                        if (input.type === 'checkbox') input.checked = !!value;
+                        else if (input.type === 'select-one') input.value = String(value);
+                        else input.value = Array.isArray(value) ? value.join(', ') : (value || '');
+                    }
+                }
+            }
+        }
+    }
+
+    function getFormPayload(form) {
+        const payload = {};
+        // Use all named inputs to ensure unchecked checkboxes are included
+        form.querySelectorAll('[name]').forEach(input => {
+            const key = input.name;
+            let value = input.value;
+            if (input.type === 'checkbox') value = input.checked;
+            if (input.type === 'number') value = parseInt(value) || 0;
+            if (input.tagName === 'SELECT' && (value === 'true' || value === 'false')) value = value === 'true';
+
+            const keys = key.split('.');
+            let current = payload;
+            keys.forEach((k, i) => {
+                if (i === keys.length - 1) {
+                    current[k] = value;
+                } else {
+                    current[k] = current[k] || {};
+                    current = current[k];
+                }
+            });
+        });
+        return payload;
+    }
+
     function openCreateModal() {
         editingId = null;
         document.getElementById('modalTitle').textContent = 'Thêm Shop Mới';
         document.getElementById('modalSub').textContent   = 'Điền thông tin để kết nối chatbot với Facebook Page';
         document.getElementById('submitBtn').innerHTML    = '<i class="fas fa-floppy-disk"></i> Tạo Shop';
-        document.getElementById('shopForm').reset();
-        document.getElementById('menuImages').value = ''; // Reset menu
-        document.getElementById('configOverrides').value = '';
+        
+        const form = document.getElementById('shopForm');
+        form.reset();
+        document.getElementById('saasData').value = '{}';
         document.getElementById('shopId').disabled = false;
         selectPlan('BASIC');
-        document.getElementById('isActive').checked = true;
         document.getElementById('shopModal').classList.add('active');
     }
 
@@ -2049,17 +2118,16 @@
         document.getElementById('modalSub').textContent   = `ID: ${shop._id}`;
         document.getElementById('submitBtn').innerHTML    = '<i class="fas fa-floppy-disk"></i> Lưu thay đổi';
 
-        document.getElementById('shopId').value    = shop._id;
-        document.getElementById('shopId').disabled = true;
-        document.getElementById('shopName').value  = shop.name;
-        document.getElementById('customPrompt').value = shop.customPrompt || '';
-        document.getElementById('menuImages').value = (shop.menu_images || []).join(', '); // Load menu
-        document.getElementById('minAge').value = shop.minAge || 0;
-        document.getElementById('policyFreeShipping').value = String(shop.policies?.freeShipping ?? true);
-        document.getElementById('policyPrivacy').value = shop.policies?.privacy || '';
-        document.getElementById('policyPayment').value = shop.policies?.payment || '';
-        document.getElementById('policyPreorderDays').value = shop.policies?.preorderDays || '';
-        document.getElementById('policyOrderInfoFields').value = shop.policies?.orderInfoFields || '';
+        const form = document.getElementById('shopForm');
+        form.reset();
+        
+        // Map shop document to form fields
+        populateForm(form, shop);
+        
+        // Special case for arrays or complex JSON not mapped to individual inputs
+        if (shop.menu_images) {
+            document.getElementById('menuImages').value = shop.menu_images.join(', ');
+        }
         
         const saas = {
             recommendations: shop.recommendations || {},
@@ -2069,14 +2137,9 @@
         };
         document.getElementById('saasData').value = JSON.stringify(saas, null, 2);
         
-        document.getElementById('configOverrides').value = shop.configOverrides ? JSON.stringify(shop.configOverrides, null, 2) : '';
+        document.getElementById('shopId').disabled = true;
         selectPlan(shop.plan || 'BASIC');
-        document.getElementById('fbPageToken').value  = ''; // keep empty = don't change
-        document.getElementById('fbPageId').value     = shop.credentials?.fbPageId || '';
-        document.getElementById('geminiApiKey').value = '';
-        document.getElementById('enableAI').checked   = !!shop.features?.enableAI;
-        document.getElementById('isActive').checked   = !!shop.isActive;
-
+        
         document.getElementById('fbPageToken').placeholder  = '(Để trống = giữ nguyên)';
         document.getElementById('geminiApiKey').placeholder = '(Để trống = giữ nguyên)';
         document.getElementById('fbPageToken').removeAttribute('required');
@@ -2088,85 +2151,56 @@
         document.getElementById('shopModal').classList.remove('active');
         document.getElementById('fbPageToken').setAttribute('required', '');
         document.getElementById('fbPageToken').placeholder  = 'EAAG...';
-        document.getElementById('fbPageId').value = '';
-        document.getElementById('geminiApiKey').placeholder = 'Bỏ trống để dùng key hệ thống';
-        document.getElementById('customPrompt').value = '';
-        document.getElementById('menuImages').value = '';
-        document.getElementById('configOverrides').value = '';
+        document.getElementById('geminiApiKey').placeholder = 'Để trống nếu dùng key hệ thống';
     }
 
     // ─── SUBMIT ──────────────────────────────────────────────
     async function handleSubmit(e) {
         e.preventDefault();
         const btn = document.getElementById('submitBtn');
+        const originalBtnHtml = btn.innerHTML;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
         btn.disabled = true;
 
         const isEditing = !!editingId;
-        const id = document.getElementById('shopId').value.trim();
-        const fbToken  = document.getElementById('fbPageToken').value;
-        const fbId     = document.getElementById('fbPageId').value.trim();
-        const gemKey   = document.getElementById('geminiApiKey').value;
-        const configOverridesRaw = document.getElementById('configOverrides').value.trim();
-        let configOverrides = {};
+        const form = document.getElementById('shopForm');
+        
+        // 1. Reconstruct nested payload from form inputs (dot-notation)
+        const payload = getFormPayload(form);
+        
+        // 2. Add selected plan
+        payload.plan = selectedPlan;
 
-        if (configOverridesRaw) {
-            try {
-                configOverrides = JSON.parse(configOverridesRaw);
-                if (!configOverrides || typeof configOverrides !== 'object' || Array.isArray(configOverrides)) {
-                    throw new Error('JSON phải là object');
-                }
-            } catch (err) {
-                showToast('Cấu hình nâng cao JSON không hợp lệ', 'error');
-                btn.innerHTML = '<i class="fas fa-floppy-disk"></i> Lưu cấu hình';
-                btn.disabled = false;
-                return;
-            }
-        }
-
+        // 3. Handle SaaS Data JSON
         const saasDataRaw = document.getElementById('saasData').value.trim();
-        let saasData = {};
         if (saasDataRaw) {
             try {
-                saasData = JSON.parse(saasDataRaw);
+                const saasData = JSON.parse(saasDataRaw);
+                payload.recommendations = saasData.recommendations || {};
+                payload.keywordProducts = saasData.keywordProducts || {};
+                payload.templates = saasData.templates || {};
+                payload.intents = saasData.intents || { disabled: [], prepend: [], append: [] };
             } catch (err) {
-                showToast('JSON Dữ liệu kịch bản không hợp lệ', 'error');
-                btn.innerHTML = '<i class="fas fa-floppy-disk"></i> Lưu cấu hình';
+                showToast('JSON Cấu hình nâng cao không hợp lệ', 'error');
+                btn.innerHTML = originalBtnHtml;
                 btn.disabled = false;
                 return;
             }
         }
 
-        const payload = {
-            _id:      id,
-            name:     document.getElementById('shopName').value.trim(),
-            plan:     selectedPlan,
-            customPrompt: document.getElementById('customPrompt').value.trim(),
-            minAge:   parseInt(document.getElementById('minAge').value) || 0,
-            policies: {
-                freeShipping: document.getElementById('policyFreeShipping').value === 'true',
-                privacy: document.getElementById('policyPrivacy').value.trim(),
-                payment: document.getElementById('policyPayment').value.trim(),
-                preorderDays: document.getElementById('policyPreorderDays').value.trim(),
-                orderInfoFields: document.getElementById('policyOrderInfoFields').value.trim()
-            },
-            recommendations: saasData.recommendations || {},
-            keywordProducts: saasData.keywordProducts || {},
-            templates: saasData.templates || {},
-            intents: saasData.intents || { disabled: [], prepend: [], append: [] },
-            configOverrides,
-            isActive: document.getElementById('isActive').checked,
-            features: { enableAI: document.getElementById('enableAI').checked },
-            credentials: {
-                fbPageId: fbId
-            }
-        };
+        // 4. Special handling for comma-separated arrays (menu_images)
+        if (payload.menu_images && typeof payload.menu_images === 'string') {
+            payload.menu_images = payload.menu_images.split(',').map(s => s.trim()).filter(Boolean);
+        }
 
-        if (!isEditing || fbToken)  payload.credentials.fbPageToken  = fbToken;
-        if (!isEditing || gemKey)   payload.credentials.geminiApiKey = gemKey;
+        // 5. Clean credentials (remove if empty and editing)
+        if (isEditing) {
+            if (!payload.credentials.fbPageToken) delete payload.credentials.fbPageToken;
+            if (!payload.credentials.geminiApiKey) delete payload.credentials.geminiApiKey;
+        }
 
         try {
-            const url    = isEditing ? `/api/admin/shops/${id}` : '/api/admin/shops';
+            const url    = isEditing ? `/api/admin/shops/${payload._id}` : '/api/admin/shops';
             const method = isEditing ? 'PATCH' : 'POST';
             const res    = await fetchAdmin(url, {
                 method, headers: { 'Content-Type': 'application/json' },
@@ -2185,7 +2219,7 @@
             showToast('Lỗi kết nối server', 'error');
         }
 
-        btn.innerHTML = '<i class="fas fa-floppy-disk"></i> Lưu cấu hình';
+        btn.innerHTML = originalBtnHtml;
         btn.disabled = false;
     }
 
