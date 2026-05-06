@@ -35,8 +35,10 @@ connectDB().then(() => {
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({
+  limit: '50mb',
   verify: (req, _res, buf) => { req.rawBody = buf; }
 }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const FB_VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN;

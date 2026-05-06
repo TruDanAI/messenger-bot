@@ -581,27 +581,50 @@ Dùng mã: JULY30 để được giảm thêm 10% khi thanh toán online.
     };
 
     // --- DATA FETCHING ---
+    let leads = [];
+
     async function fetchLeads() {
         try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const shopId = urlParams.get('shopId') || 'all';
+            
             const res = await fetch(`/api/admin/leads?shopId=${shopId}`, {
                 headers: { 'Authorization': `Bearer ${API_TOKEN}` }
             });
+            
             if (res.ok) {
                 const rawLeads = await res.json();
-                // Map Leads sang cấu trúc CRM
-                customers = rawLeads.map(l => ({
-                    ...l,
-                    name: l.name || 'Khách ẩn danh',
-                    status: l.phone ? 'converting' : (l.type === 'buy_intent' ? 'interested' : 'new'),
-                    value: l.revenue || 0,
-                    channel: l.platform || 'fb',
-                    tags: l.productCode ? [l.productCode] : []
-                }));
+                
+                // Map Leads sang cấu trúc CRM (Customers)
+                customers = rawLeads.map(l => {
+                    // Logic phân loại giai đoạn (Status)
+                    let status = 'new';
+                    if (l.intent === 'BUY_INTENT') status = 'bought';
+                    else if (l.phone) status = 'converting';
+                    else if (l.intent === 'ASK_PRICE') status = 'interested';
+
+                    return {
+                        id: l._id,
+                        senderId: l.senderId,
+                        name: l.name || l.senderId.substring(0, 8),
+                        phone: l.phone || '',
+                        status: status,
+                        at: l.at,
+                        lastMsg: l.text || '',
+                        value: status === 'bought' ? 500000 : 0, 
+                        channel: 'fb',
+                        tags: l.productCode ? [l.productCode] : []
+                    };
+                });
+
                 renderCustomers(customers);
                 updateFunnelCounts();
                 updateSidebarCounts();
             }
-        } catch (e) { console.error('CRM Fetch Error:', e); }
+        } catch (e) { 
+            console.error('CRM Fetch Error:', e); 
+            showToast('Không thể tải dữ liệu CRM', 'error');
+        }
     }
 
     // --- RENDERERS ---

@@ -581,8 +581,13 @@ function switchTab(tab, el) {
   if (tab === 'heatmap') renderHeatmap();
 }
 
+    const API_TOKEN = localStorage.getItem('zenbot_token');
     let analyticsData = { leadGrowth: [], intentDistribution: [], aiRate: 0, revenue: 0, conversionRate: 0, avgResponseTime: 0 };
     let currentRange = '7d';
+
+    window.onload = () => {
+        fetchAnalytics();
+    };
 
     async function fetchAnalytics() {
         try {
