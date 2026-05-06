@@ -8,19 +8,19 @@
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
   :root {
-    --bg: #0a0c10;
-    --canvas: #0d1117;
-    --surface: #13171f;
-    --surface2: #1a1f2e;
-    --border: #21273a;
-    --accent: #00d4ff;
+    --bg: #0f172a;
+    --canvas: #0f172a;
+    --surface: #1e293b;
+    --surface2: #334155;
+    --border: #334155;
+    --accent: #8b5cf6;
     --accent2: #7c3aed;
     --green: #10b981;
     --orange: #f59e0b;
     --red: #f43f5e;
     --purple: #8b5cf6;
-    --text: #e2e8f0;
-    --muted: #475569;
+    --text: #f8fafc;
+    --muted: #94a3b8;
     --node-w: 220px;
   }
 
@@ -200,13 +200,12 @@
   .node-out-port:hover { border-color: var(--accent); background: var(--accent); }
 
   /* specific node colors */
-  .node-trigger .node-header { background: rgba(0,212,255,0.07); }
-  .node-trigger .node-icon::after { content: ''; }
-  .node-message .node-header { background: rgba(124,58,237,0.07); }
-  .node-condition .node-header { background: rgba(245,158,11,0.07); }
-  .node-action .node-header { background: rgba(16,185,129,0.07); }
-  .node-end .node-header { background: rgba(244,63,94,0.07); }
-  .node-ai .node-header { background: rgba(139,92,246,0.07); }
+  .node-trigger .node-header { background: rgba(139,92,246,0.15); }
+  .node-message .node-header { background: rgba(124,58,237,0.15); }
+  .node-condition .node-header { background: rgba(245,158,11,0.15); }
+  .node-action .node-header { background: rgba(16,185,129,0.15); }
+  .node-end .node-header { background: rgba(244,63,94,0.15); }
+  .node-ai .node-header { background: rgba(139,92,246,0.15); }
 
   /* ZOOM CONTROLS */
   .zoom-controls {
@@ -422,24 +421,24 @@
       <svg class="connections" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L8,3 z" fill="#21273a"/>
+            <path d="M0,0 L0,6 L8,3 z" fill="var(--border)"/>
           </marker>
           <marker id="arrow-accent" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L8,3 z" fill="#00d4ff"/>
+            <path d="M0,0 L0,6 L8,3 z" fill="var(--accent)"/>
           </marker>
           <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L8,3 z" fill="#10b981"/>
+            <path d="M0,0 L0,6 L8,3 z" fill="var(--green)"/>
           </marker>
           <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+            <path d="M0,0 L0,6 L8,3 z" fill="var(--orange)"/>
           </marker>
         </defs>
 
         <!-- Trigger -> Greeting -->
-        <path d="M 258,148 C 310,148 320,195 370,195" stroke="#00d4ff" stroke-width="2" fill="none" stroke-dasharray="none" marker-end="url(#arrow-accent)" opacity="0.7"/>
+        <path d="M 258,148 C 310,148 320,195 370,195" stroke="var(--accent)" stroke-width="2" fill="none" stroke-dasharray="none" marker-end="url(#arrow-accent)" opacity="0.7"/>
 
         <!-- Greeting -> Ask intent -->
-        <path d="M 590,195 C 650,195 660,270 710,270" stroke="#21273a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        <path d="M 590,195 C 650,195 660,270 710,270" stroke="var(--border)" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
 
         <!-- Ask -> Condition -->
         <path d="M 930,270 C 990,270 1000,195 1050,195" stroke="#21273a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
@@ -464,10 +463,10 @@
         <div class="node-header">
           <span class="node-icon">⚡</span>
           <span class="node-title">Trigger: Tin nhắn mới</span>
-          <span class="node-badge" style="background:rgba(0,212,255,0.15);color:var(--accent)">START</span>
+          <span class="node-badge" style="background:var(--accent-light);color:var(--accent)">MESSENGER</span>
         </div>
         <div class="node-body">
-          Kích hoạt khi <strong>khách gửi tin nhắn đầu tiên</strong> đến bất kỳ kênh nào.
+          Kích hoạt khi <strong>khách gửi tin nhắn</strong> trên Facebook Messenger.
         </div>
         <div class="node-ports">
           <div class="port"><div class="port-dot" style="background:var(--accent)"></div>Kết nối tiếp theo →</div>
