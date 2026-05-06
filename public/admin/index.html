@@ -268,6 +268,52 @@
             .plan-selector { grid-template-columns: repeat(2, 1fr); }
             .modal-body { padding: 24px 20px; }
         }
+        /* ─── MODAL (SHOP CONFIG) ────────────────────────────── */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(10px);
+            z-index: 1000; align-items: center; justify-content: center; padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: var(--bg-panel); border: 1px solid var(--border); border-radius: 24px;
+            width: 100%; max-width: 720px; max-height: 90vh;
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 30px 60px -12px rgba(0,0,0,0.6);
+            animation: modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .modal-header { padding: 24px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .modal-title { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--text-main); }
+        .modal-sub { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+        .modal-close { background: rgba(255,255,255,0.05); border: 1px solid var(--border); width: 36px; height: 36px; border-radius: 10px; cursor: pointer; color: var(--text-muted); transition: all 0.2s; }
+        .modal-close:hover { background: rgba(239,68,68,0.1); color: var(--red); border-color: rgba(239,68,68,0.2); transform: rotate(90deg); }
+        
+        .modal-body { padding: 32px; overflow-y: auto; scroll-behavior: smooth; }
+        .modal-footer { padding: 20px 32px; border-top: 1px solid var(--border); background: rgba(0,0,0,0.2); display: flex; gap: 12px; }
+
+        .form-section-group { margin-bottom: 32px; }
+        .form-section-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+        .form-section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .form-full { grid-column: span 2; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+        .form-input, .form-select {
+            width: 100%; padding: 12px 16px; background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border); border-radius: 10px; color: var(--text-main);
+            font-size: 14px; transition: all 0.2s; outline: none;
+        }
+        .form-input:focus, .form-select:focus { border-color: var(--accent); background: rgba(0,0,0,0.3); box-shadow: 0 0 0 4px rgba(99,102,241,0.15); }
+        .form-hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+
+        .plan-selector { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .plan-option {
+            background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px;
+            padding: 14px; text-align: center; cursor: pointer; transition: all 0.2s;
+        }
+        .plan-option:hover { border-color: var(--border-hi); background: rgba(255,255,255,0.04); }
+        .plan-option.selected { background: rgba(99,102,241,0.1); border-color: var(--accent); box-shadow: 0 0 15px rgba(99,102,241,0.2); }
+        .plan-name { font-weight: 800; font-size: 14px; color: var(--text-main); }
+        .plan-desc { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
     </style>
 </head>
 <body>
@@ -581,25 +627,24 @@
         <div class="modal-header">
             <div>
                 <div class="modal-title" id="modalTitle">Cấu hình Shop</div>
-                <div class="modal-sub" id="modalSub">Thiết lập kịch bản và AI cho chatbot</div>
+                <div class="modal-sub">Thiết lập kịch bản và AI cho chatbot của bạn</div>
             </div>
-            <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+            <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
 
         <form id="shopForm" onsubmit="handleSubmit(event)">
             <div class="modal-body">
-
                 <!-- Nhóm 1: Cơ bản -->
                 <div class="form-section-group">
                     <div class="form-section-label">Thông tin cơ bản</div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Shop ID *</label>
-                            <input class="form-input" id="shopId" name="_id" placeholder="vd: nem-bui-xa" required>
+                            <input class="form-input" id="shopId" name="_id" placeholder="vd: shop-tho-may" required>
                         </div>
                         <div class="form-group">
                             <label>Tên Shop *</label>
-                            <input class="form-input" name="name" placeholder="vd: Nem Bùi Xá" required>
+                            <input class="form-input" name="name" placeholder="vd: Shop Thời Trang ABC" required>
                         </div>
                     </div>
                 </div>
@@ -626,7 +671,7 @@
 
                 <!-- Nhóm 3: Xác thực -->
                 <div class="form-section-group">
-                    <div class="form-section-label accent">Xác thực (Credentials)</div>
+                    <div class="form-section-label">Xác thực (Credentials)</div>
                     <div class="form-grid">
                         <div class="form-group">
                             <label>FB Page Token</label>
@@ -645,10 +690,10 @@
 
                 <!-- Nhóm 4: AI Persona -->
                 <div class="form-section-group">
-                    <div class="form-section-label accent">AI Persona & System Prompt</div>
+                    <div class="form-section-label">AI Persona & System Prompt</div>
                     <div class="form-group">
-                        <textarea class="form-input" name="customPrompt" rows="4" placeholder="Bạn là nhân viên tư vấn dễ thương..."></textarea>
-                        <div class="form-hint">Định nghĩa tính cách và kiến thức cho AI.</div>
+                        <label>Định nghĩa tính cách và kiến thức cho AI</label>
+                        <textarea class="form-input" name="customPrompt" rows="4" placeholder="Bạn là nhân viên tư vấn dễ thương, am hiểu về thời trang..."></textarea>
                     </div>
                 </div>
 
@@ -673,7 +718,7 @@
                         </div>
                         <div class="form-group">
                             <label>Thông tin đơn hàng</label>
-                            <input class="form-input" name="policies.orderInfoFields" placeholder="Tên + SĐT + Địa chỉ">
+                            <input class="form-input" name="policies.orderInfoFields" placeholder="vd: Tên + SĐT + Địa chỉ">
                         </div>
                         <div class="form-group form-full">
                             <label>Thanh toán & Bảo mật</label>
@@ -686,37 +731,20 @@
                 <div class="form-section-group">
                     <div class="form-section-label">Ảnh Menu & Catalog</div>
                     <div style="display:flex; gap:12px">
-                        <input class="form-input" id="menuImagesInput" placeholder="Danh sách URL ảnh...">
-                        <button type="button" class="btn btn-ghost" onclick="triggerMenuUpload()"><i class="fas fa-upload"></i></button>
+                        <input class="form-input" name="menuImages" id="menuImagesInput" placeholder="Danh sách URL ảnh (cách nhau bởi dấu phẩy)...">
                     </div>
                 </div>
 
                 <!-- Nhóm 7: JSON Nâng cao -->
                 <div class="form-section-group">
-                    <div class="form-section-label">Cấu hình JSON nâng cao (SaaS Data)</div>
-                    <textarea class="form-input" id="saasDataJSON" rows="8" placeholder='{"recommendations": {}, "intents": {}}'></textarea>
-                    <div class="form-hint">Dùng để ghi đè các cấu hình kịch bản lồng nhau phức tạp.</div>
+                    <div class="form-section-label">Cấu hình JSON nâng cao</div>
+                    <textarea class="form-input" id="saasDataJSON" rows="6" placeholder='{"recommendations": {}, "intents": {}}'></textarea>
                 </div>
-
-                <!-- Nhóm 8: Toggles -->
-                <div class="form-section-group">
-                    <div class="toggle-group">
-                        <label class="toggle-item">
-                            <input type="checkbox" name="features.enableAI">
-                            <div><div class="label-text">Bật AI Gemini</div><div class="desc-text">Trả lời linh hoạt bằng AI</div></div>
-                        </label>
-                        <label class="toggle-item">
-                            <input type="checkbox" name="isActive" checked>
-                            <div><div class="label-text">Kích hoạt Shop</div><div class="desc-text">Bot bắt đầu phản hồi khách</div></div>
-                        </label>
-                    </div>
-                </div>
-
             </div>
 
             <div class="modal-footer">
-                <button type="submit" class="btn btn-primary" id="submitBtn" style="flex:1">Lưu cấu hình</button>
-                <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+                <button type="submit" class="btn btn-primary" id="submitBtn" style="flex:1">🚀 Lưu cấu hình</button>
+                <button type="button" class="btn btn-ghost" onclick="closeSidebar(); closeModal();">Hủy</button>
             </div>
         </form>
     </div>
