@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { parse } = require('csv-parse/sync');
+const Lead = require('./models/Lead');
 
 // DATA_DIR có thể trỏ sang Railway Volume, ví dụ DATA_DIR=/data.
 // Mặc định: thư mục data/ ở root project (cùng cấp với core/).
@@ -227,8 +228,12 @@ module.exports = {
     scheduleSave();
   },
 
-  appendCustomer(customer) {
-    return appendCustomerQueued({
+  async appendCustomer(customer, shopId) {
+    if (!shopId) {
+      console.warn('⚠️ appendCustomer gọi mà không có shopId, dữ liệu MongoDB sẽ không chính xác.');
+    }
+
+    const payload = {
       at: customer.at || new Date().toISOString(),
       type: customer.type || 'lead',
       senderId: customer.senderId || '',
@@ -238,7 +243,42 @@ module.exports = {
       address: customer.address || '',
       text: customer.text || '',
       history: customer.history || ''
-    });
+    };
+
+    // 1. Lưu vào CSV (Backup)
+    appendCustomerQueued(payload);
+
+    // 2. Lưu vào MongoDB (Primary for SaaS)
+    if (shopId) {
+      try {
+        // Tìm lead gần đây (trong vòng 24h) của cùng senderId để cập nhật thay vì tạo mới
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const existingLead = await Lead.findOne({
+          shopId,
+          senderId: payload.senderId,
+          at: { $gte: oneDayAgo }
+        }).sort({ at: -1 });
+
+        if (existingLead) {
+          // Cập nhật thông tin mới nhất (ghi đè nếu có thông tin mới)
+          if (payload.phone) existingLead.phone = payload.phone;
+          if (payload.name) existingLead.name = payload.name;
+          if (payload.address) existingLead.address = payload.address;
+          if (payload.productCode) existingLead.productCode = payload.productCode;
+          existingLead.text = payload.text;
+          existingLead.at = new Date();
+          await existingLead.save();
+        } else {
+          // Tạo lead mới
+          await Lead.create({
+            ...payload,
+            shopId
+          });
+        }
+      } catch (err) {
+        console.error('❌ Lỗi lưu Lead vào MongoDB:', err.message);
+      }
+    }
   },
 
   // 🆕 Hỗ trợ đồng bộ Redis cho Worker (Trám lỗ hổng State In-Memory)

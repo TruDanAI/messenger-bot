@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZenBot — Live Chat Omnichannel</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #161921;
+    --surface2: #1e2230;
+    --border: #2a2f3f;
+    --accent: #5b6af0;
+    --accent2: #8b5cf6;
+    --green: #22d3a0;
+    --orange: #f97316;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --ai-bubble: #1e2230;
+    --user-bubble: #5b6af0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 300px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .sidebar-header {
+    padding: 20px 18px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .search-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .search-box input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 13px;
+    width: 100%;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .search-box input::placeholder { color: var(--muted); }
+
+  .channel-tabs {
+    display: flex;
+    padding: 10px 18px;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ch-tab {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.2s;
+  }
+  .ch-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .conv-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .conv-item {
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    transition: background 0.15s;
+    margin-bottom: 2px;
+    border: 1px solid transparent;
+  }
+  .conv-item:hover { background: var(--surface2); }
+  .conv-item.active { background: var(--surface2); border-color: var(--accent); }
+  .av {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; flex-shrink: 0;
+    position: relative;
+  }
+  .av-status {
+    position: absolute; bottom: 0; right: 0;
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid var(--surface);
+  }
+  .conv-info { flex: 1; min-width: 0; }
+  .conv-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; display: flex; justify-content: space-between; }
+  .conv-time { font-size: 11px; color: var(--muted); }
+  .conv-preview { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+  .conv-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 20px; font-weight: 600;
+  }
+  .tag-ai { background: rgba(91,106,240,0.2); color: #818cf8; }
+  .tag-human { background: rgba(34,211,160,0.2); color: #22d3a0; }
+  .tag-hot { background: rgba(249,115,22,0.2); color: #f97316; }
+  .tag-new { background: rgba(239,68,68,0.2); color: #ef4444; }
+  .badge { background: var(--accent); color: white; font-size: 10px; font-weight: 700; border-radius: 10px; padding: 1px 6px; }
+
+  /* ── MAIN CHAT ── */
+  .main-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+  }
+  .chat-header-left { display: flex; align-items: center; gap: 12px; }
+  .chat-user-info h3 { font-size: 15px; font-weight: 600; }
+  .chat-user-info p { font-size: 12px; color: var(--muted); }
+  .status-pill {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+  }
+  .status-pill.ai { background: rgba(91,106,240,0.15); color: #818cf8; }
+  .status-pill.human { background: rgba(34,211,160,0.15); color: #22d3a0; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .chat-actions { display: flex; gap: 8px; }
+  .btn {
+    padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: none; font-family: 'DM Sans', sans-serif;
+    transition: all 0.2s;
+  }
+  .btn-takeover {
+    background: linear-gradient(135deg, var(--green), #10b981);
+    color: #0d0f14;
+  }
+  .btn-takeover:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-outline {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-red { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+
+  /* messages */
+  .messages {
+    flex: 1; overflow-y: auto; padding: 20px 24px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .msg-row { display: flex; align-items: flex-end; gap: 8px; }
+  .msg-row.right { flex-direction: row-reverse; }
+  .msg-av {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .bubble {
+    max-width: 65%; padding: 10px 14px; border-radius: 14px;
+    font-size: 13.5px; line-height: 1.55;
+  }
+  .bubble.ai { background: var(--ai-bubble); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble.user { background: var(--user-bubble); color: white; border-bottom-right-radius: 4px; }
+  .bubble.admin { background: rgba(34,211,160,0.12); border: 1px solid rgba(34,211,160,0.3); border-bottom-left-radius: 4px; color: #cffff0; }
+  .msg-meta { font-size: 11px; color: var(--muted); margin-top: 3px; padding: 0 4px; }
+  .msg-source {
+    font-size: 10px; color: var(--accent); font-weight: 600;
+    background: rgba(91,106,240,0.1); padding: 1px 6px; border-radius: 4px;
+    display: inline-block; margin-bottom: 5px;
+  }
+
+  .takeover-banner {
+    margin: 0 24px;
+    padding: 10px 16px;
+    background: rgba(34,211,160,0.08);
+    border: 1px solid rgba(34,211,160,0.25);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--green);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .system-msg {
+    text-align: center; font-size: 11px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .system-msg::before, .system-msg::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* input */
+  .chat-input-area {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .input-mode-tabs {
+    display: flex; gap: 6px; margin-bottom: 10px;
+  }
+  .mode-tab {
+    font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 6px;
+    cursor: pointer; border: 1px solid var(--border); color: var(--muted);
+    transition: all 0.15s;
+  }
+  .mode-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .input-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .input-box textarea {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13.5px;
+    resize: none; max-height: 100px; line-height: 1.5;
+  }
+  .input-box textarea::placeholder { color: var(--muted); }
+  .send-btn {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--accent); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .send-btn:hover { background: #4f5ce0; transform: scale(1.05); }
+
+  /* ── DETAIL PANEL ── */
+  .detail-panel {
+    width: 280px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .detail-section { padding: 18px; border-bottom: 1px solid var(--border); }
+  .detail-section h4 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; }
+  .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12.5px; }
+  .info-row span:first-child { color: var(--muted); }
+  .info-val { font-weight: 500; }
+  .funnel-stage {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .stage-item {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    border-radius: 8px; font-size: 12px; cursor: pointer;
+    border: 1px solid transparent; transition: all 0.15s;
+  }
+  .stage-item.active { border-color: var(--accent); background: rgba(91,106,240,0.1); color: var(--accent); }
+  .stage-item:not(.active) { color: var(--muted); }
+  .stage-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .quick-replies { display: flex; flex-direction: column; gap: 6px; }
+  .quick-btn {
+    padding: 7px 10px; border-radius: 8px; font-size: 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; text-align: left;
+    transition: all 0.15s; font-family: 'DM Sans', sans-serif;
+  }
+  .quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ai-confidence */
+  .confidence-bar {
+    height: 4px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 6px;
+  }
+  .confidence-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+
+  .alert-box {
+    margin: 0 24px 12px;
+    padding: 10px 14px;
+    background: rgba(249,115,22,0.08);
+    border: 1px solid rgba(249,115,22,0.3);
+    border-radius: 10px;
+    font-size: 12px; color: #fb923c;
+    display: flex; align-items: center; gap: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">⚡ ZenBot</div>
+    <div class="search-box">
+      <svg width="14" height="14" fill="none" stroke="#64748b" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input placeholder="Tìm cuộc hội thoại...">
+    </div>
+  </div>
+  <div class="channel-tabs">
+    <div class="ch-tab active">Tất cả</div>
+    <div class="ch-tab">Zalo</div>
+    <div class="ch-tab">FB</div>
+    <div class="ch-tab">Web</div>
+  </div>
+  <div class="conv-list">
+
+    <div class="conv-item active">
+      <div class="av" style="background:linear-gradient(135deg,#5b6af0,#8b5cf6)">NT
+        <div class="av-status" style="background:var(--green)"></div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name">Nguyễn Thành <span class="conv-time">2p</span></div>
+        <div class="conv-preview">Bao giờ ship đến HN ạ?</div>
+        <div class="conv-tags">
+          <span class="tag tag-ai">🤖 AI</span>
+          <span class="tag tag-hot">🔥 Nóng</span>
+          <span class="badge">2</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="conv-item">
+      <div class="av" style="background:linear-gradient(135deg,#22d3a0,#10b981)">LH
+        <div class="av-status" style="background:var(--green)"></div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name">Lê Hương <span class="conv-time">7p</span></div>
+        <div class="conv-preview">Cảm ơn admin đã hỗ trợ!</div>
+        <div class="conv-tags"><span class="tag tag-human">👤 Admin</span></div>
+      </div>
+    </div>
+
+    <div class="conv-item">
+      <div class="av" style="background:linear-gradient(135deg,#f97316,#ef4444)">PM
+        <div class="av-status" style="background:var(--orange)"></div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name">Phạm Minh <span class="conv-time">12p</span></div>
+        <div class="conv-preview">Tôi muốn đổi trả sản phẩm</div>
+        <div class="conv-tags">
+          <span class="tag tag-ai">🤖 AI</span>
+          <span class="tag tag-new">❗ Khẩn</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="conv-item">
+      <div class="av" style="background:linear-gradient(135deg,#64748b,#475569)">TL
+        <div class="av-status" style="background:var(--muted)"></div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name">Trần Linh <span class="conv-time">1h</span></div>
+        <div class="conv-preview">Giá combo 3 sản phẩm là bao...</div>
+        <div class="conv-tags"><span class="tag tag-ai">🤖 AI</span></div>
+      </div>
+    </div>
+
+    <div class="conv-item">
+      <div class="av" style="background:linear-gradient(135deg,#8b5cf6,#a78bfa)">HN
+        <div class="av-status" style="background:var(--green)"></div>
+      </div>
+      <div class="conv-info">
+        <div class="conv-name">Hoàng Nam <span class="conv-time">2h</span></div>
+        <div class="conv-preview">OK shop, mình đặt nhé!</div>
+        <div class="conv-tags"><span class="tag tag-human">👤 Admin</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main-chat">
+  <div class="chat-header">
+    <div class="chat-header-left">
+      <div class="av" style="width:40px;height:40px;font-size:15px;background:linear-gradient(135deg,#5b6af0,#8b5cf6)">NT
+        <div class="av-status" style="background:var(--green);width:11px;height:11px;border:2px solid var(--surface)"></div>
+      </div>
+      <div class="chat-user-info">
+        <h3>Nguyễn Thành</h3>
+        <p>Zalo · 0912 345 678 · Hà Nội</p>
+      </div>
+      <div class="status-pill ai">
+        <div class="status-dot" style="background:#818cf8"></div>
+        AI đang phụ trách
+      </div>
+    </div>
+    <div class="chat-actions">
+      <button class="btn btn-outline">📋 Ghi chú</button>
+      <button class="btn btn-outline">🔖 Gắn tag</button>
+      <button class="btn btn-takeover" onclick="handleTakeover()">⚡ Tiếp quản ngay</button>
+    </div>
+  </div>
+
+  <!-- AI Confidence Alert -->
+  <div class="alert-box" id="alertBox">
+    ⚠️ <strong>AI đang gặp khó:</strong> Độ tự tin trả lời chỉ 42% — câu hỏi về chính sách đổi trả phức tạp. Bạn có muốn tiếp quản?
+    <button class="btn btn-takeover" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="handleTakeover()">Tiếp quản</button>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="system-msg">Cuộc hội thoại bắt đầu lúc 14:22 · Zalo</div>
+
+    <!-- user -->
+    <div class="msg-row right">
+      <div>
+        <div class="bubble user">Cho mình hỏi sản phẩm X1 Pro có size L không ạ?</div>
+        <div class="msg-meta" style="text-align:right">14:22 · Zalo</div>
+      </div>
+      <div class="msg-av" style="background:linear-gradient(135deg,#5b6af0,#8b5cf6)">NT</div>
+    </div>
+
+    <!-- AI reply -->
+    <div class="msg-row">
+      <div class="msg-av" style="background:#1e2230;border:1px solid #2a2f3f;font-size:14px">🤖</div>
+      <div>
+        <div class="msg-source">ZenBot AI · Knowledge Base</div>
+        <div class="bubble ai">Dạ, sản phẩm <strong>X1 Pro</strong> hiện có các size: S, M, L, XL. Size L đang còn 23 sản phẩm trong kho ạ. Bạn muốn mình đặt giúp không? 😊</div>
+        <div class="msg-meta">14:22 · Độ tự tin: 94%</div>
+        <div class="confidence-bar"><div class="confidence-fill" style="width:94%;background:var(--green)"></div></div>
+      </div>
+    </div>
+
+    <!-- user -->
+    <div class="msg-row right">
+      <div>
+        <div class="bubble user">Nếu mình mua 3 cái thì có freeship không? Và chính sách đổi trả như thế nào nếu không vừa size?</div>
+        <div class="msg-meta" style="text-align:right">14:25</div>
+      </div>
+      <div class="msg-av" style="background:linear-gradient(135deg,#5b6af0,#8b5cf6)">NT</div>
+    </div>
+
+    <!-- AI struggling -->
+    <div class="msg-row">
+      <div class="msg-av" style="background:#1e2230;border:1px solid #2a2f3f;font-size:14px">🤖</div>
+      <div>
+        <div class="msg-source">ZenBot AI · Độ tự tin thấp ⚠️</div>
+        <div class="bubble ai" style="border-color:rgba(249,115,22,0.4)">Dạ, về freeship khi mua 3 sản phẩm, mình cần kiểm tra lại chính sách hiện tại của shop ạ. Về đổi trả, bạn có thể đổi trong vòng... <em style="color:var(--muted)">[AI đang dừng để chờ Admin hỗ trợ]</em></div>
+        <div class="msg-meta">14:26 · Độ tự tin: 42%</div>
+        <div class="confidence-bar"><div class="confidence-fill" style="width:42%;background:var(--orange)"></div></div>
+      </div>
+    </div>
+
+    <div class="system-msg" id="takeover-msg" style="display:none">👤 Admin Minh đã tiếp quản cuộc hội thoại · 14:27</div>
+
+    <!-- admin reply hidden initially -->
+    <div class="msg-row" id="admin-reply" style="display:none">
+      <div class="msg-av" style="background:rgba(34,211,160,0.2);border:1px solid rgba(34,211,160,0.4);font-size:14px">👤</div>
+      <div>
+        <div class="msg-source" style="color:var(--green)">Admin Minh · Tiếp quản</div>
+        <div class="bubble admin">Chào bạn Thành! Mua 3 sản phẩm X1 Pro sẽ được freeship toàn quốc + giảm thêm 10% nhé. Về đổi trả, shop hỗ trợ đổi size miễn phí trong 7 ngày, chỉ cần giữ nguyên tag và hộp. Bạn muốn mình đặt ngay 3 cái không ạ?</div>
+        <div class="msg-meta">14:27</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- takeover banner -->
+  <div class="takeover-banner" id="takeover-banner" style="display:none;margin-bottom:10px">
+    ✅ Bạn đang trong chế độ <strong>Admin Tiếp Quản</strong>. AI đã tạm dừng. &nbsp;
+    <button class="btn btn-outline" style="font-size:11px;padding:3px 10px" onclick="handBack()">↩ Trả về AI</button>
+  </div>
+
+  <div class="chat-input-area">
+    <div class="input-mode-tabs">
+      <div class="mode-tab active">✍️ Trả lời</div>
+      <div class="mode-tab">📝 Ghi chú nội bộ</div>
+      <div class="mode-tab">🤖 Gợi ý AI</div>
+    </div>
+    <div class="input-box">
+      <textarea rows="1" placeholder="Nhập tin nhắn... (Admin đang soạn)" id="inputArea" oninput="autoResize(this)"></textarea>
+      <button class="btn-outline" style="border:none;background:none;cursor:pointer;padding:4px;color:var(--muted)">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+      </button>
+      <button class="send-btn">
+        <svg width="16" height="16" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div class="detail-panel">
+  <div class="detail-section">
+    <h4>Thông tin khách</h4>
+    <div class="info-row"><span>Tên</span><span class="info-val">Nguyễn Thành</span></div>
+    <div class="info-row"><span>SĐT</span><span class="info-val">0912 345 678</span></div>
+    <div class="info-row"><span>Địa chỉ</span><span class="info-val">Hà Nội</span></div>
+    <div class="info-row"><span>Kênh</span><span class="info-val">🟦 Zalo</span></div>
+    <div class="info-row"><span>Lần cuối mua</span><span class="info-val" style="color:var(--green)">12/05/2025</span></div>
+    <div class="info-row"><span>Tổng đơn</span><span class="info-val">4 đơn · 1.2M₫</span></div>
+  </div>
+
+  <div class="detail-section">
+    <h4>Phễu khách hàng</h4>
+    <div class="funnel-stage">
+      <div class="stage-item"><div class="stage-dot" style="background:#64748b"></div>Mới tiếp cận</div>
+      <div class="stage-item"><div class="stage-dot" style="background:#f97316"></div>Đang quan tâm</div>
+      <div class="stage-item active"><div class="stage-dot" style="background:#5b6af0"></div>Sắp chốt đơn ⭐</div>
+      <div class="stage-item"><div class="stage-dot" style="background:#22d3a0"></div>Đã mua hàng</div>
+      <div class="stage-item"><div class="stage-dot" style="background:#8b5cf6"></div>Khách trung thành</div>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <h4>AI Phân tích Intent</h4>
+    <div class="info-row"><span>Chủ đề chính</span><span class="info-val" style="color:#818cf8">Mua hàng</span></div>
+    <div class="info-row"><span>Cảm xúc</span><span class="info-val" style="color:var(--green)">😊 Tích cực</span></div>
+    <div class="info-row"><span>Khả năng chốt</span></div>
+    <div style="margin-top:4px">
+      <div style="font-size:22px;font-weight:800;color:var(--green)">78%</div>
+      <div class="confidence-bar" style="margin-top:6px"><div class="confidence-fill" style="width:78%;background:var(--green)"></div></div>
+    </div>
+  </div>
+
+  <div class="detail-section">
+    <h4>Phản hồi nhanh</h4>
+    <div class="quick-replies">
+      <button class="quick-btn">📦 Xác nhận đặt hàng</button>
+      <button class="quick-btn">🚚 Thông tin vận chuyển</button>
+      <button class="quick-btn">💳 Hướng dẫn thanh toán</button>
+      <button class="quick-btn">🔄 Chính sách đổi trả</button>
+      <button class="quick-btn">🎁 Chương trình khuyến mãi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function handleTakeover() {
+  document.getElementById('alertBox').style.display = 'none';
+  document.getElementById('takeover-msg').style.display = 'flex';
+  document.getElementById('admin-reply').style.display = 'flex';
+  document.getElementById('takeover-banner').style.display = 'flex';
+  document.getElementById('inputArea').placeholder = 'Admin đang tiếp quản — nhập tin nhắn...';
+  document.querySelector('.status-pill').className = 'status-pill human';
+  document.querySelector('.status-pill').innerHTML = '<div class="status-dot" style="background:#22d3a0"></div>Admin đang phụ trách';
+  document.querySelector('.btn-takeover').style.display='none';
+  document.querySelector('.chat-input-area').style.borderTop = '1px solid rgba(34,211,160,0.4)';
+}
+function handBack() {
+  document.getElementById('takeover-banner').style.display = 'none';
+  document.querySelector('.status-pill').className = 'status-pill ai';
+  document.querySelector('.status-pill').innerHTML = '<div class="status-dot" style="background:#818cf8"></div>AI đang phụ trách';
+}
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+</script>
+</body>
+</html>

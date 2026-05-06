@@ -657,20 +657,32 @@
             <i class="fas fa-store"></i> Quản lý Shop
             <span class="nav-badge" id="sidebarShopCount">0</span>
         </a>
-        <a class="nav-item" href="#" onclick="showToast('Live Chat (Phase 2)','info');return false;">
-            <i class="fas fa-comment-dots"></i> Cuộc trò chuyện
+        <a class="nav-item" href="#" onclick="switchView('liveChatView', this); return false;">
+            <i class="fas fa-comments"></i> Live Chat <span class="nav-badge" style="background:var(--accent2)">LIVE</span>
+        </a>
+        <a class="nav-item" href="#" onclick="switchView('flowBuilderView', this); return false;">
+            <i class="fas fa-project-diagram"></i> Flow Builder
+        </a>
+        <a class="nav-item" href="#" onclick="switchView('kbView', this); return false;">
+            <i class="fas fa-book-open"></i> Kho Tri Thức (RAG)
+        </a>
+
+        <div class="nav-section-label">Tăng trưởng & CRM</div>
+        <a class="nav-item" href="#" onclick="switchView('crmView', this); return false;">
+            <i class="fas fa-users-cog"></i> CRM & Chiến dịch
+        </a>
+        <a class="nav-item" href="#" onclick="switchView('analyticsDeepView', this); return false;">
+            <i class="fas fa-chart-pie"></i> Báo cáo chuyên sâu
         </a>
         <a class="nav-item" href="#" onclick="switchView('leadView', this); return false;">
-            <i class="fas fa-users"></i> Khách hàng & Leads
+            <i class="fas fa-address-book"></i> Danh sách Leads
             <span class="nav-badge" id="sidebarLeadCount" style="background:var(--green)">0</span>
         </a>
 
-        <div class="nav-section-label">Phân tích</div>
+        <div class="nav-section-label">Phân tích & Quản trị</div>
         <a class="nav-item" href="#" onclick="switchView('analyticsView', this); return false;">
-            <i class="fas fa-chart-line"></i> Hiệu suất Bot
+            <i class="fas fa-chart-line"></i> Hiệu suất Bot (Nhanh)
         </a>
-
-        <div class="nav-section-label">Quản trị</div>
         <a class="nav-item" href="#" onclick="switchView('settingsView', this); return false;">
             <i class="fas fa-cog"></i> Cài đặt hệ thống
         </a>
@@ -678,12 +690,12 @@
 
     <div class="sidebar-footer">
         <div class="user-card">
-            <div class="user-avatar">AD</div>
+            <div class="user-avatar" id="sidebarUserInitials">AD</div>
             <div style="flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:700">Administrator</div>
-                <div style="font-size:11px;color:var(--text-muted)">Super User</div>
+                <div style="font-size:13px;font-weight:700" id="sidebarUserName">Administrator</div>
+                <div style="font-size:11px;color:var(--text-muted)" id="sidebarUserRole">Super User</div>
             </div>
-            <div class="status-dot"></div>
+            <button onclick="logout()" style="background:transparent; border:none; color:var(--text-dim); cursor:pointer; padding:4px"><i class="fas fa-sign-out-alt"></i></button>
         </div>
     </div>
 </aside>
@@ -704,6 +716,14 @@
             </div>
         </div>
         <div class="topbar-actions">
+            <!-- SHOP SELECTOR -->
+            <div class="shop-selector-container" style="display:flex; align-items:center; gap:8px; background:var(--bg-card); padding:6px 14px; border-radius:10px; border:1px solid var(--border)">
+                <i class="fas fa-store" style="font-size:12px; color:var(--accent)"></i>
+                <select id="globalShopSelector" onchange="changeShop(this.value)" style="background:transparent; border:none; color:var(--text-main); font-size:13px; font-weight:600; outline:none; cursor:pointer; min-width:140px">
+                    <option value="all">Tất cả Shop</option>
+                </select>
+            </div>
+
             <div class="search-bar" id="topbarSearch">
                 <i class="fas fa-search"></i>
                 <input type="text" id="searchInput" placeholder="Tìm kiếm..." oninput="handleSearch()">
@@ -862,6 +882,31 @@
             <div class="table-container" style="padding:24px; background:var(--bg-card)">
                 <canvas id="leadsChart" height="100"></canvas>
             </div>
+        </div>
+
+        <!-- ──────────────── LIVE CHAT VIEW ──────────── -->
+        <div id="liveChatView" class="view-section" style="height:calc(100vh - 160px)">
+            <iframe src="zenbot_livechat.html" style="width:100%; height:100%; border:none; border-radius:16px; background:var(--bg-panel)"></iframe>
+        </div>
+
+        <!-- ──────────────── FLOW BUILDER VIEW ───────── -->
+        <div id="flowBuilderView" class="view-section" style="height:calc(100vh - 160px)">
+            <iframe src="zenbot_flowbuilder.html" style="width:100%; height:100%; border:none; border-radius:16px; background:var(--bg-panel)"></iframe>
+        </div>
+
+        <!-- ──────────────── KNOWLEDGE BASE VIEW ──────── -->
+        <div id="kbView" class="view-section" style="height:calc(100vh - 160px)">
+            <iframe src="zenbot_kb.html" style="width:100%; height:100%; border:none; border-radius:16px; background:var(--white)"></iframe>
+        </div>
+
+        <!-- ──────────────── CRM VIEW ──────────────────── -->
+        <div id="crmView" class="view-section" style="height:calc(100vh - 160px)">
+            <iframe src="zenbot_crm.html" style="width:100%; height:100%; border:none; border-radius:16px; background:var(--white)"></iframe>
+        </div>
+
+        <!-- ──────────────── ANALYTICS DEEP VIEW ───────── -->
+        <div id="analyticsDeepView" class="view-section" style="height:calc(100vh - 160px)">
+            <iframe src="zenbot_analytics.html" style="width:100%; height:100%; border:none; border-radius:16px; background:var(--white)"></iframe>
         </div>
 
         <!-- ──────────────── SETTINGS VIEW ───────────── -->
@@ -1046,15 +1091,72 @@
 <!-- ─────────────────────────────────────────────────────────── -->
 <script>
     // --- AUTH & STATE ---
-    const API_TOKEN = new URLSearchParams(window.location.search).get('token') || localStorage.getItem('zenbot_token');
-    if (API_TOKEN) localStorage.setItem('zenbot_token', API_TOKEN);
+    const API_TOKEN = localStorage.getItem('zenbot_token');
+    const USER_DATA = JSON.parse(localStorage.getItem('zenbot_user') || '{}');
+
+    // Kiểm tra đăng nhập ngay lập tức
+    if (!API_TOKEN) {
+        window.location.href = 'login.html';
+    }
+
+    // Cập nhật profile sidebar
+    if (USER_DATA.name || USER_DATA.email) {
+        document.getElementById('sidebarUserName').textContent = USER_DATA.name || USER_DATA.email.split('@')[0];
+        document.getElementById('sidebarUserRole').textContent = USER_DATA.role === 'admin' ? 'Platform Admin' : 'Shop Staff';
+        document.getElementById('sidebarUserInitials').textContent = (USER_DATA.name || 'U').substring(0, 2).toUpperCase();
+    }
+
+    function logout() {
+        localStorage.removeItem('zenbot_token');
+        localStorage.removeItem('zenbot_user');
+        window.location.href = 'login.html';
+    }
+
+    // Global Tenant Context
+    window.currentShopId = new URLSearchParams(window.location.search).get('shopId') || localStorage.getItem('zenbot_current_shop_id') || 'all';
 
     let currentShops = [], currentLeads = [], currentProducts = [];
     let editingId = null, editingProductShopId = null;
 
-    const fetchAdmin = (url, opts = {}) => fetch(url, {
-        ...opts, headers: { ...opts.headers, 'x-admin-token': API_TOKEN || '' }
-    });
+    const fetchAdmin = (url, opts = {}) => {
+        const separator = url.includes('?') ? '&' : '?';
+        const finalUrl = `${url}${separator}shopId=${window.currentShopId}`;
+        return fetch(finalUrl, {
+            ...opts, 
+            headers: { 
+                ...opts.headers, 
+                'Authorization': `Bearer ${API_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+    };
+
+    function changeShop(shopId) {
+        window.currentShopId = shopId;
+        localStorage.setItem('zenbot_current_shop_id', shopId);
+        
+        // Cập nhật URL mà không reload trang
+        const url = new URL(window.location);
+        url.searchParams.set('shopId', shopId);
+        window.history.pushState({}, '', url);
+
+        // Reload data cho view hiện tại
+        const activeView = document.querySelector('.view-section.active').id;
+        refreshActiveView(activeView);
+    }
+
+    function refreshActiveView(viewId) {
+        if (viewId === 'shopView') fetchShops();
+        if (viewId === 'leadView') fetchLeads();
+        
+        // Refresh iframe views (CRM, Analytics, KB...)
+        const iframe = document.querySelector(`#${viewId} iframe`);
+        if (iframe) {
+            const src = new URL(iframe.getAttribute('src'), window.location.origin);
+            src.searchParams.set('shopId', window.currentShopId);
+            iframe.src = src.toString();
+        }
+    }
 
     // --- VIEW LOGIC ---
     function switchView(viewId, navEl) {
@@ -1064,13 +1166,27 @@
         if (navEl) navEl.classList.add('active');
         
         // Update topbar based on view
-        const titles = { shopView: 'Quản lý Shop', leadView: 'Khách hàng & Leads', productView: 'Sản phẩm', analyticsView: 'Hiệu suất', settingsView: 'Cài đặt' };
+        const titles = { 
+            shopView: 'Quản lý Shop', 
+            leadView: 'Khách hàng & Leads', 
+            productView: 'Sản phẩm', 
+            analyticsView: 'Hiệu suất (Nhanh)', 
+            settingsView: 'Cài đặt',
+            liveChatView: 'Hỗ trợ trực tuyến (Live Chat)',
+            flowBuilderView: 'Thiết kế Kịch bản (Flow Builder)',
+            kbView: 'Kho Tri Thức (RAG AI)',
+            crmView: 'Quản lý Khách hàng & Chiến dịch',
+            analyticsDeepView: 'Báo cáo & Phân tích chuyên sâu'
+        };
         document.getElementById('topbarTitle').textContent = titles[viewId];
         document.getElementById('topbarBtn').style.display = viewId === 'shopView' ? 'inline-flex' : 'none';
         document.getElementById('topbarSearch').style.display = (viewId==='shopView'||viewId==='leadView') ? 'flex' : 'none';
         
         if (viewId === 'analyticsView') renderAnalytics();
         if (viewId === 'settingsView') renderSettings();
+
+        // Trigger refresh cho view mới chọn
+        refreshActiveView(viewId);
     }
 
     function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarBackdrop').classList.toggle('active'); }
@@ -1084,10 +1200,36 @@
                 currentShops = await res.json();
                 renderShops();
                 updateStats();
+                updateShopSelector();
             } else {
                 document.getElementById('shopGrid').innerHTML = '<div style="padding:40px; text-align:center; color:var(--red)">Lỗi: Token không hợp lệ hoặc Server chưa bật SaaS Mode.</div>';
             }
         } catch (e) { showToast('Lỗi kết nối server', 'error'); }
+    }
+
+    function updateShopSelector() {
+        const selector = document.getElementById('globalShopSelector');
+        // Chỉ Admin mới được xem "Tất cả"
+        selector.innerHTML = USER_DATA.role === 'admin' ? '<option value="all">Tất cả Shop</option>' : '';
+        
+        const myShops = currentShops.filter(s => 
+            USER_DATA.role === 'admin' || USER_DATA.shopIds.includes(s._id)
+        );
+
+        myShops.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s._id;
+            opt.textContent = s.name;
+            if (s._id === window.currentShopId) opt.selected = true;
+            selector.appendChild(opt);
+        });
+
+        // Nếu shopId hiện tại không thuộc quyền quản lý, tự động chọn shop đầu tiên có quyền
+        if (window.currentShopId !== 'all' && !myShops.find(s => s._id === window.currentShopId)) {
+            if (myShops.length > 0) changeShop(myShops[0]._id);
+        }
+
+        selector.value = window.currentShopId;
     }
 
     async function fetchLeads() {

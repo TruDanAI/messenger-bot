@@ -11,6 +11,8 @@ const shopSchema = new mongoose.Schema({
     },
     aiQuota: { type: Number, default: 0 }, // Giới hạn số lượt gọi AI trong tháng
     aiUsage: { type: Number, default: 0 }, // Số lượt đã dùng
+    broadcastQuota: { type: Number, default: 0 },
+    broadcastUsage: { type: Number, default: 0 },
     
     // Thông tin xác thực riêng biệt của từng shop
     credentials: {

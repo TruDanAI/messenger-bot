@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZenBot — CRM & Remarketing</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #f7f6f3;
+  --white: #ffffff;
+  --surface: #f0efe9;
+  --border: #e4e2d9;
+  --border2: #d0cec3;
+  --text: #1a1916;
+  --muted: #6b6860;
+  --subtle: #9a9890;
+  --accent: #1a6b4a;
+  --accent-light: #e8f5ee;
+  --accent-mid: #2d9467;
+  --blue: #1d4ed8;
+  --blue-light: #eff6ff;
+  --amber: #b45309;
+  --amber-light: #fffbeb;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --purple: #7c3aed;
+  --purple-light: #f5f3ff;
+  --pink: #db2777;
+  --pink-light: #fdf2f8;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Geist',sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; overflow:hidden; }
+
+/* SIDEBAR */
+.sidebar { width:248px; background:var(--white); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+.sidebar-top { padding:18px 16px 12px; border-bottom:1px solid var(--border); }
+.logo { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+.logo-mark { width:28px; height:28px; background:var(--text); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+.logo-text { font-family:'Instrument Serif',serif; font-size:18px; letter-spacing:-0.3px; }
+.logo-badge { margin-left:auto; font-size:10px; font-weight:600; background:var(--accent-light); color:var(--accent); padding:2px 7px; border-radius:20px; }
+.nav-item { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:7px; font-size:13.5px; cursor:pointer; color:var(--muted); transition:all 0.15s; margin-bottom:1px; }
+.nav-item:hover { background:var(--surface); color:var(--text); }
+.nav-item.active { background:var(--surface); color:var(--text); font-weight:600; }
+.nav-icon { font-size:15px; width:20px; text-align:center; }
+.nav-count { margin-left:auto; font-size:11px; font-weight:600; color:var(--subtle); background:var(--surface); padding:1px 7px; border-radius:20px; }
+.nav-count.hot { background:var(--red-light); color:var(--red); }
+.sidebar-section { padding:14px 16px 8px; }
+.sidebar-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--subtle); margin-bottom:8px; }
+.sidebar-footer { margin-top:auto; padding:14px 16px; border-top:1px solid var(--border); }
+.crm-summary { background:var(--surface); border-radius:10px; padding:12px; }
+.crm-summary-title { font-size:11px; font-weight:700; color:var(--muted); margin-bottom:10px; }
+.crm-sum-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; }
+.crm-sum-val { font-weight:800; font-family:'Geist Mono',monospace; }
+
+/* MAIN */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.main-header { padding:20px 28px 0; flex-shrink:0; }
+.breadcrumb { font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; margin-bottom:14px; }
+.breadcrumb span { color:var(--subtle); }
+.page-title-row { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; }
+.page-title { font-family:'Instrument Serif',serif; font-size:28px; letter-spacing:-0.5px; line-height:1; }
+.page-title em { font-style:italic; color:var(--accent); }
+.page-subtitle { font-size:13px; color:var(--muted); margin-top:4px; }
+
+.btn { padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; font-family:'Geist',sans-serif; transition:all 0.18s; display:flex; align-items:center; gap:6px; }
+.btn-ghost { background:var(--white); border:1px solid var(--border); color:var(--muted); }
+.btn-ghost:hover { border-color:var(--border2); color:var(--text); }
+.btn-accent { background:var(--accent); color:var(--white); }
+.btn-accent:hover { background:var(--accent-mid); }
+.btn-primary { background:var(--text); color:var(--white); }
+.btn-blue { background:var(--blue); color:var(--white); }
+.btn-sm { padding:5px 12px; font-size:12px; }
+
+.tabs { display:flex; border-bottom:1px solid var(--border); padding:0 28px; }
+.tab { padding:10px 16px; font-size:13px; font-weight:500; cursor:pointer; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-1px; transition:all 0.15s; display:flex; align-items:center; gap:6px; }
+.tab:hover { color:var(--text); }
+.tab.active { color:var(--text); font-weight:700; border-bottom-color:var(--text); }
+
+.content { flex:1; overflow-y:auto; padding:24px 28px; }
+
+/* FUNNEL */
+.funnel-overview { display:grid; grid-template-columns:repeat(5,1fr); gap:0; margin-bottom:28px; position:relative; }
+.funnel-step {
+  background:var(--white); border:1px solid var(--border);
+  padding:16px 14px; text-align:center; position:relative;
+  transition:all 0.2s; cursor:pointer;
+}
+.funnel-step:first-child { border-radius:12px 0 0 12px; }
+.funnel-step:last-child { border-radius:0 12px 12px 0; }
+.funnel-step:not(:last-child) { border-right:none; }
+.funnel-step:hover { background:var(--surface); z-index:1; }
+.funnel-step.active { background:var(--accent-light); border-color:var(--accent); z-index:2; }
+.funnel-arrow { position:absolute; right:-10px; top:50%; transform:translateY(-50%); z-index:3; font-size:14px; color:var(--muted); }
+.funnel-icon { font-size:20px; margin-bottom:6px; }
+.funnel-label { font-size:11px; font-weight:700; color:var(--muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
+.funnel-count { font-family:'Instrument Serif',serif; font-size:26px; letter-spacing:-0.5px; line-height:1; }
+.funnel-pct { font-size:11px; color:var(--muted); margin-top:4px; }
+.funnel-bar-mini { height:4px; border-radius:4px; margin-top:8px; }
+
+/* CUSTOMER TABLE */
+.customer-controls { display:flex; gap:8px; margin-bottom:16px; align-items:center; }
+.search-input { flex:1; max-width:280px; padding:8px 12px; background:var(--white); border:1px solid var(--border); border-radius:8px; font-family:'Geist',sans-serif; font-size:13px; outline:none; color:var(--text); }
+.search-input:focus { border-color:var(--border2); }
+.filter-select { padding:8px 12px; background:var(--white); border:1px solid var(--border); border-radius:8px; font-family:'Geist',sans-serif; font-size:13px; cursor:pointer; color:var(--text); }
+
+.customer-table { width:100%; border-collapse:collapse; }
+.customer-table th { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--muted); padding:10px 14px; text-align:left; border-bottom:2px solid var(--border); background:var(--surface); }
+.customer-table th:first-child { border-radius:8px 0 0 0; }
+.customer-table th:last-child { border-radius:0 8px 0 0; }
+.customer-table td { padding:12px 14px; font-size:13px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.customer-table tr:last-child td { border-bottom:none; }
+.customer-table tr:hover td { background:var(--surface); cursor:pointer; }
+
+.av-sm { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; }
+.customer-name-cell { display:flex; align-items:center; gap:10px; }
+
+.stage-badge { font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; white-space:nowrap; }
+.stage-new { background:#f0f9ff; color:#0369a1; }
+.stage-interested { background:var(--amber-light); color:var(--amber); }
+.stage-converting { background:var(--purple-light); color:var(--purple); }
+.stage-bought { background:var(--accent-light); color:var(--accent); }
+.stage-loyal { background:linear-gradient(135deg,#fef9c3,#fef3c7); color:#92400e; border:1px solid #fbbf24; }
+
+.channel-icon { font-size:14px; }
+.value-cell { font-family:'Geist Mono',monospace; font-weight:700; }
+.checkbox { width:16px; height:16px; cursor:pointer; accent-color:var(--accent); }
+
+/* CAMPAIGN */
+.campaign-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+.campaign-card { background:var(--white); border:1px solid var(--border); border-radius:12px; overflow:hidden; transition:all 0.2s; }
+.campaign-card:hover { border-color:var(--border2); box-shadow:0 4px 12px rgba(0,0,0,0.07); }
+.campaign-header { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; }
+.campaign-title { font-size:14px; font-weight:700; margin-bottom:3px; }
+.campaign-sub { font-size:12px; color:var(--muted); }
+.campaign-status { font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; flex-shrink:0; }
+.cs-live { background:var(--accent-light); color:var(--accent); }
+.cs-scheduled { background:var(--blue-light); color:var(--blue); }
+.cs-draft { background:var(--surface); color:var(--muted); }
+.cs-done { background:var(--surface); color:var(--muted); }
+.campaign-body { padding:14px 16px; }
+.campaign-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:12px; }
+.cstat { text-align:center; }
+.cstat-val { font-size:18px; font-weight:800; font-family:'Geist Mono',monospace; line-height:1; }
+.cstat-label { font-size:10px; color:var(--muted); font-weight:600; margin-top:3px; }
+.campaign-meta { display:flex; gap:12px; font-size:11.5px; color:var(--muted); flex-wrap:wrap; }
+.campaign-meta span { display:flex; align-items:center; gap:4px; }
+
+/* COMPOSER */
+.composer-card { background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:20px; }
+.composer-header { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.composer-header h3 { font-size:14px; font-weight:700; }
+.composer-body { padding:20px; display:grid; grid-template-columns:1fr 340px; gap:24px; }
+
+.field-group { margin-bottom:16px; }
+.field-label { font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:6px; display:block; }
+.field-input { width:100%; padding:9px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; font-family:'Geist',sans-serif; font-size:13px; color:var(--text); outline:none; transition:border-color 0.15s; }
+.field-input:focus { border-color:var(--accent); background:var(--white); }
+.field-select { width:100%; padding:9px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; font-family:'Geist',sans-serif; font-size:13px; cursor:pointer; color:var(--text); }
+.field-textarea { resize:vertical; min-height:100px; line-height:1.6; }
+.segment-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.seg-chip { display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; border:1px solid var(--border); background:var(--surface); cursor:pointer; transition:all 0.15s; }
+.seg-chip:hover,.seg-chip.active { border-color:var(--accent); background:var(--accent-light); color:var(--accent); }
+.seg-chip .remove { color:var(--muted); font-size:10px; }
+
+/* PHONE PREVIEW */
+.phone-preview { display:flex; flex-direction:column; align-items:center; }
+.phone-preview-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:var(--muted); margin-bottom:12px; }
+.phone-frame { width:200px; background:#1a1916; border-radius:28px; padding:14px 10px; box-shadow:0 20px 60px rgba(0,0,0,0.25); }
+.phone-notch { width:60px; height:5px; background:#333; border-radius:3px; margin:0 auto 12px; }
+.phone-screen { background:#fff; border-radius:18px; min-height:320px; overflow:hidden; }
+.phone-chat-header { background:var(--accent); padding:10px 12px; display:flex; align-items:center; gap:8px; }
+.phone-chat-header-txt { font-size:11px; font-weight:700; color:white; }
+.phone-chat-header-sub { font-size:9px; color:rgba(255,255,255,0.7); }
+.phone-messages { padding:10px; display:flex; flex-direction:column; gap:6px; }
+.phone-bubble { max-width:80%; padding:7px 10px; border-radius:10px; font-size:10px; line-height:1.5; }
+.phone-bubble.bot { background:#f0f0f0; color:#333; border-radius:2px 10px 10px 10px; }
+.phone-bubble.promo { background:linear-gradient(135deg,var(--accent),var(--accent-mid)); color:white; border-radius:10px; }
+.phone-cta { margin:4px 10px 10px; }
+.phone-cta-btn { width:100%; background:var(--accent); color:white; border:none; padding:8px; border-radius:8px; font-size:10px; font-weight:700; cursor:pointer; font-family:'Geist',sans-serif; }
+
+/* SEND CONFIRM */
+.send-summary { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; margin-top:16px; }
+.send-summary-row { display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
+.send-summary-row:last-child { margin-bottom:0; font-weight:700; }
+.send-actions { display:flex; gap:8px; margin-top:16px; }
+
+/* SEGMENT BUILDER */
+.seg-builder { background:var(--white); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:20px; }
+.seg-builder-header { padding:14px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+.seg-builder-header h3 { font-size:13.5px; font-weight:700; }
+.rule-list { padding:16px 18px; display:flex; flex-direction:column; gap:8px; }
+.rule-row { display:flex; align-items:center; gap:8px; background:var(--surface); border-radius:8px; padding:8px 12px; }
+.rule-field { padding:5px 10px; background:var(--white); border:1px solid var(--border); border-radius:6px; font-size:12px; cursor:pointer; }
+.rule-op { padding:5px 10px; background:var(--accent-light); border:1px solid rgba(26,107,74,0.2); border-radius:6px; font-size:12px; color:var(--accent); font-weight:700; }
+.rule-val { padding:5px 10px; background:var(--white); border:1px solid var(--border); border-radius:6px; font-size:12px; font-weight:600; }
+.rule-del { margin-left:auto; color:var(--muted); cursor:pointer; font-size:14px; }
+.rule-del:hover { color:var(--red); }
+.rule-connector { font-size:11px; font-weight:800; color:var(--accent); background:var(--accent-light); padding:2px 8px; border-radius:20px; align-self:flex-start; }
+.seg-result { padding:12px 18px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; background:var(--accent-light); }
+.seg-result-num { font-family:'Instrument Serif',serif; font-size:28px; color:var(--accent); }
+
+/* scrollbar */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+
+/* animations */
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.anim { animation:fadeUp 0.35s ease both; }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-top">
+    <div class="logo">
+      <div class="logo-mark">⚡</div>
+      <span class="logo-text">ZenBot</span>
+      <span class="logo-badge">PRO</span>
+    </div>
+    <div class="nav-item"><span class="nav-icon">📊</span> Dashboard</div>
+    <div class="nav-item"><span class="nav-icon">💬</span> Live Chat <span class="nav-count hot">3</span></div>
+    <div class="nav-item"><span class="nav-icon">🔀</span> Flow Builder</div>
+    <div class="nav-item"><span class="nav-icon">📚</span> Knowledge Base</div>
+    <div class="nav-item"><span class="nav-icon">📈</span> Analytics</div>
+    <div class="nav-item active"><span class="nav-icon">👥</span> CRM & Remarketing</div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">Phân khúc nhanh</div>
+    <div class="nav-item" style="padding-left:8px" onclick="filterStage('all')"><span>🌐</span> Tất cả khách <span class="nav-count">3,841</span></div>
+    <div class="nav-item" style="padding-left:8px" onclick="filterStage('new')"><span>🆕</span> Mới tiếp cận <span class="nav-count">892</span></div>
+    <div class="nav-item" style="padding-left:8px" onclick="filterStage('interested')"><span>🔥</span> Đang quan tâm <span class="nav-count">654</span></div>
+    <div class="nav-item" style="padding-left:8px" onclick="filterStage('converting')"><span>⭐</span> Sắp chốt <span class="nav-count">231</span></div>
+    <div class="nav-item" style="padding-left:8px" onclick="filterStage('bought')"><span>✅</span> Đã mua <span class="nav-count">1,742</span></div>
+    <div class="nav-item" style="padding-left:8px" onclick="filterStage('loyal')"><span>👑</span> Khách VIP <span class="nav-count">322</span></div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="crm-summary">
+      <div class="crm-summary-title">💰 Giá trị tổng</div>
+      <div class="crm-sum-row"><span>Doanh thu / tháng</span><span class="crm-sum-val" style="color:var(--accent)">428M₫</span></div>
+      <div class="crm-sum-row"><span>CLV trung bình</span><span class="crm-sum-val">1.24M₫</span></div>
+      <div class="crm-sum-row"><span>Remarketing ROI</span><span class="crm-sum-val" style="color:var(--accent)">4.8×</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="main-header">
+    <div class="breadcrumb">ZenBot <span>›</span> Shop Thời Trang ABC <span>›</span> CRM & Remarketing</div>
+    <div class="page-title-row">
+      <div>
+        <div class="page-title">CRM & <em>Remarketing</em></div>
+        <div class="page-subtitle">3,841 khách hàng · 2 chiến dịch đang chạy · Cập nhật realtime</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost">⬇️ Xuất CSV</button>
+        <button class="btn btn-blue" onclick="switchTab('broadcast',null)">📣 Tạo chiến dịch mới</button>
+        <button class="btn btn-accent" onclick="openNewCustomer()">+ Thêm khách</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('customers',this)">👥 Khách hàng</div>
+    <div class="tab" onclick="switchTab('funnel',this)">🔽 Phễu chuyển đổi</div>
+    <div class="tab" onclick="switchTab('campaigns',this)">📣 Chiến dịch</div>
+    <div class="tab" onclick="switchTab('broadcast',this)">✍️ Soạn tin nhắn</div>
+    <div class="tab" onclick="switchTab('segments',this)">🎯 Phân khúc</div>
+  </div>
+
+  <div class="content">
+
+    <!-- TAB: CUSTOMERS -->
+    <div id="tab-customers">
+      <!-- Funnel mini -->
+      <div class="funnel-overview" style="margin-bottom:24px">
+        <div class="funnel-step" onclick="filterStage('new')">
+          <div class="funnel-icon">🆕</div>
+          <div class="funnel-label">Mới</div>
+          <div class="funnel-count" style="color:#0369a1">892</div>
+          <div class="funnel-pct">100%</div>
+          <div class="funnel-bar-mini" style="background:#bae6fd"></div>
+          <div class="funnel-arrow">›</div>
+        </div>
+        <div class="funnel-step" onclick="filterStage('interested')">
+          <div class="funnel-icon">🔥</div>
+          <div class="funnel-label">Quan tâm</div>
+          <div class="funnel-count" style="color:var(--amber)">654</div>
+          <div class="funnel-pct">73.3%</div>
+          <div class="funnel-bar-mini" style="background:#fde68a"></div>
+          <div class="funnel-arrow">›</div>
+        </div>
+        <div class="funnel-step active" onclick="filterStage('converting')">
+          <div class="funnel-icon">⭐</div>
+          <div class="funnel-label">Sắp chốt</div>
+          <div class="funnel-count" style="color:var(--purple)">231</div>
+          <div class="funnel-pct">25.9%</div>
+          <div class="funnel-bar-mini" style="background:#ddd6fe"></div>
+          <div class="funnel-arrow">›</div>
+        </div>
+        <div class="funnel-step" onclick="filterStage('bought')">
+          <div class="funnel-icon">✅</div>
+          <div class="funnel-label">Đã mua</div>
+          <div class="funnel-count" style="color:var(--accent)">1,742</div>
+          <div class="funnel-pct">195%*</div>
+          <div class="funnel-bar-mini" style="background:var(--accent-light)"></div>
+          <div class="funnel-arrow">›</div>
+        </div>
+        <div class="funnel-step" onclick="filterStage('loyal')">
+          <div class="funnel-icon">👑</div>
+          <div class="funnel-label">VIP</div>
+          <div class="funnel-count" style="color:#92400e">322</div>
+          <div class="funnel-pct">36.1%</div>
+          <div class="funnel-bar-mini" style="background:#fef3c7"></div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="customer-controls">
+        <input class="search-input" placeholder="🔍 Tìm tên, SĐT, email..." oninput="filterCustomers(this.value)">
+        <select class="filter-select" onchange="filterByStage(this.value)">
+          <option value="all">Tất cả giai đoạn</option>
+          <option value="new">🆕 Mới tiếp cận</option>
+          <option value="interested">🔥 Đang quan tâm</option>
+          <option value="converting">⭐ Sắp chốt</option>
+          <option value="bought">✅ Đã mua</option>
+          <option value="loyal">👑 VIP</option>
+        </select>
+        <select class="filter-select">
+          <option>Tất cả kênh</option>
+          <option>🟦 Zalo</option>
+          <option>📘 Facebook</option>
+          <option>🌐 Website</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="selectAll()">Chọn tất cả</button>
+        <button class="btn btn-accent btn-sm" id="sendSelected" style="display:none" onclick="switchTab('broadcast',null)">📣 Gửi tin (<span id="selectedCount">0</span>)</button>
+      </div>
+
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <table class="customer-table">
+          <thead>
+            <tr>
+              <th style="width:36px"><input type="checkbox" class="checkbox" onchange="toggleAll(this)"></th>
+              <th>Khách hàng</th>
+              <th>Giai đoạn</th>
+              <th>Kênh</th>
+              <th>Lần cuối chat</th>
+              <th>Tổng chi</th>
+              <th>Tags</th>
+              <th style="width:80px">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="customerTbody"></tbody>
+        </table>
+      </div>
+      <div style="padding:12px 0;font-size:12px;color:var(--muted);text-align:center">Hiển thị 10 / 3,841 khách hàng · <span style="color:var(--accent);cursor:pointer;font-weight:600">Xem thêm →</span></div>
+    </div>
+
+    <!-- TAB: FUNNEL -->
+    <div id="tab-funnel" style="display:none">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px">
+        <div>
+          <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:16px">🔽 Phễu chuyển đổi chi tiết</div>
+            <div id="funnelViz"></div>
+          </div>
+          <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px">
+            <div style="font-size:14px;font-weight:700;margin-bottom:14px">📈 Tốc độ chuyển đổi theo tuần</div>
+            <svg width="100%" height="120" viewBox="0 0 500 120" preserveAspectRatio="none">
+              <line x1="0" y1="0" x2="500" y2="0" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4"/>
+              <line x1="0" y1="40" x2="500" y2="40" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4"/>
+              <line x1="0" y1="80" x2="500" y2="80" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4"/>
+              <line x1="0" y1="120" x2="500" y2="120" stroke="var(--border)" stroke-width="1"/>
+              <polyline points="0,90 80,75 160,65 240,50 320,42 400,30 500,22" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="500" cy="22" r="5" fill="var(--accent)"/>
+              <text x="460" y="15" font-size="10" fill="var(--accent)" font-weight="700" font-family="Geist">+28.7%</text>
+            </svg>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:12px">⚡ HÀNH ĐỘNG TỰ ĐỘNG</div>
+            <div style="display:flex;flex-direction:column;gap:8px" id="automations"></div>
+          </div>
+          <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:12px">🎯 TỶ LỆ RỜI BỎ</div>
+            <div id="dropoffRates"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: CAMPAIGNS -->
+    <div id="tab-campaigns" style="display:none">
+      <div class="campaign-grid" id="campaignGrid"></div>
+    </div>
+
+    <!-- TAB: BROADCAST -->
+    <div id="tab-broadcast" style="display:none">
+      <div class="composer-card">
+        <div class="composer-header">
+          <span style="font-size:22px">📣</span>
+          <div>
+            <h3>Soạn chiến dịch tin nhắn hàng loạt</h3>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Gửi đến phân khúc đã chọn · Hỗ trợ Zalo, Facebook, SMS</div>
+          </div>
+        </div>
+        <div class="composer-body">
+          <div>
+            <div class="field-group">
+              <label class="field-label">Tên chiến dịch</label>
+              <input class="field-input" placeholder="VD: Flash Sale cuối tháng 7" id="campaignName" oninput="updatePreview()">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Phân khúc nhận tin</label>
+              <div class="segment-chips" id="segChips">
+                <div class="seg-chip active" onclick="toggleSeg(this)">✅ Đã mua hàng <span class="remove">✕</span></div>
+                <div class="seg-chip active" onclick="toggleSeg(this)">👑 Khách VIP <span class="remove">✕</span></div>
+                <div class="seg-chip" onclick="toggleSeg(this)">🔥 Đang quan tâm</div>
+                <div class="seg-chip" onclick="toggleSeg(this)">⭐ Sắp chốt đơn</div>
+                <div class="seg-chip" onclick="toggleSeg(this)">🆕 Mới tiếp cận</div>
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Kênh gửi</label>
+              <div style="display:flex;gap:8px">
+                <div class="seg-chip active" onclick="toggleSeg(this)">🟦 Zalo OA</div>
+                <div class="seg-chip" onclick="toggleSeg(this)">📘 Facebook</div>
+                <div class="seg-chip" onclick="toggleSeg(this)">💬 SMS</div>
+              </div>
+            </div>
+            <div class="field-group">
+              <label class="field-label">Nội dung tin nhắn</label>
+              <textarea class="field-input field-textarea" id="msgContent" placeholder="Nhập nội dung... Dùng {{tên_khách}}, {{sản_phẩm}}, {{mã_giảm_giá}} để cá nhân hóa" oninput="updatePreview()">Chào {{tên_khách}}! 🎉 
+
+Shop đang có FLASH SALE cuối tháng — giảm đến 30% toàn bộ sản phẩm X1 Pro và Hoodie ZenWear.
+
+Dùng mã: JULY30 để được giảm thêm 10% khi thanh toán online.
+
+Ưu đãi kết thúc lúc 23:59 hôm nay! 🛒</textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="field-group">
+                <label class="field-label">Thời gian gửi</label>
+                <select class="field-select">
+                  <option>⚡ Gửi ngay</option>
+                  <option>⏰ Lên lịch cụ thể</option>
+                  <option>🤖 AI chọn giờ tốt nhất</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label class="field-label">Giới hạn / ngày</label>
+                <input class="field-input" type="number" value="500" placeholder="500 tin/ngày">
+              </div>
+            </div>
+
+            <div class="send-summary">
+              <div class="send-summary-row"><span>📊 Tổng số người nhận</span><span style="font-family:'Geist Mono';font-weight:800;color:var(--accent)">2,064 người</span></div>
+              <div class="send-summary-row"><span>🟦 Zalo OA</span><span style="font-family:'Geist Mono'">1,847 tin</span></div>
+              <div class="send-summary-row"><span>📘 Facebook</span><span style="font-family:'Geist Mono'">217 tin</span></div>
+              <div class="send-summary-row" style="padding-top:8px;border-top:1px solid var(--border);margin-top:8px"><span>💰 Chi phí ước tính</span><span style="font-family:'Geist Mono';font-weight:800">~82,560₫</span></div>
+            </div>
+
+            <div class="send-actions">
+              <button class="btn btn-ghost" style="flex:1">💾 Lưu Draft</button>
+              <button class="btn btn-ghost" style="flex:1" onclick="alert('Gửi thử đến email của bạn!')">🧪 Gửi thử nghiệm</button>
+              <button class="btn btn-accent" style="flex:2" onclick="sendCampaign()">🚀 Gửi chiến dịch ngay</button>
+            </div>
+          </div>
+
+          <!-- Phone Preview -->
+          <div class="phone-preview">
+            <div class="phone-preview-title">Xem trước trên thiết bị</div>
+            <div class="phone-frame">
+              <div class="phone-notch"></div>
+              <div class="phone-screen">
+                <div class="phone-chat-header">
+                  <div style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:12px">⚡</div>
+                  <div>
+                    <div class="phone-chat-header-txt">Shop Thời Trang ABC</div>
+                    <div class="phone-chat-header-sub">Zalo Official Account</div>
+                  </div>
+                </div>
+                <div class="phone-messages">
+                  <div class="phone-bubble promo" id="previewBubble">Chào <strong>Nguyễn Thành</strong>! 🎉<br><br>Shop đang có FLASH SALE cuối tháng — giảm đến 30% toàn bộ sản phẩm X1 Pro...<br><br>Dùng mã: <strong>JULY30</strong> 🛒</div>
+                </div>
+                <div class="phone-cta">
+                  <button class="phone-cta-btn">🛒 Mua ngay ngay</button>
+                </div>
+                <div style="text-align:center;font-size:9px;color:#999;padding:8px">Nhận từ Shop Thời Trang ABC · Hủy nhận</div>
+              </div>
+            </div>
+            <div style="margin-top:12px;font-size:11px;color:var(--muted);text-align:center">📱 Preview Zalo</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: SEGMENTS -->
+    <div id="tab-segments" style="display:none">
+      <div class="seg-builder">
+        <div class="seg-builder-header">
+          <span style="font-size:20px">🎯</span>
+          <div>
+            <h3>Xây dựng phân khúc nâng cao</h3>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Lọc khách hàng theo nhiều điều kiện kết hợp</div>
+          </div>
+          <button class="btn btn-accent btn-sm" style="margin-left:auto">💾 Lưu phân khúc</button>
+        </div>
+        <div class="rule-list" id="ruleList">
+          <div class="rule-row">
+            <select class="rule-field"><option>Giai đoạn</option><option>Tổng chi tiêu</option><option>Lần cuối chat</option><option>Kênh</option><option>Tags</option></select>
+            <div class="rule-op">là</div>
+            <select class="rule-field"><option>Đã mua hàng</option><option>VIP</option><option>Quan tâm</option></select>
+            <div class="rule-del" onclick="this.closest('.rule-row').remove();updateCount()">✕</div>
+          </div>
+          <div class="rule-connector">VÀ</div>
+          <div class="rule-row">
+            <select class="rule-field"><option>Tổng chi tiêu</option><option>Giai đoạn</option><option>Lần cuối chat</option></select>
+            <div class="rule-op">≥</div>
+            <input class="rule-field" value="500,000₫" style="width:100px">
+            <div class="rule-del" onclick="this.closest('.rule-row').remove();updateCount()">✕</div>
+          </div>
+          <div class="rule-connector">VÀ</div>
+          <div class="rule-row">
+            <select class="rule-field"><option>Lần cuối chat</option><option>Giai đoạn</option><option>Tổng chi tiêu</option></select>
+            <div class="rule-op">trong</div>
+            <select class="rule-field"><option>30 ngày qua</option><option>7 ngày qua</option><option>60 ngày qua</option></select>
+            <div class="rule-del" onclick="this.closest('.rule-row').remove();updateCount()">✕</div>
+          </div>
+        </div>
+        <div style="padding:10px 18px;border-top:1px solid var(--border)">
+          <button class="btn btn-ghost btn-sm" onclick="addRule()">+ Thêm điều kiện</button>
+        </div>
+        <div class="seg-result">
+          <span class="seg-result-num" id="segResultNum">1,247</span>
+          <div>
+            <div style="font-size:13px;font-weight:700">khách hàng phù hợp</div>
+            <div style="font-size:12px;color:var(--muted)">32.5% tổng khách hàng · Tổng CLV: ~1.54 tỷ₫</div>
+          </div>
+          <button class="btn btn-accent btn-sm" style="margin-left:auto" onclick="switchTab('broadcast',null)">📣 Gửi tin ngay</button>
+        </div>
+      </div>
+
+      <!-- Saved segments -->
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border);font-size:13.5px;font-weight:700">📂 Phân khúc đã lưu</div>
+        <div id="savedSegments"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Tab switching
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else {
+    const map = {customers:0,funnel:1,campaigns:2,broadcast:3,segments:4};
+    document.querySelectorAll('.tab')[map[tab]].classList.add('active');
+  }
+  ['customers','funnel','campaigns','broadcast','segments'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'funnel') renderFunnel();
+  if (tab === 'campaigns') renderCampaigns();
+  if (tab === 'segments') renderSegments();
+}
+
+const stageMap = { new:'stage-new', interested:'stage-interested', converting:'stage-converting', bought:'stage-bought', loyal:'stage-loyal' };
+const stageName = { new:'🆕 Mới', interested:'🔥 Quan tâm', converting:'⭐ Sắp chốt', bought:'✅ Đã mua', loyal:'👑 VIP' };
+let selected = new Set();
+
+function renderCustomers(list) {
+  const tbody = document.getElementById('customerTbody');
+  tbody.innerHTML = list.map((c, i) => {
+    const color = c.color || '#6366f1';
+    const initials = (c.name || 'User').split(' ').map(p => p[0]).join('').substring(0, 2);
+    return `
+    <tr onclick="toggleRow(${i},this)">
+      <td><input type="checkbox" class="checkbox" onclick="event.stopPropagation();toggleCheck(${i},this)" ${selected.has(i)?'checked':''}></td>
+      <td>
+        <div class="customer-name-cell">
+          <div class="av-sm" style="background:${color}22;color:${color}">${initials}</div>
+          <div>
+            <div style="font-weight:600;font-size:13px">${c.name || 'Ẩn danh'}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'Geist Mono'">${c.phone || c.senderId.substring(0,8)}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="stage-badge ${stageMap[c.status] || 'stage-new'}">${stageName[c.status] || '🆕 Mới'}</span></td>
+      <td><span class="channel-icon">${channelIcon[c.channel] || '📘'}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${formatRelativeTime(c.at)}</td>
+      <td class="value-cell" style="color:${(c.value > 0)?'var(--accent)':'var(--muted)'}">${formatCurrency(c.value)}</td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${(c.tags || []).map(t=>`<span style="font-size:10px;background:var(--surface);padding:2px 7px;border-radius:20px;border:1px solid var(--border)">${t}</span>`).join('')}</div></td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();alert('Mở hồ sơ khách hàng: ' + '${c.senderId}')">👁</button>
+          <button class="btn btn-ghost btn-sm" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation();switchTab('broadcast',null)">📣</button>
+        </div>
+      </td>
+    </tr>`}).join('');
+}
+
+function updateFunnelCounts() {
+  const counts = { new: 0, contacted: 0, qualified: 0, order: 0, closed: 0 };
+  customers.forEach(c => { if(counts[c.status] !== undefined) counts[c.status]++; });
+  
+  // Cập nhật UI phễu (giản lược)
+  document.querySelectorAll('.funnel-count').forEach((el, idx) => {
+    const keys = ['new', 'contacted', 'qualified', 'order', 'closed'];
+    el.textContent = counts[keys[idx]];
+  });
+}
+
+// Gọi fetch ngay khi load
+fetchLeads();
+renderCustomers(customers);
+
+function toggleCheck(i, el) {
+  if (el.checked) selected.add(i); else selected.delete(i);
+  updateSelectedUI();
+}
+function toggleRow(i, tr) {
+  const cb = tr.querySelector('.checkbox');
+  cb.checked = !cb.checked;
+  toggleCheck(i, cb);
+}
+function toggleAll(el) {
+  customers.forEach((_, i) => { if(el.checked) selected.add(i); else selected.delete(i); });
+  renderCustomers(customers);
+  updateSelectedUI();
+}
+function updateSelectedUI() {
+  const btn = document.getElementById('sendSelected');
+  document.getElementById('selectedCount').textContent = selected.size;
+  btn.style.display = selected.size > 0 ? 'flex' : 'none';
+}
+function selectAll() {
+  customers.forEach((_,i) => selected.add(i));
+  renderCustomers(customers);
+  updateSelectedUI();
+}
+function filterCustomers(v) {
+  const filtered = customers.filter(c => c.name.toLowerCase().includes(v.toLowerCase()) || c.phone.includes(v));
+  renderCustomers(filtered);
+}
+function filterByStage(s) {
+  const filtered = s === 'all' ? customers : customers.filter(c => c.stage === s);
+  renderCustomers(filtered);
+}
+function filterStage(s) {
+  switchTab('customers', document.querySelector('.tab'));
+  filterByStage(s);
+}
+
+// Funnel
+function renderFunnel() {
+  const data = [
+    { label:'🆕 Mới tiếp cận', count:892, color:'#0369a1', pct:100 },
+    { label:'🔥 Đang quan tâm', count:654, color:'var(--amber)', pct:73.3 },
+    { label:'⭐ Sắp chốt đơn', count:231, color:'var(--purple)', pct:25.9 },
+    { label:'✅ Đã mua hàng', count:1742, color:'var(--accent)', pct:195 },
+    { label:'👑 Khách VIP', count:322, color:'#92400e', pct:36.1 },
+  ];
+  document.getElementById('funnelViz').innerHTML = data.map((d, i) => `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+        <span style="font-weight:600">${d.label}</span>
+        <span style="font-family:'Geist Mono';font-weight:800;color:${d.color}">${d.count.toLocaleString()}</span>
+      </div>
+      <div style="height:28px;background:var(--surface);border-radius:8px;overflow:hidden">
+        <div style="height:100%;width:${Math.min(100,d.pct)}%;background:${d.color};border-radius:8px;opacity:0.8;display:flex;align-items:center;padding-left:10px;transition:width 0.8s ease;animation:fadeUp 0.4s ease ${i*0.1}s both">
+          <span style="font-size:11px;font-weight:700;color:white">${d.pct}%</span>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const autos = [
+    { icon:'⏰', label:'Chưa mua sau 3 ngày', action:'Gửi nhắc nhở + coupon', active:true },
+    { icon:'👑', label:'Chi > 2M₫', action:'Chuyển sang VIP tự động', active:true },
+    { icon:'💤', label:'Không chat 30 ngày', action:'Gửi tin tái kích hoạt', active:false },
+    { icon:'🎂', label:'Sinh nhật khách', action:'Gửi voucher sinh nhật', active:true },
+  ];
+  document.getElementById('automations').innerHTML = autos.map(a => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border-radius:8px;font-size:12px">
+      <span>${a.icon}</span>
+      <div style="flex:1">
+        <div style="font-weight:600">${a.label}</div>
+        <div style="color:var(--muted);font-size:11px">${a.action}</div>
+      </div>
+      <div style="width:34px;height:18px;border-radius:9px;background:${a.active?'var(--accent)':'var(--border)'};cursor:pointer;position:relative;transition:background 0.2s" onclick="this.style.background=this.style.background.includes('accent')?'var(--border)':'var(--accent)'">
+        <div style="width:14px;height:14px;background:white;border-radius:50%;position:absolute;top:2px;${a.active?'right:2px':'left:2px'};transition:all 0.2s"></div>
+      </div>
+    </div>`).join('');
+
+  const dropoffs = [
+    { from:'Mới → Quan tâm', rate:26.7, color:'var(--amber)' },
+    { from:'Quan tâm → Sắp chốt', rate:64.7, color:'var(--red)' },
+    { from:'Sắp chốt → Mua', rate:'N/A*', color:'var(--accent)', special:true },
+  ];
+  document.getElementById('dropoffRates').innerHTML = dropoffs.map(d => `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="color:var(--muted)">${d.from}</span>
+        <span style="font-weight:800;font-family:'Geist Mono';color:${d.color}">${typeof d.rate === 'number' ? d.rate + '% rời' : d.rate}</span>
+      </div>
+      ${typeof d.rate === 'number' ? `<div style="height:5px;background:var(--border);border-radius:4px"><div style="width:${d.rate}%;height:100%;background:${d.color};border-radius:4px"></div></div>` : ''}
+    </div>`).join('');
+}
+
+// Campaigns
+const campaigns = [
+  { title:'Flash Sale tháng 7', sub:'Khách VIP + Đã mua · Zalo OA', status:'live', statusLabel:'🟢 Đang chạy', sent:1842, opened:1203, clicked:412, converted:89, startDate:'28/07', endDate:'31/07' },
+  { title:'Nhắc hàng bỏ giỏ', sub:'Sắp chốt đơn · Tự động · Zalo + FB', status:'live', statusLabel:'🟢 Đang chạy', sent:231, opened:189, clicked:87, converted:34, startDate:'Tự động', endDate:'Liên tục' },
+  { title:'Tái kích hoạt tháng 6', sub:'Không chat 30 ngày · Zalo', status:'done', statusLabel:'✅ Kết thúc', sent:542, opened:298, clicked:76, converted:21, startDate:'01/06', endDate:'15/06' },
+  { title:'Sinh nhật tháng 8', sub:'Khách có sinh nhật tháng 8 · Tất cả kênh', status:'scheduled', statusLabel:'📅 Lên lịch', sent:0, opened:0, clicked:0, converted:0, startDate:'01/08', endDate:'31/08' },
+];
+
+function renderCampaigns() {
+  document.getElementById('campaignGrid').innerHTML = campaigns.map(c => `
+    <div class="campaign-card anim">
+      <div class="campaign-header">
+        <div>
+          <div class="campaign-title">${c.title}</div>
+          <div class="campaign-sub">${c.sub}</div>
+        </div>
+        <div class="campaign-status cs-${c.status}">${c.statusLabel}</div>
+      </div>
+      <div class="campaign-body">
+        <div class="campaign-stats">
+          <div class="cstat">
+            <div class="cstat-val" style="color:var(--blue)">${c.sent.toLocaleString()}</div>
+            <div class="cstat-label">Đã gửi</div>
+          </div>
+          <div class="cstat">
+            <div class="cstat-val" style="color:var(--amber)">${c.sent ? Math.round(c.opened/c.sent*100)+'%' : '—'}</div>
+            <div class="cstat-label">Mở tin</div>
+          </div>
+          <div class="cstat">
+            <div class="cstat-val" style="color:var(--purple)">${c.sent ? Math.round(c.clicked/c.sent*100)+'%' : '—'}</div>
+            <div class="cstat-label">Click</div>
+          </div>
+          <div class="cstat">
+            <div class="cstat-val" style="color:var(--accent)">${c.sent ? Math.round(c.converted/c.sent*100)+'%' : '—'}</div>
+            <div class="cstat-label">Chốt đơn</div>
+          </div>
+        </div>
+        <div class="campaign-meta">
+          <span>📅 ${c.startDate} – ${c.endDate}</span>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:11px">📊 Chi tiết</button>
+            ${c.status !== 'done' ? '<button class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:11px">✏️ Sửa</button>' : ''}
+          </span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// Segments
+const savedSegs = [
+  { name:'Khách VIP chưa mua 60 ngày', count:87, color:'var(--amber)' },
+  { name:'Đã mua > 1 triệu + Zalo', count:412, color:'var(--accent)' },
+  { name:'Quan tâm X1 Pro chưa chốt', count:231, color:'var(--purple)' },
+  { name:'Khách mới tháng này', count:892, color:'var(--blue)' },
+];
+function renderSegments() {
+  document.getElementById('savedSegments').innerHTML = savedSegs.map(s => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);cursor:pointer" onmouseenter="this.style.background='var(--surface)'" onmouseleave="this.style.background=''">
+      <div style="width:8px;height:8px;border-radius:50%;background:${s.color}"></div>
+      <div style="flex:1;font-size:13px;font-weight:600">${s.name}</div>
+      <div style="font-family:'Geist Mono';font-size:13px;font-weight:800;color:${s.color}">${s.count.toLocaleString()}</div>
+      <button class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:11px" onclick="switchTab('broadcast',null)">📣 Gửi</button>
+    </div>`).join('');
+}
+
+function addRule() {
+  const rl = document.getElementById('ruleList');
+  const con = document.createElement('div');
+  con.className = 'rule-connector';
+  con.textContent = 'VÀ';
+  const row = document.createElement('div');
+  row.className = 'rule-row';
+  row.innerHTML = `
+    <select class="rule-field"><option>Tags</option><option>Giai đoạn</option><option>Kênh</option><option>Tổng chi tiêu</option></select>
+    <div class="rule-op">là</div>
+    <input class="rule-field" placeholder="Nhập giá trị..." style="width:120px">
+    <div class="rule-del" onclick="this.closest('.rule-row').remove()">✕</div>`;
+  rl.appendChild(con);
+  rl.appendChild(row);
+  updateCount();
+}
+
+function updateCount() {
+  document.getElementById('segResultNum').textContent = Math.floor(Math.random() * 800 + 400).toLocaleString();
+}
+
+function updatePreview() {
+  const content = document.getElementById('msgContent').value;
+  const preview = content.replace('{{tên_khách}}', '<strong>Nguyễn Thành</strong>').replace('{{mã_giảm_giá}}', '<strong>JULY30</strong>');
+  document.getElementById('previewBubble').innerHTML = preview.replace(/\n/g,'<br>').substring(0, 180) + '...';
+}
+
+function sendCampaign() {
+  const name = document.getElementById('campaignName').value || 'Chiến dịch mới';
+  if(confirm(`Xác nhận gửi chiến dịch "${name}" đến 2,064 khách hàng?`)) {
+    alert('✅ Chiến dịch đang được gửi! Kiểm tra tab "Chiến dịch" để theo dõi tiến độ.');
+    switchTab('campaigns', null);
+  }
+}
+function openNewCustomer() {
+  alert('Mở form thêm khách hàng mới');
+}
+</script>
+</body>
+</html>

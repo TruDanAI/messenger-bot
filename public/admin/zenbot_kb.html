@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZenBot — Knowledge Base</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #f7f6f3;
+  --white: #ffffff;
+  --surface: #f0efe9;
+  --border: #e4e2d9;
+  --border2: #d0cec3;
+  --text: #1a1916;
+  --muted: #6b6860;
+  --subtle: #9a9890;
+  --accent: #1a6b4a;
+  --accent-light: #e8f5ee;
+  --accent-mid: #2d9467;
+  --blue: #1d4ed8;
+  --blue-light: #eff6ff;
+  --amber: #b45309;
+  --amber-light: #fffbeb;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.05);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.12), 0 4px 12px rgba(0,0,0,0.06);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'Geist', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ────────── SIDEBAR ────────── */
+.sidebar {
+  width: 248px;
+  background: var(--white);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.sidebar-top {
+  padding: 18px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.logo-mark {
+  width: 28px; height: 28px;
+  background: var(--text);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.logo-text {
+  font-family: 'Instrument Serif', serif;
+  font-size: 18px;
+  letter-spacing: -0.3px;
+}
+.logo-badge {
+  margin-left: auto;
+  font-size: 10px; font-weight: 600;
+  background: var(--accent-light);
+  color: var(--accent);
+  padding: 2px 7px; border-radius: 20px;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px; border-radius: 7px;
+  font-size: 13.5px; cursor: pointer;
+  color: var(--muted);
+  transition: all 0.15s;
+  margin-bottom: 1px;
+}
+.nav-item:hover { background: var(--surface); color: var(--text); }
+.nav-item.active { background: var(--surface); color: var(--text); font-weight: 600; }
+.nav-icon { font-size: 15px; width: 20px; text-align: center; }
+.nav-count {
+  margin-left: auto; font-size: 11px; font-weight: 600;
+  color: var(--subtle); background: var(--surface);
+  padding: 1px 7px; border-radius: 20px;
+}
+
+.sidebar-section {
+  padding: 14px 16px 8px;
+}
+.sidebar-section-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--subtle); margin-bottom: 8px;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+.kb-stats {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.kb-stats-title { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+.kb-stat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; font-size: 12px; }
+.kb-stat-row:last-child { margin-bottom: 0; }
+.kb-stat-val { font-weight: 700; font-family: 'Geist Mono', monospace; }
+.usage-bar { height: 4px; background: var(--border); border-radius: 4px; margin-top: 8px; overflow: hidden; }
+.usage-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent-mid)); width: 62%; }
+
+/* ────────── MAIN ────────── */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-header {
+  padding: 20px 28px 0;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.breadcrumb {
+  font-size: 12px; color: var(--muted);
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 14px;
+}
+.breadcrumb span { color: var(--subtle); }
+
+.page-title-row {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.page-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 28px;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+.page-title em { font-style: italic; color: var(--accent); }
+.page-subtitle { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.btn {
+  padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none; font-family: 'Geist', sans-serif;
+  transition: all 0.18s; display: flex; align-items: center; gap: 6px;
+}
+.btn-ghost { background: var(--white); border: 1px solid var(--border); color: var(--muted); }
+.btn-ghost:hover { border-color: var(--border2); color: var(--text); box-shadow: var(--shadow); }
+.btn-primary { background: var(--text); color: var(--white); }
+.btn-primary:hover { background: #2d2c29; box-shadow: var(--shadow-md); }
+.btn-accent { background: var(--accent); color: var(--white); }
+.btn-accent:hover { background: var(--accent-mid); box-shadow: var(--shadow-md); }
+
+/* Tabs */
+.tabs {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px;
+  background: var(--bg);
+}
+.tab {
+  padding: 10px 16px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); font-weight: 700; border-bottom-color: var(--text); }
+.tab-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+/* Content */
+.content {
+  flex: 1; overflow-y: auto; padding: 24px 28px;
+}
+
+/* Upload Zone */
+.upload-zone {
+  background: var(--white);
+  border: 2px dashed var(--border2);
+  border-radius: 14px;
+  padding: 28px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 20px;
+  position: relative;
+}
+.upload-zone:hover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+}
+.upload-zone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  transform: scale(1.01);
+}
+.upload-icon {
+  width: 48px; height: 48px;
+  background: var(--surface);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; margin: 0 auto 12px;
+}
+.upload-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.upload-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+.upload-types { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.type-pill {
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+  border: 1px solid var(--border2); color: var(--muted); background: var(--white);
+}
+
+/* URL input row */
+.url-row {
+  display: flex; gap: 8px; margin-bottom: 24px;
+}
+.url-input {
+  flex: 1; padding: 10px 14px;
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 8px; font-family: 'Geist', sans-serif;
+  font-size: 13px; color: var(--text); outline: none;
+  transition: border-color 0.15s;
+}
+.url-input:focus { border-color: var(--accent); }
+.url-input::placeholder { color: var(--subtle); }
+
+/* Section header */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.section-title { font-size: 13px; font-weight: 700; }
+.section-count { font-size: 12px; color: var(--muted); }
+
+/* Source cards */
+.source-grid { display: flex; flex-direction: column; gap: 8px; }
+
+.source-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+  transition: all 0.15s;
+  cursor: pointer;
+  position: relative;
+}
+.source-card:hover { border-color: var(--border2); box-shadow: var(--shadow); }
+.source-card.selected { border-color: var(--accent); background: var(--accent-light); }
+
+.source-icon-wrap {
+  width: 40px; height: 40px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+
+.source-info { flex: 1; min-width: 0; }
+.source-name { font-size: 13.5px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.source-meta { font-size: 11.5px; color: var(--muted); display: flex; gap: 10px; }
+.source-meta span { display: flex; align-items: center; gap: 3px; }
+
+.source-status {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px;
+  flex-shrink: 0;
+}
+.status-ready { background: var(--accent-light); color: var(--accent); }
+.status-processing { background: var(--amber-light); color: var(--amber); }
+.status-error { background: var(--red-light); color: var(--red); }
+.status-queued { background: var(--surface); color: var(--muted); }
+
+.pulse {
+  width: 7px; height: 7px; border-radius: 50%;
+  animation: pulse 1.5s ease infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.source-actions {
+  display: flex; gap: 4px; flex-shrink: 0;
+}
+.icon-btn {
+  width: 30px; height: 30px; border-radius: 7px;
+  background: transparent; border: 1px solid transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--muted); transition: all 0.15s;
+}
+.icon-btn:hover { background: var(--surface); border-color: var(--border); color: var(--text); }
+
+/* Progress bar inside card */
+.progress-wrap { margin-top: 8px; }
+.progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.progress-bar { height: 4px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.progress-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), #4ade80);
+  transition: width 0.4s ease;
+  animation: shimmer 1.5s infinite;
+  background-size: 200%;
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Chunk preview panel */
+.chunk-panel {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.chunk-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.chunk-header h3 { font-size: 13.5px; font-weight: 700; }
+.chunk-header p { font-size: 12px; color: var(--muted); }
+.chunk-search {
+  margin-left: auto;
+  display: flex; gap: 8px;
+}
+.chunk-search-input {
+  padding: 6px 12px; border-radius: 7px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-family: 'Geist', sans-serif; font-size: 12px; outline: none; color: var(--text);
+  width: 200px;
+}
+.chunk-search-input:focus { border-color: var(--accent); }
+
+.chunk-list { max-height: 380px; overflow-y: auto; }
+.chunk-item {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+  cursor: pointer;
+}
+.chunk-item:last-child { border-bottom: none; }
+.chunk-item:hover { background: var(--surface); }
+.chunk-item-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.chunk-num {
+  font-size: 10px; font-weight: 700; font-family: 'Geist Mono', monospace;
+  color: var(--accent); background: var(--accent-light);
+  padding: 1px 7px; border-radius: 4px;
+}
+.chunk-tokens {
+  font-size: 10px; color: var(--subtle); font-family: 'Geist Mono', monospace;
+  margin-left: auto;
+}
+.chunk-text {
+  font-size: 12.5px; color: var(--muted); line-height: 1.6;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.chunk-text mark {
+  background: #fef9c3; color: var(--text); border-radius: 2px; padding: 0 1px;
+}
+.chunk-similarity {
+  display: flex; align-items: center; gap: 6px; margin-top: 6px;
+}
+.sim-bar { flex: 1; height: 3px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.sim-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-mid)); }
+.sim-val { font-size: 10px; font-weight: 700; font-family: 'Geist Mono', monospace; color: var(--accent); width: 32px; text-align: right; }
+
+/* Test panel */
+.test-panel {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+.test-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.test-header h3 { font-size: 13.5px; font-weight: 700; }
+.test-header p { font-size: 12px; color: var(--muted); }
+.test-body { padding: 18px; }
+.test-input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.test-input {
+  flex: 1; padding: 10px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; font-family: 'Geist', sans-serif; font-size: 13px;
+  outline: none; color: var(--text);
+}
+.test-input:focus { border-color: var(--accent); background: var(--white); }
+
+.test-result { display: none; }
+.test-result.show { display: block; }
+
+.result-sources {
+  margin-bottom: 12px;
+}
+.result-sources-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 8px; }
+.result-source-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; padding: 4px 10px; border-radius: 20px;
+  background: var(--accent-light); color: var(--accent); font-weight: 600;
+  margin-right: 6px; margin-bottom: 6px; border: 1px solid rgba(26,107,74,0.2);
+}
+
+.result-answer {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13.5px; line-height: 1.7; color: var(--text);
+}
+.result-answer strong { color: var(--accent); }
+
+.result-confidence {
+  display: flex; align-items: center; gap: 10px; margin-top: 10px;
+}
+.conf-label { font-size: 11px; color: var(--muted); font-weight: 600; }
+.conf-bar { flex: 1; height: 5px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.conf-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), #4ade80); }
+.conf-val { font-size: 12px; font-weight: 800; color: var(--accent); font-family: 'Geist Mono', monospace; }
+
+/* Upload progress overlay */
+.upload-progress-item {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 8px;
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center; padding: 40px;
+  color: var(--muted);
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35); backdrop-filter: blur(4px);
+  z-index: 100; align-items: center; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--white);
+  border-radius: 16px;
+  width: 520px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+.modal-header h2 { font-family: 'Instrument Serif', serif; font-size: 20px; }
+.modal-header p { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.modal-close { margin-left: auto; cursor: pointer; color: var(--muted); font-size: 18px; }
+.modal-body { padding: 20px 24px; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+.option-card {
+  border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 14px;
+  cursor: pointer; transition: all 0.15s; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 12px;
+}
+.option-card:hover { border-color: var(--accent); background: var(--accent-light); }
+.option-card.selected { border-color: var(--accent); background: var(--accent-light); }
+.option-card-icon { font-size: 24px; }
+.option-card-text strong { display: block; font-size: 13.5px; margin-bottom: 2px; }
+.option-card-text span { font-size: 12px; color: var(--muted); }
+.option-check {
+  margin-left: auto; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); display: none; align-items: center; justify-content: center;
+  color: white; font-size: 11px;
+}
+.option-card.selected .option-check { display: flex; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-top">
+    <div class="logo">
+      <div class="logo-mark">⚡</div>
+      <span class="logo-text">ZenBot</span>
+      <span class="logo-badge">PRO</span>
+    </div>
+    <div class="nav-item"><span class="nav-icon">📊</span> Dashboard</div>
+    <div class="nav-item"><span class="nav-icon">💬</span> Live Chat <span class="nav-count">3</span></div>
+    <div class="nav-item"><span class="nav-icon">🔀</span> Flow Builder</div>
+    <div class="nav-item active"><span class="nav-icon">📚</span> Knowledge Base <span class="nav-count">7</span></div>
+    <div class="nav-item"><span class="nav-icon">📈</span> Analytics</div>
+    <div class="nav-item"><span class="nav-icon">👥</span> CRM</div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-title">Không gian tri thức</div>
+    <div class="nav-item active" style="padding-left:8px">
+      <span class="nav-icon">🏪</span> Shop Thời Trang ABC
+    </div>
+    <div class="nav-item" style="padding-left:8px; opacity:0.6">
+      <span class="nav-icon">➕</span> Thêm không gian
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="kb-stats">
+      <div class="kb-stats-title">📦 Tài nguyên</div>
+      <div class="kb-stat-row">
+        <span>Nguồn tri thức</span>
+        <span class="kb-stat-val" style="color:var(--accent)">7</span>
+      </div>
+      <div class="kb-stat-row">
+        <span>Tổng chunks</span>
+        <span class="kb-stat-val">2,847</span>
+      </div>
+      <div class="kb-stat-row">
+        <span>Dung lượng</span>
+        <span class="kb-stat-val">48.3 MB</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between">
+        <span>62% / 100MB</span>
+      </div>
+      <div class="usage-bar"><div class="usage-fill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="main-header">
+    <div class="breadcrumb">
+      ZenBot <span>›</span> Shop Thời Trang ABC <span>›</span> Knowledge Base
+    </div>
+    <div class="page-title-row">
+      <div>
+        <div class="page-title">Kho Tri Thức <em>AI</em></div>
+        <div class="page-subtitle">Dạy AI hiểu sâu về sản phẩm, chính sách, và FAQ của shop bạn</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost" onclick="openTestPanel()">🔍 Test AI Query</button>
+        <button class="btn btn-accent" onclick="openModal()">+ Thêm nguồn tri thức</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('sources',this)">
+      <div class="tab-dot" style="background:var(--accent)"></div>
+      Nguồn dữ liệu
+    </div>
+    <div class="tab" onclick="switchTab('chunks',this)">
+      <div class="tab-dot" style="background:var(--blue)"></div>
+      Dữ liệu đã phân tích
+    </div>
+    <div class="tab" onclick="switchTab('test',this)">
+      <div class="tab-dot" style="background:var(--purple)"></div>
+      Kiểm tra AI
+    </div>
+    <div class="tab" onclick="switchTab('settings',this)">⚙️ Cài đặt RAG</div>
+  </div>
+
+  <div class="content" id="content">
+
+    <!-- TAB: SOURCES (default) -->
+    <div id="tab-sources">
+      <!-- Upload zone -->
+      <div class="upload-zone" id="uploadZone"
+           ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)"
+           onclick="openModal()">
+        <div class="upload-icon">☁️</div>
+        <div class="upload-title">Kéo & thả file vào đây hoặc nhấn để chọn</div>
+        <div class="upload-sub">AI sẽ tự động đọc, phân tích và lưu trữ vector embeddings</div>
+        <div class="upload-types">
+          <span class="type-pill">📄 PDF</span>
+          <span class="type-pill">📝 Word</span>
+          <span class="type-pill">📃 TXT</span>
+          <span class="type-pill">🌐 Website</span>
+          <span class="type-pill">📊 Excel</span>
+          <span class="type-pill">🎥 YouTube</span>
+        </div>
+      </div>
+
+      <!-- URL input -->
+      <div class="url-row">
+        <input class="url-input" placeholder="🔗 Dán link website, Google Drive, hoặc YouTube..." id="urlInput">
+        <button class="btn btn-ghost" onclick="addUrl()">
+          <span>⚡</span> Phân tích ngay
+        </button>
+      </div>
+
+      <!-- Uploading items -->
+      <div id="uploading-items"></div>
+
+      <!-- Source list -->
+      <div class="section-header">
+        <div class="section-title">Các nguồn tri thức</div>
+        <div class="section-count" id="sourceCount">7 nguồn · 2,847 chunks · Cập nhật 5 phút trước</div>
+      </div>
+
+      <div class="source-grid" id="sourceGrid">
+
+        <div class="source-card" onclick="selectSource(this, 'catalog')">
+          <div class="source-icon-wrap" style="background:#eff6ff">📄</div>
+          <div class="source-info">
+            <div class="source-name">Catalog_SanPham_Q2_2025.pdf</div>
+            <div class="source-meta">
+              <span>📦 342 chunks</span>
+              <span>📐 2.4 MB</span>
+              <span>🕐 2 ngày trước</span>
+            </div>
+          </div>
+          <div class="source-status status-ready">
+            <div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div>
+            Sẵn sàng
+          </div>
+          <div class="source-actions">
+            <button class="icon-btn" title="Xem chunks" onclick="event.stopPropagation();switchTab('chunks',null)">🔍</button>
+            <button class="icon-btn" title="Cập nhật lại">🔄</button>
+            <button class="icon-btn" title="Xóa" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
+          </div>
+        </div>
+
+        <div class="source-card">
+          <div class="source-icon-wrap" style="background:#f0fdf4">🌐</div>
+          <div class="source-info">
+            <div class="source-name">https://shopthoimoiabc.vn/chinh-sach</div>
+            <div class="source-meta">
+              <span>📦 89 chunks</span>
+              <span>📄 12 trang</span>
+              <span>🕐 Hôm nay 09:30</span>
+            </div>
+          </div>
+          <div class="source-status status-ready">
+            <div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div>
+            Sẵn sàng
+          </div>
+          <div class="source-actions">
+            <button class="icon-btn">🔍</button>
+            <button class="icon-btn">🔄</button>
+            <button class="icon-btn" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
+          </div>
+        </div>
+
+        <div class="source-card">
+          <div class="source-icon-wrap" style="background:#fef9c3">📊</div>
+          <div class="source-info">
+            <div class="source-name">BangGia_SanPham_2025.xlsx</div>
+            <div class="source-meta">
+              <span>📦 215 chunks</span>
+              <span>📐 890 KB</span>
+              <span>🕐 3 ngày trước</span>
+            </div>
+          </div>
+          <div class="source-status status-ready">
+            <div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div>
+            Sẵn sàng
+          </div>
+          <div class="source-actions">
+            <button class="icon-btn">🔍</button>
+            <button class="icon-btn">🔄</button>
+            <button class="icon-btn" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
+          </div>
+        </div>
+
+        <div class="source-card" id="processingCard">
+          <div class="source-icon-wrap" style="background:#fffbeb">📝</div>
+          <div class="source-info">
+            <div class="source-name">HuongDanSuDung_X1Pro.docx</div>
+            <div class="source-meta">
+              <span>⏳ Đang xử lý...</span>
+              <span>📐 1.8 MB</span>
+            </div>
+            <div class="progress-wrap">
+              <div class="progress-label">
+                <span>Đang nhúng vector embeddings</span>
+                <span id="progressPct">67%</span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width:67%"></div>
+              </div>
+            </div>
+          </div>
+          <div class="source-status status-processing">
+            <div class="pulse" style="background:var(--amber)"></div>
+            Đang xử lý
+          </div>
+          <div class="source-actions">
+            <button class="icon-btn">❌</button>
+          </div>
+        </div>
+
+        <div class="source-card">
+          <div class="source-icon-wrap" style="background:#f5f3ff">📃</div>
+          <div class="source-info">
+            <div class="source-name">FAQ_KhachHang_ThongThuong.txt</div>
+            <div class="source-meta">
+              <span>📦 128 chunks</span>
+              <span>📐 45 KB</span>
+              <span>🕐 1 tuần trước</span>
+            </div>
+          </div>
+          <div class="source-status status-ready">
+            <div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div>
+            Sẵn sàng
+          </div>
+          <div class="source-actions">
+            <button class="icon-btn">🔍</button>
+            <button class="icon-btn">🔄</button>
+            <button class="icon-btn" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
+          </div>
+        </div>
+
+        <div class="source-card">
+          <div class="source-icon-wrap" style="background:#fef2f2">⚠️</div>
+          <div class="source-info">
+            <div class="source-name">BaoCao_TonKho_Old.pdf</div>
+            <div class="source-meta">
+              <span>⚠️ Lỗi xử lý: File bị hỏng</span>
+              <span>📐 5.6 MB</span>
+            </div>
+          </div>
+          <div class="source-status status-error">
+            <div style="width:7px;height:7px;border-radius:50%;background:var(--red)"></div>
+            Lỗi
+          </div>
+          <div class="source-actions">
+            <button class="icon-btn">🔄</button>
+            <button class="icon-btn" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
+          </div>
+        </div>
+
+        <div class="source-card">
+          <div class="source-icon-wrap" style="background:#f0fdf4">🎥</div>
+          <div class="source-info">
+            <div class="source-name">youtube.com/watch?v=abc123 — Hướng dẫn mặc đồ</div>
+            <div class="source-meta">
+              <span>📦 54 chunks</span>
+              <span>⏱️ 12 phút</span>
+              <span>🕐 5 ngày trước</span>
+            </div>
+          </div>
+          <div class="source-status status-ready">
+            <div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div>
+            Sẵn sàng
+          </div>
+          <div class="source-actions">
+            <button class="icon-btn">🔍</button>
+            <button class="icon-btn">🔄</button>
+            <button class="icon-btn" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB: CHUNKS -->
+    <div id="tab-chunks" style="display:none">
+      <div class="chunk-panel">
+        <div class="chunk-header">
+          <div>
+            <h3>Dữ liệu đã phân mảnh (Chunks)</h3>
+            <p>2,847 đoạn văn bản · từ Catalog_SanPham_Q2_2025.pdf</p>
+          </div>
+          <div class="chunk-search">
+            <input class="chunk-search-input" placeholder="🔍 Tìm trong chunks..." id="chunkSearch" oninput="filterChunks(this.value)">
+          </div>
+        </div>
+        <div class="chunk-list" id="chunkList">
+          <!-- chunks rendered by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: TEST -->
+    <div id="tab-test" style="display:none">
+      <div style="max-width:680px">
+        <div style="background:var(--purple-light);border:1px solid rgba(124,58,237,0.2);border-radius:12px;padding:14px 18px;margin-bottom:20px;font-size:13px;color:var(--purple)">
+          🧪 <strong>Chế độ kiểm tra:</strong> Nhập câu hỏi như khách hàng thực tế. Hệ thống sẽ tìm kiếm trong Knowledge Base và hiển thị kết quả cùng nguồn tham chiếu.
+        </div>
+        <div class="test-panel">
+          <div class="test-header">
+            <span style="font-size:20px">🤖</span>
+            <div>
+              <h3>Kiểm tra AI với Knowledge Base</h3>
+              <p>Xem AI lấy thông tin từ nguồn nào để trả lời</p>
+            </div>
+          </div>
+          <div class="test-body">
+            <div class="test-input-row">
+              <input class="test-input" id="testInput" placeholder="Ví dụ: Sản phẩm X1 Pro có những size nào? Giá bao nhiêu?" onkeydown="if(event.key==='Enter')runTest()">
+              <button class="btn btn-primary" onclick="runTest()">🔍 Kiểm tra</button>
+            </div>
+
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+              <button class="btn btn-ghost" style="font-size:12px;padding:5px 12px" onclick="setQuery('Sản phẩm X1 Pro có size nào? Còn hàng không?')">Gợi ý 1</button>
+              <button class="btn btn-ghost" style="font-size:12px;padding:5px 12px" onclick="setQuery('Chính sách đổi trả như thế nào?')">Gợi ý 2</button>
+              <button class="btn btn-ghost" style="font-size:12px;padding:5px 12px" onclick="setQuery('Mua 3 sản phẩm có được freeship không?')">Gợi ý 3</button>
+              <button class="btn btn-ghost" style="font-size:12px;padding:5px 12px" onclick="setQuery('Combo áo + quần giảm bao nhiêu %?')">Gợi ý 4</button>
+            </div>
+
+            <div class="test-result" id="testResult">
+              <div class="result-sources">
+                <div class="result-sources-title">📎 Nguồn tham chiếu</div>
+                <span class="result-source-pill">📄 Catalog_SanPham · Chunk #047</span>
+                <span class="result-source-pill">📊 BangGia_2025 · Chunk #012</span>
+                <span class="result-source-pill">🌐 chinh-sach · Chunk #003</span>
+              </div>
+
+              <div class="result-answer" id="resultAnswer">
+                Sản phẩm <strong>X1 Pro</strong> hiện có các size: <strong>S, M, L, XL, XXL</strong>. Tồn kho hiện tại: S còn 5, M còn 18, L còn 23, XL còn 9, XXL đã hết hàng.<br><br>
+                Giá niêm yết: <strong>450.000₫</strong>. Đang có chương trình mua 2 tặng 1 phụ kiện đến hết 31/07/2025.
+              </div>
+
+              <div class="result-confidence">
+                <span class="conf-label">Độ tự tin:</span>
+                <div class="conf-bar"><div class="conf-fill" id="confFill" style="width:91%"></div></div>
+                <span class="conf-val" id="confVal">91%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: SETTINGS -->
+    <div id="tab-settings" style="display:none">
+      <div style="max-width:600px">
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border)">
+            <div style="font-size:14px;font-weight:700;margin-bottom:3px">⚙️ Cài đặt RAG Engine</div>
+            <div style="font-size:12px;color:var(--muted)">Tinh chỉnh cách AI tìm kiếm và sử dụng Knowledge Base</div>
+          </div>
+          <div style="padding:20px">
+            <div style="margin-bottom:16px">
+              <label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:6px">MODEL EMBEDDING</label>
+              <select class="prop-select" style="width:100%;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-family:'Geist',sans-serif;font-size:13px;color:var(--text)">
+                <option>text-embedding-3-small (Nhanh, tiết kiệm)</option>
+                <option selected>text-embedding-3-large (Chính xác cao)</option>
+              </select>
+            </div>
+            <div style="margin-bottom:16px">
+              <label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:6px">CHUNK SIZE (tokens)</label>
+              <div style="display:flex;gap:10px;align-items:center">
+                <input type="range" min="256" max="2048" value="512" style="flex:1;accent-color:var(--accent)" oninput="document.getElementById('chunkSizeVal').textContent=this.value">
+                <span style="font-family:'Geist Mono';font-size:13px;font-weight:700;min-width:40px" id="chunkSizeVal">512</span>
+              </div>
+            </div>
+            <div style="margin-bottom:16px">
+              <label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:6px">TOP-K CHUNKS KHI TÌM KIẾM</label>
+              <div style="display:flex;gap:10px;align-items:center">
+                <input type="range" min="1" max="20" value="5" style="flex:1;accent-color:var(--accent)" oninput="document.getElementById('topkVal').textContent=this.value">
+                <span style="font-family:'Geist Mono';font-size:13px;font-weight:700;min-width:40px" id="topkVal">5</span>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:6px">SIMILARITY THRESHOLD</label>
+              <div style="display:flex;gap:10px;align-items:center">
+                <input type="range" min="0" max="100" value="72" style="flex:1;accent-color:var(--accent)" oninput="document.getElementById('simVal').textContent=(this.value/100).toFixed(2)">
+                <span style="font-family:'Geist Mono';font-size:13px;font-weight:700;min-width:40px" id="simVal">0.72</span>
+              </div>
+            </div>
+          </div>
+          <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+            <button class="btn btn-ghost">Đặt lại mặc định</button>
+            <button class="btn btn-accent">💾 Lưu cài đặt</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL: Add Source -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span style="font-size:24px">➕</span>
+      <div>
+        <h2>Thêm nguồn tri thức</h2>
+        <p>Chọn loại tài liệu bạn muốn AI học</p>
+      </div>
+      <span class="modal-close" onclick="closeModal()">✕</span>
+    </div>
+    <div class="modal-body">
+      <div class="option-card selected" onclick="selectOption(this)">
+        <div class="option-card-icon">📄</div>
+        <div class="option-card-text">
+          <strong>Upload file</strong>
+          <span>PDF, Word, Excel, TXT — tối đa 50MB/file</span>
+        </div>
+        <div class="option-check">✓</div>
+      </div>
+      <div class="option-card" onclick="selectOption(this)">
+        <div class="option-card-icon">🌐</div>
+        <div class="option-card-text">
+          <strong>Website / URL</strong>
+          <span>Crawl toàn bộ trang web hoặc một trang cụ thể</span>
+        </div>
+        <div class="option-check">✓</div>
+      </div>
+      <div class="option-card" onclick="selectOption(this)">
+        <div class="option-card-icon">🎥</div>
+        <div class="option-card-text">
+          <strong>YouTube Video</strong>
+          <span>AI sẽ phân tích transcript của video</span>
+        </div>
+        <div class="option-check">✓</div>
+      </div>
+      <div class="option-card" onclick="selectOption(this)">
+        <div class="option-card-icon">📝</div>
+        <div class="option-card-text">
+          <strong>Nhập thủ công</strong>
+          <span>Soạn trực tiếp nội dung FAQ, chính sách...</span>
+        </div>
+        <div class="option-check">✓</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      <button class="btn btn-accent" onclick="startUpload()">Tiếp tục →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Tab switching
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else document.querySelectorAll('.tab')[tab === 'chunks' ? 1 : tab === 'test' ? 2 : 3].classList.add('active');
+
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+  const el2 = document.getElementById('tab-' + tab);
+  if (el2) el2.style.display = 'block';
+
+  if (tab === 'chunks') renderChunks('');
+}
+
+// Chunks data
+const chunks = [
+  { id: '047', text: 'Sản phẩm X1 Pro là áo thun cao cấp 100% cotton combed, co giãn 4 chiều. Có 5 size từ S đến XXL. Màu sắc: Trắng, Đen, Xanh Navy, Xám Melange.', tokens: 64, sim: 97 },
+  { id: '048', text: 'Giá niêm yết X1 Pro: 450.000đ. Khuyến mãi: mua 2 tặng 1 phụ kiện. Áp dụng đến 31/07/2025. Không áp dụng cùng voucher khác.', tokens: 52, sim: 89 },
+  { id: '012', text: 'Bảng giá toàn bộ sản phẩm Q2/2025: X1 Pro 450K, X2 Slim 380K, Classic V-neck 320K, Polo Premium 520K, Hoodie ZenWear 680K.', tokens: 61, sim: 85 },
+  { id: '003', text: 'Chính sách đổi trả: Đổi size miễn phí trong 7 ngày kể từ ngày nhận hàng. Điều kiện: còn nguyên tag, chưa giặt, chưa sử dụng.', tokens: 48, sim: 78 },
+  { id: '049', text: 'Tồn kho X1 Pro tính đến 01/07/2025: S-5 chiếc, M-18 chiếc, L-23 chiếc, XL-9 chiếc, XXL-0 chiếc (đã hết).', tokens: 55, sim: 74 },
+  { id: '015', text: 'Phí vận chuyển: Đơn dưới 500K phí ship 30K. Đơn từ 500K freeship toàn quốc. Giao hàng nhanh 2h nội thành HCM và HN phụ phí 15K.', tokens: 60, sim: 62 },
+  { id: '082', text: 'Hướng dẫn chọn size X1 Pro: S (ngực 82-86cm), M (86-90cm), L (90-95cm), XL (95-100cm), XXL (100-106cm). Chất liệu co giãn nên chọn đúng size.', tokens: 70, sim: 58 },
+];
+
+function renderChunks(filter) {
+  const list = document.getElementById('chunkList');
+  const filtered = filter ? chunks.filter(c => c.text.toLowerCase().includes(filter.toLowerCase())) : chunks;
+  list.innerHTML = filtered.map(c => `
+    <div class="chunk-item">
+      <div class="chunk-item-header">
+        <span class="chunk-num">#${c.id}</span>
+        <span style="font-size:11px;color:var(--muted)">Catalog_SanPham · Trang 4</span>
+        <span class="chunk-tokens">${c.tokens} tokens</span>
+      </div>
+      <div class="chunk-text">${filter ? c.text.replace(new RegExp(filter,'gi'), m => `<mark>${m}</mark>`) : c.text}</div>
+      <div class="chunk-similarity">
+        <div class="sim-bar"><div class="sim-fill" style="width:${c.sim}%"></div></div>
+        <span class="sim-val">${c.sim}%</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterChunks(v) { renderChunks(v); }
+
+// Test AI
+const answers = {
+  'Sản phẩm X1 Pro có size nào? Còn hàng không?': {
+    sources: ['📄 Catalog · #047', '📦 Tồn kho · #049'],
+    text: 'Sản phẩm <strong>X1 Pro</strong> có 5 size: S, M, L, XL, XXL.<br><br>Tồn kho hiện tại: S (5), M (18), <strong>L (23 — nhiều nhất)</strong>, XL (9). <strong>XXL đã hết hàng</strong>.',
+    conf: 91
+  },
+  'Chính sách đổi trả như thế nào?': {
+    sources: ['🌐 chinh-sach · #003', '📄 FAQ · #021'],
+    text: 'Shop hỗ trợ <strong>đổi size miễn phí trong 7 ngày</strong> kể từ ngày nhận hàng.<br><br>Điều kiện: sản phẩm còn nguyên tag, chưa giặt, chưa sử dụng. Liên hệ hotline để được hỗ trợ nhanh nhất.',
+    conf: 95
+  },
+  'Mua 3 sản phẩm có được freeship không?': {
+    sources: ['🌐 chinh-sach · #015', '📄 Catalog · #048'],
+    text: 'Đơn hàng từ <strong>500.000₫ trở lên</strong> được freeship toàn quốc. Mua 3 sản phẩm X1 Pro (3 × 450K = 1.35M) bạn hoàn toàn đủ điều kiện freeship. Nội thành HCM và Hà Nội có thêm giao nhanh 2h.',
+    conf: 88
+  },
+  'Combo áo + quần giảm bao nhiêu %?': {
+    sources: ['📄 Catalog · #055'],
+    text: 'Hiện tại Knowledge Base chưa có thông tin về combo áo + quần cụ thể. Tôi tìm thấy thông tin về chương trình mua 2 tặng 1 phụ kiện nhưng <strong>không chắc chắn về % giảm combo</strong>. Bạn nên liên hệ admin để xác nhận.',
+    conf: 34
+  }
+};
+
+function setQuery(q) {
+  document.getElementById('testInput').value = q;
+  runTest();
+}
+
+function runTest() {
+  const q = document.getElementById('testInput').value.trim();
+  if (!q) return;
+  const result = document.getElementById('testResult');
+  result.classList.remove('show');
+
+  setTimeout(() => {
+    const data = answers[q] || {
+      sources: ['📄 Catalog · #047'],
+      text: 'Dựa trên Knowledge Base của shop, câu hỏi này liên quan đến <strong>' + q.substring(0,30) + '...</strong><br><br>Vui lòng thêm tài liệu chi tiết hơn để AI trả lời chính xác.',
+      conf: 55
+    };
+    const srcHtml = data.sources.map(s => `<span class="result-source-pill">${s}</span>`).join('');
+    document.querySelector('.result-sources').innerHTML = '<div class="result-sources-title">📎 Nguồn tham chiếu</div>' + srcHtml;
+    document.getElementById('resultAnswer').innerHTML = data.text;
+    document.getElementById('confFill').style.width = data.conf + '%';
+    document.getElementById('confVal').textContent = data.conf + '%';
+    document.getElementById('confFill').style.background = data.conf > 70
+      ? 'linear-gradient(90deg,var(--accent),#4ade80)'
+      : data.conf > 40
+      ? 'linear-gradient(90deg,var(--amber),#fbbf24)'
+      : 'linear-gradient(90deg,var(--red),#f87171)';
+    document.getElementById('confVal').style.color = data.conf > 70 ? 'var(--accent)' : data.conf > 40 ? 'var(--amber)' : 'var(--red)';
+    result.classList.add('show');
+  }, 700);
+}
+
+// Modal
+function openModal() { document.getElementById('modalOverlay').classList.add('show'); }
+function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+function selectOption(el) {
+  document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function startUpload() {
+  closeModal();
+  addFakeUpload();
+}
+
+// Drag & drop
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.add('dragover');
+}
+function handleDragLeave() {
+  document.getElementById('uploadZone').classList.remove('dragover');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('dragover');
+  addFakeUpload('DroppedFile.pdf');
+}
+
+// Add URL
+function addUrl() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return;
+  document.getElementById('urlInput').value = '';
+  addFakeUpload(url, '🌐');
+}
+
+// Simulate upload
+let uploadCount = 0;
+function addFakeUpload(name, icon) {
+  uploadCount++;
+  const id = 'upload_' + uploadCount;
+  name = name || 'TaiLieu_Moi_' + uploadCount + '.pdf';
+  icon = icon || '📄';
+  const container = document.getElementById('uploading-items');
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'upload-progress-item';
+  div.innerHTML = `
+    <span style="font-size:22px">${icon}</span>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+      <div class="progress-bar"><div class="progress-fill" id="pf_${id}" style="width:0%"></div></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:3px" id="pl_${id}">Đang tải lên...</div>
+    </div>
+    <div class="source-status status-processing" id="ps_${id}">
+      <div class="pulse" style="background:var(--amber)"></div> Xử lý
+    </div>`;
+  container.prepend(div);
+
+  let pct = 0;
+  const interval = setInterval(() => {
+    pct += Math.random() * 18 + 5;
+    if (pct > 100) pct = 100;
+    document.getElementById('pf_' + id).style.width = pct + '%';
+    document.getElementById('pl_' + id).textContent = pct < 40 ? 'Đang tải lên...' : pct < 75 ? 'Phân tích nội dung...' : pct < 95 ? 'Tạo vector embeddings...' : 'Hoàn tất!';
+    if (pct >= 100) {
+      clearInterval(interval);
+      document.getElementById('ps_' + id).className = 'source-status status-ready';
+      document.getElementById('ps_' + id).innerHTML = '<div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div> Sẵn sàng';
+      setTimeout(() => {
+        div.remove();
+        addSourceToGrid(name, icon);
+      }, 1500);
+    }
+  }, 280);
+}
+
+function addSourceToGrid(name, icon) {
+  const grid = document.getElementById('sourceGrid');
+  const div = document.createElement('div');
+  div.className = 'source-card';
+  div.style.animation = 'slideIn 0.3s ease';
+  div.innerHTML = `
+    <div class="source-icon-wrap" style="background:var(--accent-light)">${icon}</div>
+    <div class="source-info">
+      <div class="source-name">${name}</div>
+      <div class="source-meta"><span>📦 ~120 chunks</span><span>🕐 Vừa xong</span></div>
+    </div>
+    <div class="source-status status-ready">
+      <div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div>Sẵn sàng
+    </div>
+    <div class="source-actions">
+      <button class="icon-btn">🔍</button>
+      <button class="icon-btn">🔄</button>
+      <button class="icon-btn" onclick="event.stopPropagation();deleteSource(this)">🗑️</button>
+    </div>`;
+  grid.prepend(div);
+}
+
+function deleteSource(btn) {
+  if (confirm('Xóa nguồn tri thức này? AI sẽ không còn truy cập được dữ liệu này.')) {
+    btn.closest('.source-card').style.animation = 'fadeOut 0.3s ease forwards';
+    setTimeout(() => btn.closest('.source-card').remove(), 300);
+  }
+}
+
+function selectSource(card, id) {
+  document.querySelectorAll('.source-card').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+}
+
+function openTestPanel() {
+  document.querySelectorAll('.tab')[2].click();
+}
+
+// Animate processing bar
+let pct = 67;
+setInterval(() => {
+  if (pct < 100) {
+    pct = Math.min(100, pct + Math.random() * 2);
+    const el = document.getElementById('progressPct');
+    const fill = document.getElementById('progressFill');
+    if (el && fill) {
+      el.textContent = Math.round(pct) + '%';
+      fill.style.width = pct + '%';
+    }
+    if (pct >= 100) {
+      const card = document.getElementById('processingCard');
+      if (card) {
+        card.querySelector('.source-meta').innerHTML = '<span>📦 148 chunks</span><span>📐 1.8 MB</span><span>🕐 Vừa xong</span>';
+        card.querySelector('.progress-wrap').remove();
+        card.querySelector('.source-status').className = 'source-status status-ready';
+        card.querySelector('.source-status').innerHTML = '<div style="width:7px;height:7px;border-radius:50%;background:var(--accent)"></div> Sẵn sàng';
+      }
+    }
+  }
+}, 400);
+
+// Style for fadeOut
+const style = document.createElement('style');
+style.textContent = `@keyframes fadeOut { to { opacity:0; transform:scale(0.95); } }`;
+document.head.appendChild(style);
+</script>
+</body>
+</html>

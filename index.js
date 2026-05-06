@@ -9,16 +9,27 @@ const { parse } = require('csv-parse/sync');
 const { connectDB } = require('./core/db');
 const { messageQueue, connection: redisConnection } = require('./core/queue');
 const { startSheetOutboxWorker, stopSheetOutboxWorker } = require('./core/sheets-webhook');
+const { startFollowUpWorker } = require('./core/followupWorker');
+const { startBroadcastWorker } = require('./core/broadcastWorker');
+const { buildMongoQuery, PRESETS } = require('./core/segmentBuilder');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const Shop = require('./core/models/Shop');
-const chatWorker = require('./core/worker'); // Khởi động BullMQ Worker chạy ngầm cùng server
+const Lead = require('./core/models/Lead');
+const User = require('./core/models/User');
+const chatWorker = require('./core/worker'); 
+
+const JWT_SECRET = process.env.JWT_SECRET || 'zenbot_super_secret_key';
 
 // Lazy-load processor để lấy IMAGE_INDEX (tránh circular load)
 const processor = require('./core/processor');
 
 // Kết nối DB — chỉ gọi MỘT lần duy nhất ở đây
 connectDB().then(() => {
-  // Khởi động worker xử lý hàng đợi Google Sheets sau khi DB sẵn sàng
+  // Khởi động các worker xử lý hàng đợi và tác vụ ngầm
   startSheetOutboxWorker();
+  startFollowUpWorker();
+  startBroadcastWorker();
 });
 
 const app = express();
@@ -428,18 +439,70 @@ function requireValidShopId(req, res, next) {
   next();
 }
 
-function adminAuth(req, res, next) {
-  if (!ADMIN_EXPORT_TOKEN && !ALLOW_UNSAFE_ADMIN_WITHOUT_TOKEN) {
-    return res.status(503).json({
-      message: 'Admin API chưa được cấu hình ADMIN_EXPORT_TOKEN'
+// ========== AUTHENTICATION & AUTHORIZATION ==========
+const adminAuth = (req, res, next) => {
+  const authHeader = req.headers['authorization'] || req.headers['x-admin-token'] || req.query.token;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+
+  if (!token) {
+    return res.status(401).json({ message: 'Vui lòng đăng nhập để truy cập' });
+  }
+
+  try {
+    // Nếu token trùng với ADMIN_EXPORT_TOKEN (bypass cho legacy/seeding), cho phép tiếp tục
+    if (ADMIN_EXPORT_TOKEN && token === ADMIN_EXPORT_TOKEN) {
+      req.user = { role: 'admin', shopIds: [] }; // Mock admin user
+      return next();
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+
+    // Check Authorization (Multi-tenant check)
+    const requestedShopId = req.query.shopId || req.body.shopId || req.params.shopId;
+    
+    // Nếu là platform admin, cho phép tất cả
+    if (req.user.role === 'admin') return next();
+
+    // Nếu là staff, phải kiểm tra shopId có trong list được phép không
+    if (requestedShopId && requestedShopId !== 'all') {
+      if (!req.user.shopIds.includes(requestedShopId)) {
+        return res.status(403).json({ message: 'Bạn không có quyền truy cập shop này' });
+      }
+    } else if (requestedShopId === 'all' && req.user.role !== 'admin') {
+       // Staff không được xem "All Shops"
+       return res.status(403).json({ message: 'Quyền xem toàn bộ hệ thống chỉ dành cho Admin' });
+    }
+
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Phiên làm việc hết hạn, vui lòng đăng nhập lại' });
+  }
+};
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email, isActive: true });
+
+    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+      return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác' });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, email: user.email, role: user.role, shopIds: user.shopIds },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: { email: user.email, role: user.role, shopIds: user.shopIds, name: user.name }
     });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi đăng nhập: ' + err.message });
   }
-  const token = req.query.token || req.get('x-admin-token');
-  if (ADMIN_EXPORT_TOKEN && token !== ADMIN_EXPORT_TOKEN) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-  next();
-}
+});
 
 app.get('/api/admin/shops', adminAuth, async (req, res) => {
   try {
@@ -505,22 +568,20 @@ app.delete('/api/admin/shops/:id', adminAuth, requireValidShopId, async (req, re
 // ========== ADMIN EXPORT & LEADS ==========
 const storage = processor.storage;
 
-app.get('/api/admin/leads', adminAuth, (req, res) => {
+app.get('/api/admin/leads', adminAuth, async (req, res) => {
   try {
-    const file = storage.getCustomersFile();
-    if (!fs.existsSync(file)) return res.json([]);
+    const { shopId } = req.query;
+    const filter = shopId ? { shopId } : {};
     
-    const csv = fs.readFileSync(file, 'utf8');
-    const records = parse(csv, {
-      columns: true,
-      skip_empty_lines: true,
-      relax_column_count: true
-    });
+    // Lấy 500 lead mới nhất từ MongoDB
+    const leads = await Lead.find(filter)
+      .sort({ at: -1 })
+      .limit(500)
+      .lean();
     
-    // Đảo ngược danh sách để lead mới nhất lên đầu
-    res.json(records.reverse());
+    res.json(leads);
   } catch (err) {
-    res.status(500).json({ message: 'Lỗi đọc file leads: ' + err.message });
+    res.status(500).json({ message: 'Lỗi lấy danh sách leads từ DB: ' + err.message });
   }
 });
 
@@ -534,6 +595,170 @@ app.get('/api/admin/products/:shopId', adminAuth, requireValidShopId, (req, res)
     res.json(records);
   } catch (err) {
     res.status(500).json({ message: 'Lỗi đọc file sản phẩm: ' + err.message });
+  }
+});
+
+// ========== ANALYTICS & CACHING ==========
+const analyticsCache = new Map();
+const CACHE_TTL = 60000; // 60s
+
+app.get('/api/admin/analytics', adminAuth, async (req, res) => {
+  try {
+    const { shopId, range } = req.query;
+    const cacheKey = `analytics:${shopId || 'all'}:${range || '7d'}`;
+    
+    // 1. Check Cache
+    const cached = analyticsCache.get(cacheKey);
+    if (cached && cached.expiry > Date.now()) {
+      return res.json(cached.data);
+    }
+
+    // 2. Build Filter
+    const filter = {};
+    if (shopId && shopId !== 'all') filter.shopId = shopId;
+    
+    const days = range === '30d' ? 30 : 7;
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    filter.timestamp = { $gte: since };
+
+    // 3. Import models for aggregation
+    const FunnelEvent = require('./core/models/FunnelEvent');
+    const Lead = require('./core/models/Lead');
+
+    // 4. Run Aggregations in Parallel
+    const [leadGrowth, intentDist, funnelStats] = await Promise.all([
+      // Lead Growth (vẫn lấy từ Lead collection vì đây là dữ liệu khách hàng thực)
+      Lead.aggregate([
+        { $match: { ...(shopId && shopId !== 'all' ? { shopId } : {}), createdAt: { $gte: since } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]),
+
+      // Intent Distribution (Lấy từ FunnelEvent mới triển khai)
+      FunnelEvent.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: "$intent",
+            count: { $sum: 1 }
+          }
+        },
+        { $sort: { count: -1 } }
+      ]),
+
+      // AI handled rate (Lấy từ Lead collection)
+      Lead.aggregate([
+        { $match: { ...(shopId && shopId !== 'all' ? { shopId } : {}), createdAt: { $gte: since } } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            ai: {
+              $sum: {
+                $cond: [{ $eq: ["$handledBy", "ai"] }, 1, 0]
+              }
+            }
+          }
+        }
+      ])
+    ]);
+
+    const stats = funnelStats[0] || { total: 0, ai: 0 };
+    const aiRate = stats.total > 0 ? (stats.ai / stats.total) : 0;
+
+    // Tính toán conversion rate từ FunnelEvent
+    const intentMap = {};
+    intentDist.forEach(i => intentMap[i._id] = i.count);
+    const askPrice = intentMap['ASK_PRICE'] || 0;
+    const buyIntent = intentMap['BUY_INTENT'] || 0;
+    const conversionRate = askPrice > 0 ? parseFloat((buyIntent / askPrice).toFixed(4)) : 0;
+
+    const data = {
+      leadGrowth: leadGrowth.map(r => ({ date: r._id, count: r.count })),
+      intentDistribution: intentDist.map(r => ({ intent: r._id || 'UNKNOWN', count: r.count })),
+      aiRate: parseFloat(aiRate.toFixed(2)),
+      conversionRate
+    };
+
+    // 4. Update Cache
+    analyticsCache.set(cacheKey, {
+      data,
+      expiry: Date.now() + CACHE_TTL
+    });
+
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi aggregation: ' + err.message });
+  }
+});
+
+// ========== CAMPAIGN ROUTES ==========
+
+app.get('/api/admin/campaigns', adminAuth, async (req, res) => {
+  try {
+    const { shopId } = req.query;
+    const filter = (shopId && shopId !== 'all') ? { shopId } : {};
+    const Campaign = require('./core/models/Campaign');
+    const campaigns = await Campaign.find(filter).sort({ createdAt: -1 });
+    res.json(campaigns);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.post('/api/admin/campaigns', adminAuth, async (req, res) => {
+  try {
+    const Campaign = require('./core/models/Campaign');
+    const data = { ...req.body };
+    
+    // Nếu client gửi conditions (dạng UI builder) thì convert sang mongo query
+    if (data.conditions && Array.isArray(data.conditions)) {
+      data.segmentQuery = buildMongoQuery(data.conditions);
+    }
+    
+    const campaign = new Campaign(data);
+    await campaign.save();
+    res.status(201).json(campaign);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// ========== SEGMENTATION ROUTES ==========
+
+app.post('/api/admin/segments/preview', adminAuth, async (req, res) => {
+  try {
+    const { shopId, conditions } = req.body;
+    if (!shopId || !conditions) return res.status(400).json({ message: 'Thiếu shopId hoặc conditions' });
+    
+    const Lead = require('./core/models/Lead');
+    const query = buildMongoQuery(conditions);
+    query.shopId = shopId;
+    
+    const count = await Lead.countDocuments(query);
+    res.json({ count, query }); // Trả về query để debug nếu cần
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/api/admin/segments/presets', adminAuth, (req, res) => {
+  res.json(PRESETS);
+});
+
+app.delete('/api/admin/campaigns/:id', adminAuth, async (req, res) => {
+  try {
+    const Campaign = require('./core/models/Campaign');
+    await Campaign.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Đã xóa chiến dịch' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

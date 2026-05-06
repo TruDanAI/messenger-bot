@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZenBot — Visual Flow Builder</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0a0c10;
+    --canvas: #0d1117;
+    --surface: #13171f;
+    --surface2: #1a1f2e;
+    --border: #21273a;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --red: #f43f5e;
+    --purple: #8b5cf6;
+    --text: #e2e8f0;
+    --muted: #475569;
+    --node-w: 220px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* TOP BAR */
+  .topbar {
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .flow-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    border-radius: 8px;
+  }
+  .topbar-sep { width: 1px; height: 28px; background: var(--border); }
+  .tb-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    transition: all 0.2s;
+  }
+  .tb-btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .tb-btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+  .tb-btn-primary { background: linear-gradient(135deg, var(--accent), #0099cc); color: #0a0c10; font-weight: 700; }
+  .tb-btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .tb-btn-green { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .spacer { flex: 1; }
+  .flow-status { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: rgba(16,185,129,0.12); color: var(--green); }
+
+  /* LAYOUT */
+  .workspace {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* NODE PALETTE */
+  .palette {
+    width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .palette-header {
+    padding: 14px 16px 10px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .palette-group { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .palette-group-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-bottom: 8px; }
+  .palette-node {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 8px;
+    cursor: grab; margin-bottom: 4px;
+    border: 1px solid var(--border); background: var(--surface2);
+    font-size: 12px; transition: all 0.15s;
+  }
+  .palette-node:hover { border-color: var(--accent); transform: translateX(2px); }
+  .pn-icon { font-size: 16px; }
+  .pn-info strong { display: block; font-size: 12px; }
+  .pn-info span { font-size: 10px; color: var(--muted); }
+
+  /* CANVAS */
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background-color: var(--canvas);
+    background-image:
+      radial-gradient(circle, #21273a 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+  /* SVG CONNECTIONS */
+  .connections { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  /* NODES */
+  .node {
+    position: absolute;
+    width: var(--node-w);
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    cursor: move;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    user-select: none;
+  }
+  .node:hover { box-shadow: 0 0 0 2px rgba(0,212,255,0.3); border-color: var(--accent); }
+  .node.selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,212,255,0.2); }
+
+  .node-header {
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 10px 10px 0 0;
+  }
+  .node-icon { font-size: 16px; }
+  .node-title { font-size: 12px; font-weight: 700; }
+  .node-badge {
+    margin-left: auto; font-size: 9px; font-weight: 700;
+    padding: 2px 6px; border-radius: 4px;
+  }
+  .node-body { padding: 10px 12px; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+  .node-body strong { color: var(--text); }
+
+  .node-ports { padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .port {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; cursor: pointer; padding: 4px 6px;
+    border-radius: 6px; border: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .port:hover { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
+  .port-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .node-in-port {
+    position: absolute;
+    left: -8px; top: 50%;
+    transform: translateY(-50%);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .node-in-port:hover { border-color: var(--accent); background: var(--accent); }
+  .node-out-port {
+    position: absolute;
+    right: -8px; top: 50%;
+    transform: translateY(-50%);
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .node-out-port:hover { border-color: var(--accent); background: var(--accent); }
+
+  /* specific node colors */
+  .node-trigger .node-header { background: rgba(0,212,255,0.07); }
+  .node-trigger .node-icon::after { content: ''; }
+  .node-message .node-header { background: rgba(124,58,237,0.07); }
+  .node-condition .node-header { background: rgba(245,158,11,0.07); }
+  .node-action .node-header { background: rgba(16,185,129,0.07); }
+  .node-end .node-header { background: rgba(244,63,94,0.07); }
+  .node-ai .node-header { background: rgba(139,92,246,0.07); }
+
+  /* ZOOM CONTROLS */
+  .zoom-controls {
+    position: absolute; bottom: 20px; right: 20px;
+    display: flex; flex-direction: column; gap: 4px; z-index: 10;
+  }
+  .zoom-btn {
+    width: 32px; height: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer; color: var(--text); font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .zoom-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .zoom-label { font-size: 10px; text-align: center; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  /* MINIMAP */
+  .minimap {
+    position: absolute; bottom: 20px; left: 232px;
+    width: 160px; height: 100px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    z-index: 10;
+  }
+  .minimap-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 5px 8px; }
+
+  /* PROPERTIES PANEL */
+  .properties {
+    width: 260px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+  .prop-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .prop-header h3 { font-size: 13px; font-weight: 700; }
+  .prop-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .prop-section h4 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+  .prop-field { margin-bottom: 10px; }
+  .prop-field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+  .prop-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    color: var(--text);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .prop-input:focus { border-color: var(--accent); }
+  .prop-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+  .prop-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    color: var(--text);
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+  }
+  .condition-row {
+    display: flex; gap: 6px; align-items: center; margin-bottom: 6px;
+  }
+  .cond-pill {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 8px; border-radius: 6px; font-size: 11px;
+    background: var(--surface2); border: 1px solid var(--border);
+  }
+  .add-cond {
+    font-size: 11px; color: var(--accent); cursor: pointer; font-weight: 600;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .flow-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px 16px;
+  }
+  .stat-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px;
+  }
+  .stat-val { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
+  .stat-label { font-size: 10px; color: var(--muted); font-weight: 600; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">⚡ ZenBot</div>
+  <div class="topbar-sep"></div>
+  <div class="flow-name">📋 Kịch bản: Tư vấn mua hàng</div>
+  <button class="tb-btn tb-btn-ghost">↩ Hoàn tác</button>
+  <button class="tb-btn tb-btn-ghost">↪ Làm lại</button>
+  <div class="spacer"></div>
+  <div class="flow-status">✅ Đang hoạt động</div>
+  <button class="tb-btn tb-btn-ghost">🧪 Test Flow</button>
+  <button class="tb-btn tb-btn-green">💾 Lưu Draft</button>
+  <button class="tb-btn tb-btn-primary">🚀 Xuất bản</button>
+</div>
+
+<div class="workspace">
+
+  <!-- PALETTE -->
+  <div class="palette">
+    <div class="palette-header">Thư viện Node</div>
+
+    <div class="palette-group">
+      <div class="palette-group-title">Kích hoạt</div>
+      <div class="palette-node">
+        <div class="pn-icon">⚡</div>
+        <div class="pn-info"><strong>Tin nhắn mới</strong><span>Khách gửi lần đầu</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">🔑</div>
+        <div class="pn-info"><strong>Từ khóa</strong><span>Khớp intent</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">⏰</div>
+        <div class="pn-info"><strong>Lịch trình</strong><span>Tự động theo giờ</span></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-title">Hội thoại</div>
+      <div class="palette-node">
+        <div class="pn-icon">💬</div>
+        <div class="pn-info"><strong>Gửi tin nhắn</strong><span>Text, hình ảnh</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">❓</div>
+        <div class="pn-info"><strong>Đặt câu hỏi</strong><span>Thu thập input</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">🎛️</div>
+        <div class="pn-info"><strong>Quick Replies</strong><span>Nút lựa chọn</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">🃏</div>
+        <div class="pn-info"><strong>Carousel</strong><span>Hiển thị sản phẩm</span></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-title">Logic</div>
+      <div class="palette-node">
+        <div class="pn-icon">🔀</div>
+        <div class="pn-info"><strong>Điều kiện</strong><span>If / Else</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">⏳</div>
+        <div class="pn-info"><strong>Chờ đợi</strong><span>Delay thời gian</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">🔁</div>
+        <div class="pn-info"><strong>Vòng lặp</strong><span>Retry khi thất bại</span></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-title">AI & Nâng cao</div>
+      <div class="palette-node">
+        <div class="pn-icon">🤖</div>
+        <div class="pn-info"><strong>AI Response</strong><span>Gọi LLM tự động</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">📚</div>
+        <div class="pn-info"><strong>RAG Search</strong><span>Tìm Knowledge Base</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">👤</div>
+        <div class="pn-info"><strong>Human Handoff</strong><span>Chuyển Admin</span></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-title">Hành động</div>
+      <div class="palette-node">
+        <div class="pn-icon">🏷️</div>
+        <div class="pn-info"><strong>Gắn tag</strong><span>Phân loại khách</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">📊</div>
+        <div class="pn-info"><strong>Cập nhật CRM</strong><span>Lưu thông tin</span></div>
+      </div>
+      <div class="palette-node">
+        <div class="pn-icon">📧</div>
+        <div class="pn-info"><strong>Gửi email</strong><span>Thông báo nội bộ</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap">
+    <div class="canvas">
+
+      <!-- SVG connections -->
+      <svg class="connections" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#21273a"/>
+          </marker>
+          <marker id="arrow-accent" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#00d4ff"/>
+          </marker>
+          <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#10b981"/>
+          </marker>
+          <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+          </marker>
+        </defs>
+
+        <!-- Trigger -> Greeting -->
+        <path d="M 258,148 C 310,148 320,195 370,195" stroke="#00d4ff" stroke-width="2" fill="none" stroke-dasharray="none" marker-end="url(#arrow-accent)" opacity="0.7"/>
+
+        <!-- Greeting -> Ask intent -->
+        <path d="M 590,195 C 650,195 660,270 710,270" stroke="#21273a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+        <!-- Ask -> Condition -->
+        <path d="M 930,270 C 990,270 1000,195 1050,195" stroke="#21273a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+        <!-- Condition -> Product (YES) -->
+        <path d="M 1270,165 C 1330,165 1340,110 1390,110" stroke="#10b981" stroke-width="2" fill="none" marker-end="url(#arrow-green)"/>
+        <!-- Condition -> Complaint (NO) -->
+        <path d="M 1270,225 C 1330,225 1340,340 1390,340" stroke="#f59e0b" stroke-width="2" fill="none" marker-end="url(#arrow-orange)"/>
+
+        <!-- Product -> AI Response -->
+        <path d="M 1610,110 C 1650,110 1660,195 1700,195" stroke="#21273a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        <!-- Complaint -> AI Response -->
+        <path d="M 1610,340 C 1650,340 1660,230 1700,230" stroke="#21273a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+
+        <!-- AI -> End -->
+        <path d="M 1920,215 C 1970,215 1980,290 2030,290" stroke="#21273a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+      </svg>
+
+      <!-- NODE 1: TRIGGER -->
+      <div class="node node-trigger selected" style="left:40px;top:110px">
+        <div class="node-in-port" style="display:none"></div>
+        <div class="node-header">
+          <span class="node-icon">⚡</span>
+          <span class="node-title">Trigger: Tin nhắn mới</span>
+          <span class="node-badge" style="background:rgba(0,212,255,0.15);color:var(--accent)">START</span>
+        </div>
+        <div class="node-body">
+          Kích hoạt khi <strong>khách gửi tin nhắn đầu tiên</strong> đến bất kỳ kênh nào.
+        </div>
+        <div class="node-ports">
+          <div class="port"><div class="port-dot" style="background:var(--accent)"></div>Kết nối tiếp theo →</div>
+        </div>
+        <div class="node-out-port"></div>
+      </div>
+
+      <!-- NODE 2: GREETING -->
+      <div class="node node-message" style="left:370px;top:150px">
+        <div class="node-in-port"></div>
+        <div class="node-header">
+          <span class="node-icon">💬</span>
+          <span class="node-title">Gửi tin nhắn chào</span>
+          <span class="node-badge" style="background:rgba(124,58,237,0.15);color:var(--purple)">MSG</span>
+        </div>
+        <div class="node-body">
+          "Xin chào! 👋 Mình là ZenBot. Bạn cần hỗ trợ gì?"
+        </div>
+        <div class="node-ports">
+          <div class="port"><div class="port-dot" style="background:var(--purple)"></div>Sau khi gửi →</div>
+        </div>
+        <div class="node-out-port"></div>
+      </div>
+
+      <!-- NODE 3: ASK INTENT -->
+      <div class="node node-message" style="left:710px;top:220px">
+        <div class="node-in-port"></div>
+        <div class="node-header">
+          <span class="node-icon">🎛️</span>
+          <span class="node-title">Quick Replies</span>
+          <span class="node-badge" style="background:rgba(124,58,237,0.15);color:var(--purple)">INPUT</span>
+        </div>
+        <div class="node-body">
+          <strong>Bạn muốn:</strong><br>
+          [🛍️ Mua hàng] [📦 Kiểm tra đơn] [🔄 Đổi trả]
+        </div>
+        <div class="node-ports">
+          <div class="port"><div class="port-dot" style="background:var(--purple)"></div>Sau khi chọn →</div>
+        </div>
+        <div class="node-out-port"></div>
+      </div>
+
+      <!-- NODE 4: CONDITION -->
+      <div class="node node-condition" style="left:1050px;top:145px">
+        <div class="node-in-port"></div>
+        <div class="node-header">
+          <span class="node-icon">🔀</span>
+          <span class="node-title">Điều kiện phân nhánh</span>
+          <span class="node-badge" style="background:rgba(245,158,11,0.15);color:var(--orange)">IF</span>
+        </div>
+        <div class="node-body">
+          Nếu <strong>intent = "mua hàng"</strong> → Nhánh A<br>
+          Ngược lại → Nhánh B
+        </div>
+        <div class="node-ports">
+          <div class="port"><div class="port-dot" style="background:var(--green)"></div>✅ Mua hàng (YES)</div>
+          <div class="port"><div class="port-dot" style="background:var(--orange)"></div>❌ Khác (NO)</div>
+        </div>
+        <div class="node-out-port" style="top:40%"></div>
+        <div class="node-out-port" style="top:70%"></div>
+      </div>
+
+      <!-- NODE 5A: PRODUCT -->
+      <div class="node node-action" style="left:1390px;top:55px">
+        <div class="node-in-port"></div>
+        <div class="node-header">
+          <span class="node-icon">🃏</span>
+          <span class="node-title">Hiển thị sản phẩm</span>
+          <span class="node-badge" style="background:rgba(16,185,129,0.15);color:var(--green)">ACTION</span>
+        </div>
+        <div class="node-body">
+          Gửi <strong>Carousel sản phẩm</strong> từ catalog. Kèm nút "Đặt ngay" và "Xem thêm".
+        </div>
+        <div class="node-ports">
+          <div class="port"><div class="port-dot" style="background:var(--green)"></div>Tiếp tục →</div>
+        </div>
+        <div class="node-out-port"></div>
+      </div>
+
+      <!-- NODE 5B: COMPLAINT -->
+      <div class="node node-ai" style="left:1390px;top:285px">
+        <div class="node-in-port"></div>
+        <div class="node-header">
+          <span class="node-icon">📚</span>
+          <span class="node-title">RAG Search</span>
+          <span class="node-badge" style="background:rgba(139,92,246,0.15);color:var(--purple)">AI</span>
+        </div>
+        <div class="node-body">
+          Tìm kiếm trong <strong>Knowledge Base</strong> về chính sách đổi trả, bảo hành.
+        </div>
+        <div class="node-ports">
+          <div class="port"><div class="port-dot" style="background:var(--purple)"></div>Trả lời →</div>
+        </div>
+        <div class="node-out-port"></div>
+      </div>
+
+      <!-- NODE 6: AI RESPONSE -->
+      <div class="node node-ai" style="left:1700px;top:165px">
+        <div class="node-in-port"></div>
+        <div class="node-header">
+          <span class="node-icon">🤖</span>
+          <span class="node-title">AI Response</span>
+          <span class="node-badge" style="background:rgba(139,92,246,0.15);color:var(--purple)">LLM</span>
+        </div>
+        <div class="node-body">
+          Gọi <strong>Claude AI</strong> để tạo phản hồi tự nhiên dựa trên context và KB.
+        </div>
+        <div class="node-ports">
+          <div class="port"><div class="port-dot" style="background:var(--purple)"></div>Hoàn thành →</div>
+          <div class="port"><div class="port-dot" style="background:var(--orange)"></div>⚠️ Tự tin thấp → Handoff</div>
+        </div>
+        <div class="node-out-port"></div>
+      </div>
+
+      <!-- NODE 7: END -->
+      <div class="node node-end" style="left:2030px;top:245px">
+        <div class="node-in-port"></div>
+        <div class="node-header">
+          <span class="node-icon">🏁</span>
+          <span class="node-title">Kết thúc Flow</span>
+          <span class="node-badge" style="background:rgba(244,63,94,0.15);color:var(--red)">END</span>
+        </div>
+        <div class="node-body">
+          Gắn tag <strong>"Đã tư vấn"</strong>. Lưu vào CRM. Chờ tin nhắn tiếp theo.
+        </div>
+        <div class="node-out-port" style="display:none"></div>
+      </div>
+
+    </div>
+
+    <!-- Zoom controls -->
+    <div class="zoom-controls">
+      <div class="zoom-btn">+</div>
+      <div class="zoom-btn" style="font-size:12px">⊡</div>
+      <div class="zoom-btn">−</div>
+      <div class="zoom-label">75%</div>
+    </div>
+
+    <!-- Minimap -->
+    <div class="minimap">
+      <div class="minimap-title">Tổng quan</div>
+      <svg width="160" height="80" style="display:block">
+        <rect x="8" y="30" width="16" height="10" rx="2" fill="#00d4ff" opacity="0.6"/>
+        <rect x="32" y="34" width="18" height="8" rx="2" fill="#7c3aed" opacity="0.5"/>
+        <rect x="58" y="36" width="18" height="8" rx="2" fill="#7c3aed" opacity="0.5"/>
+        <rect x="84" y="28" width="18" height="22" rx="2" fill="#f59e0b" opacity="0.5"/>
+        <rect x="110" y="20" width="16" height="8" rx="2" fill="#10b981" opacity="0.5"/>
+        <rect x="110" y="44" width="16" height="8" rx="2" fill="#8b5cf6" opacity="0.5"/>
+        <rect x="130" y="30" width="16" height="10" rx="2" fill="#8b5cf6" opacity="0.5"/>
+        <line x1="24" y1="35" x2="32" y2="38" stroke="#21273a" stroke-width="1"/>
+        <line x1="50" y1="38" x2="58" y2="40" stroke="#21273a" stroke-width="1"/>
+        <line x1="76" y1="37" x2="84" y2="37" stroke="#21273a" stroke-width="1"/>
+        <line x1="102" y1="30" x2="110" y2="24" stroke="#10b981" stroke-width="1"/>
+        <line x1="102" y1="44" x2="110" y2="48" stroke="#f59e0b" stroke-width="1"/>
+        <rect x="6" y="18" width="60" height="50" rx="3" fill="none" stroke="#00d4ff" stroke-width="1" opacity="0.4"/>
+      </svg>
+    </div>
+
+    <!-- Canvas hint -->
+    <div style="position:absolute;top:16px;left:50%;transform:translateX(-50%);background:rgba(0,212,255,0.07);border:1px solid rgba(0,212,255,0.2);border-radius:8px;padding:6px 16px;font-size:11px;color:#00d4ff;font-weight:600;pointer-events:none">
+      💡 Kéo node từ thư viện vào canvas • Click node để chỉnh sửa • Kéo cổng để kết nối
+    </div>
+  </div>
+
+  <!-- PROPERTIES PANEL -->
+  <div class="properties">
+    <div class="prop-header">
+      <span style="font-size:18px">🔀</span>
+      <h3>Điều kiện phân nhánh</h3>
+    </div>
+
+    <div class="prop-section">
+      <h4>Cơ bản</h4>
+      <div class="prop-field">
+        <label>Tên node</label>
+        <input class="prop-input" value="Phân nhánh theo Intent">
+      </div>
+      <div class="prop-field">
+        <label>Ghi chú</label>
+        <textarea class="prop-input prop-textarea">Phân nhánh dựa trên ý định của khách hàng từ Quick Reply</textarea>
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <h4>Điều kiện</h4>
+      <div class="condition-row">
+        <div class="cond-pill">
+          <span>intent</span>
+        </div>
+        <div class="cond-pill">
+          <span style="color:var(--accent)">==</span>
+        </div>
+        <div class="cond-pill">
+          <span style="color:var(--green)">"mua_hang"</span>
+        </div>
+      </div>
+      <div class="add-cond">
+        <span>+</span> Thêm điều kiện
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <h4>Nhánh kết quả</h4>
+      <div class="prop-field">
+        <label>✅ Nếu ĐÚNG → đi đến</label>
+        <select class="prop-select">
+          <option>💬 Hiển thị sản phẩm</option>
+        </select>
+      </div>
+      <div class="prop-field">
+        <label>❌ Nếu SAI → đi đến</label>
+        <select class="prop-select">
+          <option>📚 RAG Search</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="prop-section">
+      <h4>Thống kê node này</h4>
+    </div>
+    <div class="flow-stats">
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--accent)">1,204</div>
+        <div class="stat-label">Lượt qua</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--green)">68%</div>
+        <div class="stat-label">Nhánh A</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--orange)">32%</div>
+        <div class="stat-label">Nhánh B</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--purple)">0.3s</div>
+        <div class="stat-label">Avg delay</div>
+      </div>
+    </div>
+
+    <div style="padding:14px 16px">
+      <button class="tb-btn" style="width:100%;background:rgba(244,63,94,0.1);color:var(--red);border:1px solid rgba(244,63,94,0.3);font-size:12px;font-family:'Plus Jakarta Sans',sans-serif">🗑️ Xóa node này</button>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
