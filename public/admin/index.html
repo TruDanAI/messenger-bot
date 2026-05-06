@@ -1179,8 +1179,13 @@
             for (let i = 0; i < path.length; i++) {
                 const part = path[i];
                 if (i === path.length - 1) {
-                    current[part] = input.type === 'checkbox' ? input.checked : 
-                                  input.type === 'number' ? Number(input.value) : input.value;
+                    let val = input.value;
+                    if (input.type === 'checkbox') val = input.checked;
+                    else if (input.type === 'number') val = Number(input.value);
+                    else if (val === 'true') val = true;
+                    else if (val === 'false') val = false;
+                    
+                    current[part] = val;
                 } else {
                     current[part] = current[part] || {};
                     current = current[part];
@@ -1289,17 +1294,32 @@
         }
     }
 
+    function productImagePreviewHTML(value = '') {
+        const src = value.trim();
+        if (!src) return '<div style="width:36px;height:36px;background:rgba(255,255,255,0.05);border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--text-dim)"><i class="fas fa-image" style="font-size:12px"></i></div>';
+        
+        // Resolve path
+        const finalSrc = (src.startsWith('http') || src.startsWith('/')) ? src : `/media/${editingProductShopId}/${encodeURIComponent(src)}`;
+        return `<div style="width:36px;height:36px;border-radius:6px;overflow:hidden;border:1px solid var(--border)"><img src="${finalSrc}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='<i class=\'fas fa-circle-exclamation\'></i>'"></div>`;
+    }
+
     function renderProducts() {
         const tbody = document.getElementById('productTableBody');
         tbody.innerHTML = currentProducts.map((p, i) => `
             <tr>
-                <td><input class="form-input" name="code" value="${p.code||''}" style="padding:6px"></td>
-                <td><input class="form-input" name="price" value="${p.price||''}" style="padding:6px"></td>
-                <td><input class="form-input" name="description" value="${p.description||''}" style="padding:6px"></td>
-                <td><input class="form-input" name="size" value="${p.size||''}" style="padding:6px"></td>
-                <td><select class="form-select" name="preorder" style="padding:6px"><option value="">Có sẵn</option><option value="yes" ${p.preorder?'selected':''}>Order</option></select></td>
-                <td><input class="form-input" name="image" value="${p.image||''}" style="padding:6px"></td>
-                <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
+                <td><input class="form-input" name="code" value="${p.code||''}" style="padding:6px;font-size:12px"></td>
+                <td><input class="form-input" name="price" value="${p.price||''}" style="padding:6px;font-size:12px"></td>
+                <td><input class="form-input" name="description" value="${p.description||''}" style="padding:6px;font-size:12px"></td>
+                <td><input class="form-input" name="size" value="${p.size||''}" style="padding:6px;font-size:12px"></td>
+                <td><select class="form-select" name="preorder" style="padding:6px;font-size:12px"><option value="">Có sẵn</option><option value="yes" ${p.preorder?'selected':''}>Order</option></select></td>
+                <td>
+                    <div style="display:flex; align-items:center; gap:8px">
+                        ${productImagePreviewHTML(p.image || '')}
+                        <input class="form-input" name="image" value="${p.image||''}" style="padding:6px;font-size:12px;flex:1" oninput="this.previousElementSibling.outerHTML=productImagePreviewHTML(this.value)">
+                        <button class="btn btn-ghost btn-sm" style="padding:6px 10px" onclick="triggerProductUpload(this)"><i class="fas fa-upload" style="font-size:10px"></i></button>
+                    </div>
+                </td>
+                <td><button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent" onclick="this.closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
             </tr>
         `).join('');
     }
@@ -1307,7 +1327,21 @@
     function addProductRow() {
         const tbody = document.getElementById('productTableBody');
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td><input class="form-input" name="code" style="padding:6px"></td><td><input class="form-input" name="price" style="padding:6px"></td><td><input class="form-input" name="description" style="padding:6px"></td><td><input class="form-input" name="size" style="padding:6px"></td><td><select class="form-select" name="preorder" style="padding:6px"><option value="">Có sẵn</option><option value="yes">Order</option></select></td><td><input class="form-input" name="image" style="padding:6px"></td><td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()"><i class="fas fa-trash"></i></button></td>';
+        tr.innerHTML = `
+            <td><input class="form-input" name="code" style="padding:6px;font-size:12px"></td>
+            <td><input class="form-input" name="price" style="padding:6px;font-size:12px"></td>
+            <td><input class="form-input" name="description" style="padding:6px;font-size:12px"></td>
+            <td><input class="form-input" name="size" style="padding:6px;font-size:12px"></td>
+            <td><select class="form-select" name="preorder" style="padding:6px;font-size:12px"><option value="">Có sẵn</option><option value="yes">Order</option></select></td>
+            <td>
+                <div style="display:flex; align-items:center; gap:8px">
+                    ${productImagePreviewHTML('')}
+                    <input class="form-input" name="image" style="padding:6px;font-size:12px;flex:1" oninput="this.previousElementSibling.outerHTML=productImagePreviewHTML(this.value)">
+                    <button class="btn btn-ghost btn-sm" style="padding:6px 10px" onclick="triggerProductUpload(this)"><i class="fas fa-upload" style="font-size:10px"></i></button>
+                </div>
+            </td>
+            <td><button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:transparent" onclick="this.closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
+        `;
         tbody.appendChild(tr);
     }
 
@@ -1366,12 +1400,55 @@
 
     function copyToken() { navigator.clipboard.writeText(API_TOKEN); showToast('Đã copy token'); }
 
+    // --- UPLOAD LOGIC ---
+    let activeUploadInput = null;
+    function triggerProductUpload(btn) {
+        activeUploadInput = btn.parentElement.querySelector('input[name="image"]');
+        document.getElementById('productFileInput').click();
+    }
+    function triggerMenuUpload() {
+        activeUploadInput = document.getElementById('menuImagesInput');
+        document.getElementById('menuFileInput').click();
+    }
+
+    async function handleFileUpload(e, type='product') {
+        const file = e.target.files[0];
+        if (!file || !activeUploadInput) return;
+        
+        const shopId = type === 'product' ? editingProductShopId : (editingId || editingProductShopId);
+        if (!shopId) { showToast('Vui lòng lưu shop trước khi tải ảnh', 'info'); return; }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const url = `/api/admin/upload/${shopId}${type==='menu'?'?type=shop':''}`;
+        try {
+            const res = await fetchAdmin(url, { method: 'POST', body: formData });
+            if (res.ok) {
+                const data = await res.json();
+                const filename = type === 'menu' ? data.url : data.filename;
+                
+                if (type === 'menu') {
+                    activeUploadInput.value = activeUploadInput.value ? `${activeUploadInput.value}, ${filename}` : filename;
+                } else {
+                    activeUploadInput.value = filename;
+                    // Trigger preview update
+                    const preview = activeUploadInput.previousElementSibling;
+                    if (preview) preview.outerHTML = productImagePreviewHTML(filename);
+                }
+                showToast('Tải ảnh thành công!');
+            }
+        } catch(e) { showToast('Lỗi tải ảnh', 'error'); }
+        e.target.value = '';
+    }
+
     // --- INIT ---
     fetchShops();
     fetchLeads();
 </script>
 
-<input type="file" id="menuFileInput" style="display:none" onchange="showToast('Upload feature ready (Server-side handling)','info')">
+<input type="file" id="productFileInput" style="display:none" onchange="handleFileUpload(event, 'product')">
+<input type="file" id="menuFileInput" style="display:none" onchange="handleFileUpload(event, 'menu')">
 
 </body>
 </html>
