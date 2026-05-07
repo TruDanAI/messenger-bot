@@ -1,6 +1,8 @@
 require('dotenv').config();
 const { connectDB } = require('./core/db');
 const Shop = require('./core/models/Shop');
+const User = require('./core/models/User');
+const bcrypt = require('bcryptjs');
 const mongoose = require('mongoose');
 
 async function seedFirstShop() {
@@ -39,6 +41,27 @@ async function seedFirstShop() {
 
         await newShop.save();
         console.log('✅ Đã lưu Shop lên MongoDB Cloud thành công!');
+
+        const adminEmail = process.env.ADMIN_EMAIL || 'admin@zenbot.ai';
+        const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+        const passwordHash = await bcrypt.hash(adminPassword, 10);
+
+        await User.updateOne(
+            { email: adminEmail },
+            {
+                $set: {
+                    email: adminEmail,
+                    passwordHash,
+                    role: 'admin',
+                    shopIds: [],
+                    name: 'Administrator',
+                    isActive: true
+                }
+            },
+            { upsert: true }
+        );
+
+        console.log(`✅ Đã tạo/cập nhật tài khoản admin: ${adminEmail}`);
         console.log('=> Bạn có thể lên trang MongoDB Atlas để xem dữ liệu vừa được đẩy lên.');
 
     } catch (error) {

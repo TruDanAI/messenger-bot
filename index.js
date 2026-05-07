@@ -771,7 +771,7 @@ function normalizeProductPayload(item, shopId) {
     description: String(item?.description || '').trim(),
     size: String(item?.size || '').trim(),
     preorder: item?.preorder === true || ['true', 'yes', 'order', '1'].includes(preorderRaw),
-    image: String(item?.image || '').trim(),
+    image: String(item?.image || item?.imageFile || item?.image_file || '').trim(),
     stockCount: Number.isFinite(Number(item?.stockCount)) ? Number(item.stockCount) : 0,
     isActive: true
   };

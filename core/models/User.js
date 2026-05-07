@@ -18,9 +18,6 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index để tìm kiếm nhanh
-userSchema.index({ email: 1 });
-
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;

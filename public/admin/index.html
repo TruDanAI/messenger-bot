@@ -1621,7 +1621,7 @@ async function handleFileUpload(e, type = 'product') {
 
     const formData = new FormData();
     formData.append('file', file);
-    const url = `/api/admin/upload/${shopId}${type === 'menu' ? '?type=shop' : ''}`;
+    const url = `/api/admin/upload/${shopId}`;
 
     try {
         // FIX: sử dụng fetchAdminFile để không override Content-Type

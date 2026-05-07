@@ -26,7 +26,7 @@ async function getProductsForShop(shopId, csvPath) {
         description: r.description,
         size: r.size,
         preorder: String(r.preorder).toLowerCase() === 'true',
-        image: r.image
+        image: r.image || r.imageFile || r.image_file || ''
       }));
 
       if (toInsert.length > 0) {
