@@ -706,7 +706,7 @@
                     <i class="fas fa-images" style="margin-right:6px"></i>Ảnh Menu / Bảng giá
                 </div>
                 <div style="display:flex;gap:10px">
-                    <input class="form-input" id="menuImagesInput" placeholder="URL ảnh, cách nhau bởi dấu phẩy…">
+                    <input class="form-input" id="productMenuImagesInput" placeholder="URL ảnh, cách nhau bởi dấu phẩy…">
                     <button class="btn btn-ghost" onclick="triggerMenuUpload()"><i class="fas fa-upload"></i></button>
                 </div>
             </div>
@@ -918,7 +918,7 @@
             <!-- Nhóm 6: Ảnh Menu -->
             <div class="form-section-group">
                 <div class="form-section-label">Ảnh Menu & Catalog</div>
-                <input class="form-input" name="menuImages" id="menuImagesInput" placeholder="Danh sách URL ảnh, cách nhau bởi dấu phẩy…">
+                <input class="form-input" name="menuImages" id="shopMenuImagesInput" placeholder="Danh sách URL ảnh, cách nhau bởi dấu phẩy…">
             </div>
 
             <!-- Nhóm 7: JSON nâng cao -->
@@ -969,7 +969,8 @@ function logout() {
 // Global tenant context (shopId from URL or localStorage)
 window.currentShopId = new URLSearchParams(window.location.search).get('shopId')
     || localStorage.getItem('zenbot_current_shop_id')
-    || 'all';
+    || (USER_DATA.role === 'admin' ? 'all' : (USER_DATA.shopIds || [])[0])
+    || '';
 
 let currentShops = [], currentLeads = [], currentProducts = [];
 let editingId = null, editingProductShopId = null, activeUploadInput = null;
@@ -1024,9 +1025,15 @@ function changeShop(shopId) {
 function updateShopSelector() {
     const sel = document.getElementById('globalShopSelector');
     sel.innerHTML = USER_DATA.role === 'admin' ? '<option value="all">Tất cả Shop</option>' : '';
-    currentShops
-        .filter(s => USER_DATA.role === 'admin' || (USER_DATA.shopIds || []).includes(s._id))
-        .forEach(s => {
+    const allowedShops = currentShops
+        .filter(s => USER_DATA.role === 'admin' || (USER_DATA.shopIds || []).includes(s._id));
+
+    if (USER_DATA.role !== 'admin' && (!window.currentShopId || window.currentShopId === 'all')) {
+        window.currentShopId = allowedShops[0]?._id || '';
+        if (window.currentShopId) localStorage.setItem('zenbot_current_shop_id', window.currentShopId);
+    }
+
+    allowedShops.forEach(s => {
             const opt = document.createElement('option');
             opt.value = s._id; opt.textContent = s.name;
             if (s._id === window.currentShopId) opt.selected = true;
@@ -1108,6 +1115,10 @@ async function fetchShops() {
         const res = await fetchAdmin('/api/admin/shops');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         currentShops = await res.json();
+        if (USER_DATA.role !== 'admin' && (!window.currentShopId || window.currentShopId === 'all')) {
+            window.currentShopId = currentShops[0]?._id || '';
+            if (window.currentShopId) localStorage.setItem('zenbot_current_shop_id', window.currentShopId);
+        }
         renderShops();
         updateStats();
         updateShopSelector();
@@ -1274,6 +1285,8 @@ function exportLeadsCsv() {
 function openProducts(id, name) {
     editingProductShopId = id;
     document.getElementById('productShopName').textContent = name;
+    const shop = currentShops.find(s => s._id === id);
+    document.getElementById('productMenuImagesInput').value = (shop?.menu_images || []).join(', ');
     switchView('productView', null);
     fetchProducts();
 }
@@ -1343,19 +1356,36 @@ function addProductRow() {
 }
 
 async function saveProducts() {
+    if (!editingProductShopId) {
+        showToast('Vui lòng chọn shop trước khi lưu sản phẩm.', 'info');
+        return;
+    }
+
     const rows = document.querySelectorAll('#productTableBody tr');
     const data = Array.from(rows).map(row => {
         const p = {};
         row.querySelectorAll('[name]').forEach(el => { p[el.name] = el.value; });
         return p;
     }).filter(p => p.code?.trim());
+    const menuImages = document.getElementById('productMenuImagesInput').value
+        .split(',').map(s => s.trim()).filter(Boolean);
 
     try {
-        const res = await fetchAdmin(`/api/admin/products/${editingProductShopId}`, {
+        const [productRes, shopRes] = await Promise.all([
+          fetchAdmin(`/api/admin/products/${editingProductShopId}`, {
             method: 'POST',
             body: JSON.stringify(data)
-        });
-        if (res.ok) showToast('Đã lưu sản phẩm thành công!');
+          }),
+          fetchAdmin(`/api/admin/shops/${editingProductShopId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ menu_images: menuImages })
+          })
+        ]);
+        if (productRes.ok && shopRes.ok) {
+            const shop = currentShops.find(s => s._id === editingProductShopId);
+            if (shop) shop.menu_images = menuImages;
+            showToast('Đã lưu sản phẩm và ảnh menu thành công!');
+        }
         else showToast('Lỗi lưu sản phẩm.', 'error');
     } catch(e) { showToast('Lỗi mạng.', 'error'); }
 }
@@ -1437,7 +1467,7 @@ function editShop(id) {
     document.getElementById('shopId').disabled = true;
     populateForm(shop);
     selectPlan(shop.plan || 'BASIC');
-    document.getElementById('menuImagesInput').value = (shop.menu_images || []).join(', ');
+    document.getElementById('shopMenuImagesInput').value = (shop.menu_images || []).join(', ');
     document.getElementById('saasDataJSON').value = JSON.stringify({
         recommendations:  shop.recommendations  || {},
         keywordProducts:  shop.keywordProducts  || {},
@@ -1487,7 +1517,7 @@ async function handleSubmit(e) {
     }
 
     // Merge menu images
-    payload.menu_images = document.getElementById('menuImagesInput').value
+    payload.menu_images = document.getElementById('shopMenuImagesInput').value
         .split(',').map(s => s.trim()).filter(Boolean);
 
     try {
@@ -1568,7 +1598,7 @@ function triggerProductUpload(btn) {
     document.getElementById('productFileInput').click();
 }
 function triggerMenuUpload() {
-    activeUploadInput = document.getElementById('menuImagesInput');
+    activeUploadInput = document.getElementById('productMenuImagesInput');
     document.getElementById('menuFileInput').click();
 }
 
@@ -1633,7 +1663,11 @@ function showToast(msg, type = 'success') {
     const colors = { success: 'var(--green)', error: 'var(--red)', info: 'var(--accent2)' };
     const t = document.createElement('div');
     t.className = `toast ${type}`;
-    t.innerHTML = `<i class="fas ${icons[type] || icons.success}" style="color:${colors[type] || colors.success}"></i> ${msg}`;
+    const icon = document.createElement('i');
+    icon.className = `fas ${icons[type] || icons.success}`;
+    icon.style.color = colors[type] || colors.success;
+    t.appendChild(icon);
+    t.appendChild(document.createTextNode(` ${msg}`));
     document.getElementById('toast-container').appendChild(t);
     setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 420); }, 3200);
 }

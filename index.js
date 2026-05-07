@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const sharp = require('sharp');
-const { parse } = require('csv-parse/sync');
+const axios = require('axios');
 const { connectDB } = require('./core/db');
 const { messageQueue, connection: redisConnection } = require('./core/queue');
 const { startSheetOutboxWorker, stopSheetOutboxWorker } = require('./core/sheets-webhook');
@@ -16,10 +16,20 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Shop = require('./core/models/Shop');
 const Lead = require('./core/models/Lead');
+const Product = require('./core/models/Product');
+const MessageLog = require('./core/models/MessageLog');
 const User = require('./core/models/User');
 const chatWorker = require('./core/worker'); 
 
-const JWT_SECRET = process.env.JWT_SECRET || 'zenbot_super_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  const message = 'JWT_SECRET is required. Set it in Railway Variables before starting the app.';
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(message);
+  }
+  console.warn(`⚠️ ${message} Using a local development fallback.`);
+}
+const EFFECTIVE_JWT_SECRET = JWT_SECRET || 'zenbot_local_dev_secret';
 
 // Lazy-load processor để lấy IMAGE_INDEX (tránh circular load)
 const processor = require('./core/processor');
@@ -208,7 +218,6 @@ function inferBaseUrlFromRequest(req) {
 
 // Fix SHOPS_DIR to absolute path on Railway Volume /data
 const SHOPS_DIR = process.env.SHOPS_DIR || (fs.existsSync('/data') ? '/data/shops' : path.join(__dirname, 'shops'));
-app.use('/static', express.static('/data'));
 
 // Đảm bảo thư mục assets luôn tồn tại để tránh lỗi serve
 const ASSETS_DIR = path.join(__dirname, 'assets');
@@ -441,6 +450,18 @@ function requireValidShopId(req, res, next) {
   next();
 }
 
+function getRequestedShopScope(req) {
+  const pathname = String(req.originalUrl || req.url || '').split('?')[0];
+  if (req.params?.shopId) return req.params.shopId;
+  if (pathname === '/api/admin/shops' && req.method === 'POST') {
+    return req.body?._id || req.body?.shopId || req.query?.shopId;
+  }
+  if (pathname.startsWith('/api/admin/shops/') && req.params?.id) {
+    return req.params.id;
+  }
+  return req.body?.shopId || req.query?.shopId;
+}
+
 // ========== AUTHENTICATION & AUTHORIZATION ==========
 const adminAuth = (req, res, next) => {
   const authHeader = req.headers['authorization'] || req.headers['x-admin-token'] || req.query.token;
@@ -457,11 +478,11 @@ const adminAuth = (req, res, next) => {
       return next();
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET);
     req.user = decoded;
 
     // Check Authorization (Multi-tenant check)
-    const requestedShopId = req.query.shopId || req.body.shopId || req.params.shopId;
+    const requestedShopId = getRequestedShopScope(req);
     
     // Nếu là platform admin, cho phép tất cả
     if (req.user.role === 'admin') return next();
@@ -493,7 +514,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = jwt.sign(
       { userId: user._id, email: user.email, role: user.role, shopIds: user.shopIds },
-      JWT_SECRET,
+      EFFECTIVE_JWT_SECRET,
       { expiresIn: '24h' }
     );
 
@@ -508,7 +529,10 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/admin/shops', adminAuth, async (req, res) => {
   try {
-    const shops = await Shop.find().sort({ createdAt: -1 }).lean();
+    const filter = req.user?.role === 'admin'
+      ? {}
+      : { _id: { $in: req.user?.shopIds || [] } };
+    const shops = await Shop.find(filter).sort({ createdAt: -1 }).lean();
     res.json(shops.map(sanitizeShop));
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -587,16 +611,195 @@ app.get('/api/admin/leads', adminAuth, async (req, res) => {
   }
 });
 
-// ========== PRODUCT MANAGEMENT ==========
-app.get('/api/admin/products/:shopId', adminAuth, requireValidShopId, (req, res) => {
+// ========== LIVE CHAT ==========
+const LIVECHAT_HANDOFF_MS = Number(process.env.LIVECHAT_HANDOFF_MS) || 60 * 60 * 1000;
+
+function livechatStateKey(shopId, senderId) {
+  return `${shopId}:${senderId}`;
+}
+
+async function persistLivechatState(stateKey) {
+  await storage.saveUserToRedis(stateKey, redisConnection).catch(err => {
+    console.error('❌ Lỗi lưu handoff livechat vào Redis:', err.message);
+  });
+}
+
+async function updateLivechatHandoff(stateKey, enabled) {
+  await storage.loadUserFromRedis(stateKey, redisConnection);
+  storage.setHandoff(stateKey, enabled ? Date.now() + LIVECHAT_HANDOFF_MS : 0);
+  await persistLivechatState(stateKey);
+}
+
+app.get('/api/admin/livechat/:shopId/conversations', adminAuth, requireValidShopId, async (req, res) => {
   try {
-    const file = path.join(SHOPS_DIR, req.params.shopId, 'products.csv');
-    if (!fs.existsSync(file)) return res.json([]);
-    const csv = fs.readFileSync(file, 'utf8');
-    const records = parse(csv, { columns: true, skip_empty_lines: true, relax_column_count: true });
-    res.json(records);
+    const { shopId } = req.params;
+    const latestLogs = await MessageLog.aggregate([
+      { $match: { shopId } },
+      { $sort: { timestamp: -1, createdAt: -1 } },
+      {
+        $group: {
+          _id: '$userId',
+          lastMessage: { $first: '$text' },
+          lastRole: { $first: '$role' },
+          lastIntent: { $first: '$intent' },
+          lastAt: { $first: '$timestamp' },
+          messageCount: { $sum: 1 }
+        }
+      },
+      { $sort: { lastAt: -1 } },
+      { $limit: 100 }
+    ]);
+
+    const senderIds = latestLogs.map(item => item._id);
+    const leads = await Lead.find({ shopId, senderId: { $in: senderIds } }).lean();
+    const leadBySender = new Map(leads.map(lead => [lead.senderId, lead]));
+
+    res.json(latestLogs.map(item => {
+      const lead = leadBySender.get(item._id) || {};
+      const stateKey = livechatStateKey(shopId, item._id);
+      return {
+        senderId: item._id,
+        name: lead.name || '',
+        phone: lead.phone || '',
+        address: lead.address || '',
+        productCode: lead.productCode || '',
+        status: lead.status || 'new',
+        lastMessage: item.lastMessage || '',
+        lastRole: item.lastRole || '',
+        lastIntent: item.lastIntent || '',
+        lastAt: item.lastAt,
+        messageCount: item.messageCount,
+        inHandoff: storage.inHandoff(stateKey)
+      };
+    }));
   } catch (err) {
-    res.status(500).json({ message: 'Lỗi đọc file sản phẩm: ' + err.message });
+    res.status(500).json({ message: 'Lỗi tải hội thoại: ' + err.message });
+  }
+});
+
+app.get('/api/admin/livechat/:shopId/conversations/:senderId', adminAuth, requireValidShopId, async (req, res) => {
+  try {
+    const { shopId, senderId } = req.params;
+    const [lead, messages] = await Promise.all([
+      Lead.findOne({ shopId, senderId }).lean(),
+      MessageLog.find({ shopId, userId: senderId })
+        .sort({ timestamp: 1, createdAt: 1 })
+        .limit(200)
+        .lean()
+    ]);
+    const stateKey = livechatStateKey(shopId, senderId);
+    res.json({
+      senderId,
+      lead: lead || null,
+      inHandoff: storage.inHandoff(stateKey),
+      messages: messages.map(msg => ({
+        id: msg._id,
+        role: msg.role,
+        text: msg.text,
+        intent: msg.intent || '',
+        timestamp: msg.timestamp || msg.createdAt
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi tải lịch sử chat: ' + err.message });
+  }
+});
+
+app.post('/api/admin/livechat/:shopId/conversations/:senderId/handoff', adminAuth, requireValidShopId, async (req, res) => {
+  try {
+    const { shopId, senderId } = req.params;
+    const enabled = req.body?.enabled !== false;
+    const stateKey = livechatStateKey(shopId, senderId);
+    await updateLivechatHandoff(stateKey, enabled);
+    res.json({ ok: true, inHandoff: enabled });
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi cập nhật handoff: ' + err.message });
+  }
+});
+
+app.post('/api/admin/livechat/:shopId/conversations/:senderId/messages', adminAuth, requireValidShopId, async (req, res) => {
+  try {
+    const { shopId, senderId } = req.params;
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ message: 'Tin nhắn không được trống' });
+
+    const shop = await Shop.findById(shopId);
+    const token = shop?.credentials?.fbPageToken;
+    if (!shop || !shop.isActive) return res.status(404).json({ message: 'Shop không tồn tại hoặc đã tắt' });
+    if (!token) return res.status(400).json({ message: 'Shop chưa có FB Page Token' });
+
+    const stateKey = livechatStateKey(shopId, senderId);
+    await storage.loadUserFromRedis(stateKey, redisConnection);
+    storage.setHandoff(stateKey, Date.now() + LIVECHAT_HANDOFF_MS);
+
+    await axios.post(`https://graph.facebook.com/v19.0/me/messages?access_token=${token}`, {
+      recipient: { id: senderId },
+      message: { text }
+    }, { timeout: 10000 });
+
+    storage.appendHistory(stateKey, { role: 'bot', text });
+    await MessageLog.create({
+      shopId,
+      userId: senderId,
+      role: 'model',
+      text,
+      intent: 'HUMAN_ADMIN',
+      timestamp: new Date()
+    });
+    await Lead.updateOne(
+      { shopId, senderId },
+      { $set: { lastInteractionAt: new Date(), handledBy: 'human', text } },
+      { upsert: true }
+    );
+    await persistLivechatState(stateKey);
+
+    res.json({ ok: true, inHandoff: true });
+  } catch (err) {
+    const detail = err.response?.data?.error?.message || err.response?.data?.message || err.message;
+    res.status(500).json({ message: 'Lỗi gửi tin nhắn: ' + detail });
+  }
+});
+
+function normalizeProductPayload(item, shopId) {
+  const code = String(item?.code || '').trim().toUpperCase();
+  const preorderRaw = String(item?.preorder ?? '').trim().toLowerCase();
+  return {
+    shopId,
+    code,
+    name: String(item?.name || code).trim() || code,
+    price: String(item?.price || '').trim(),
+    description: String(item?.description || '').trim(),
+    size: String(item?.size || '').trim(),
+    preorder: item?.preorder === true || ['true', 'yes', 'order', '1'].includes(preorderRaw),
+    image: String(item?.image || '').trim(),
+    stockCount: Number.isFinite(Number(item?.stockCount)) ? Number(item.stockCount) : 0,
+    isActive: true
+  };
+}
+
+function serializeProduct(product) {
+  const raw = typeof product.toObject === 'function' ? product.toObject() : product;
+  return {
+    code: raw.code || '',
+    name: raw.name || raw.code || '',
+    price: raw.price || '',
+    description: raw.description || '',
+    size: raw.size || '',
+    preorder: Boolean(raw.preorder),
+    image: raw.image || '',
+    stockCount: raw.stockCount || 0
+  };
+}
+
+// ========== PRODUCT MANAGEMENT ==========
+app.get('/api/admin/products/:shopId', adminAuth, requireValidShopId, async (req, res) => {
+  try {
+    const csvPath = path.join(SHOPS_DIR, req.params.shopId, 'products.csv');
+    const { getProductsForShop } = require('./core/products');
+    const products = await getProductsForShop(req.params.shopId, csvPath);
+    res.json(products.map(serializeProduct));
+  } catch (err) {
+    res.status(500).json({ message: 'Lỗi đọc sản phẩm: ' + err.message });
   }
 });
 
@@ -824,25 +1027,53 @@ app.post('/api/admin/upload/:shopId', uploadRateLimit, adminAuth, requireValidSh
   }
 });
 
-app.post('/api/admin/products/:shopId', adminAuth, requireValidShopId, (req, res) => {
+app.post('/api/admin/products/:shopId', adminAuth, requireValidShopId, async (req, res) => {
   try {
-    const file = path.join(SHOPS_DIR, req.params.shopId, 'products.csv');
-    const dir = path.dirname(file);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    
-    const csvContent = jsonToCsv(req.body);
-    fs.writeFileSync(file, csvContent, 'utf8');
-
-    // Xóa cache của shop này để bot cập nhật dữ liệu mới ngay lập tức
-    const { RUNTIME_CACHE } = require('./core/processor');
-    if (RUNTIME_CACHE) {
-      RUNTIME_CACHE.delete(req.params.shopId);
-      console.log(`♻️  Đã clear cache cho shop: ${req.params.shopId} (do cập nhật sản phẩm)`);
+    if (!Array.isArray(req.body)) {
+      return res.status(400).json({ message: 'Payload sản phẩm phải là một mảng' });
     }
 
-    res.json({ message: 'Đã lưu sản phẩm thành công' });
+    const shopId = req.params.shopId;
+    const products = req.body
+      .map(item => normalizeProductPayload(item, shopId))
+      .filter(item => item.code);
+
+    const seen = new Set();
+    const uniqueProducts = products.filter(item => {
+      if (seen.has(item.code)) return false;
+      seen.add(item.code);
+      return true;
+    });
+
+    if (uniqueProducts.length) {
+      await Product.bulkWrite(uniqueProducts.map(item => ({
+        updateOne: {
+          filter: { shopId, code: item.code },
+          update: { $set: item },
+          upsert: true
+        }
+      })), { ordered: false });
+    }
+
+    await Product.updateMany(
+      { shopId, code: { $nin: uniqueProducts.map(item => item.code) } },
+      { $set: { isActive: false } }
+    );
+
+    // CSV chỉ còn là bản backup/import legacy; MongoDB là nguồn dữ liệu chính của dashboard.
+    const file = path.join(SHOPS_DIR, shopId, 'products.csv');
+    const dir = path.dirname(file);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    const csvContent = jsonToCsv(uniqueProducts.map(serializeProduct));
+    fs.writeFileSync(file, csvContent, 'utf8');
+
+    clearRuntimeCache(shopId);
+    console.log(`♻️  Đã clear cache cho shop: ${shopId} (do cập nhật sản phẩm)`);
+
+    res.json({ message: 'Đã lưu sản phẩm thành công', count: uniqueProducts.length });
   } catch (err) {
-    res.status(500).json({ message: 'Lỗi ghi file sản phẩm: ' + err.message });
+    res.status(500).json({ message: 'Lỗi lưu sản phẩm: ' + err.message });
   }
 });
 

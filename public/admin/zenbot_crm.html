@@ -562,6 +562,7 @@ Dùng mã: JULY30 để được giảm thêm 10% khi thanh toán online.
     }
 
     let customers = [];
+    let campaigns = [];
     let selected = new Set();
     const channelIcon = { fb: '📘', zalo: '🟦', web: '🌐' };
 
@@ -624,6 +625,20 @@ Dùng mã: JULY30 để được giảm thêm 10% khi thanh toán online.
         }
     }
 
+    async function fetchCampaigns() {
+        try {
+            const res = await fetch(`/api/admin/campaigns?shopId=${encodeURIComponent(shopId)}`, {
+                headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            campaigns = await res.json();
+            renderCampaigns();
+        } catch (e) {
+            console.error('Campaign Fetch Error:', e);
+            showToast('Không thể tải chiến dịch', 'error');
+        }
+    }
+
     // --- RENDERERS ---
     function renderCustomers(list) {
         const tbody = document.getElementById('customerTbody');
@@ -673,6 +688,41 @@ Dùng mã: JULY30 để được giảm thêm 10% khi thanh toán online.
         // Lưu ý: Trong iFrame, sidebar này thường bị ẩn nếu dùng layout của index.html
     }
 
+    function renderFunnel() {
+        updateFunnelCounts();
+    }
+
+    function renderCampaigns() {
+        const grid = document.getElementById('campaignGrid');
+        if (!grid) return;
+        if (!campaigns.length) {
+            grid.innerHTML = '<div style="grid-column:1/-1;padding:28px;text-align:center;color:var(--muted);background:var(--white);border:1px solid var(--border);border-radius:12px">Chưa có chiến dịch nào. Hãy tạo chiến dịch đầu tiên ở tab Soạn tin nhắn.</div>';
+            return;
+        }
+        grid.innerHTML = campaigns.map(c => {
+            const statusClass = c.status === 'done' ? 'cs-done' : c.status === 'scheduled' ? 'cs-scheduled' : c.status === 'sending' ? 'cs-live' : 'cs-draft';
+            return `
+            <div class="campaign-card">
+              <div class="campaign-header">
+                <div>
+                  <div class="campaign-title">${escapeHtml(c.name || 'Chiến dịch')}</div>
+                  <div class="campaign-sub">${escapeHtml(c.type || 'PROMO')} · ${formatRelativeTime(c.createdAt)}</div>
+                </div>
+                <span class="campaign-status ${statusClass}">${escapeHtml(c.status || 'draft')}</span>
+              </div>
+              <div class="campaign-body">
+                <div class="campaign-stats">
+                  <div class="cstat"><div class="cstat-val">${c.sentCount || 0}</div><div class="cstat-label">Đã gửi</div></div>
+                  <div class="cstat"><div class="cstat-val">${c.successCount || 0}</div><div class="cstat-label">Thành công</div></div>
+                  <div class="cstat"><div class="cstat-val">${c.errorCount || 0}</div><div class="cstat-label">Lỗi</div></div>
+                  <div class="cstat"><div class="cstat-val">${selected.size || 0}</div><div class="cstat-label">Đang chọn</div></div>
+                </div>
+                <div class="campaign-meta"><span>📍 ${escapeHtml(c.shopId || shopId)}</span><span>🕐 ${new Date(c.updatedAt || c.createdAt).toLocaleDateString('vi-VN')}</span></div>
+              </div>
+            </div>`;
+        }).join('');
+    }
+
     // --- INTERACTION ---
     function switchTab(tab, el) {
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -684,7 +734,7 @@ Dùng mã: JULY30 để được giảm thêm 10% khi thanh toán online.
         });
         
         if (tab === 'funnel') renderFunnel();
-        if (tab === 'campaigns') renderCampaigns();
+        if (tab === 'campaigns') fetchCampaigns();
     }
 
     function toggleCheck(i, el) {
@@ -708,8 +758,68 @@ Dùng mã: JULY30 để được giảm thêm 10% khi thanh toán online.
         document.getElementById('previewBubble').innerHTML = preview.replace(/\n/g,'<br>').substring(0, 200) + '...';
     }
 
+    function selectAll() {
+        selected = new Set(customers.map((_, i) => i));
+        renderCustomers(customers);
+        updateSelectedUI();
+    }
+
+    function openNewCustomer() {
+        showToast('Chức năng thêm khách thủ công chưa có API lưu Lead. Dữ liệu khách hiện lấy từ hội thoại Messenger.', 'info');
+    }
+
+    async function sendCampaign() {
+        if (!shopId || shopId === 'all') {
+            showToast('Vui lòng chọn một shop cụ thể trước khi tạo chiến dịch.', 'error');
+            return;
+        }
+        const name = document.getElementById('campaignName').value.trim() || `Chiến dịch ${new Date().toLocaleDateString('vi-VN')}`;
+        const messageTemplate = document.getElementById('msgContent').value.trim();
+        if (!messageTemplate) {
+            showToast('Vui lòng nhập nội dung tin nhắn.', 'error');
+            return;
+        }
+        try {
+            const res = await fetch('/api/admin/campaigns', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API_TOKEN}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    shopId,
+                    name,
+                    type: 'PROMO',
+                    status: 'draft',
+                    segmentQuery: selected.size
+                        ? { senderId: { $in: [...selected].map(i => customers[i]?.senderId).filter(Boolean) } }
+                        : {},
+                    messageTemplate
+                })
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.message || `HTTP ${res.status}`);
+            }
+            showToast('Đã lưu chiến dịch ở trạng thái draft.');
+            switchTab('campaigns', document.querySelectorAll('.tab')[2]);
+        } catch (e) {
+            showToast('Lỗi tạo chiến dịch: ' + e.message, 'error');
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        const prefix = type === 'error' ? 'Lỗi: ' : '';
+        alert(prefix + message);
+    }
+
+    function escapeHtml(str) {
+        return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     // --- INIT ---
     fetchLeads();
+    fetchCampaigns();
     updatePreview();
 </script>
 </body>
